@@ -123,7 +123,7 @@ export function DashboardPage() {
             <RecentNoticesPanel notices={recentNotices} unread={unread} />
           </div>
         </div>
-        <div className="order-first min-w-0 lg:sticky lg:top-20 lg:order-none lg:col-span-5 xl:col-span-4">
+        <div className="order-first min-w-0 lg:sticky lg:top-[8.5rem] lg:order-none lg:col-span-5 xl:col-span-4">
           <SmartAlerts side />
         </div>
       </div>

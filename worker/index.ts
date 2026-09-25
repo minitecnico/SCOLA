@@ -61,7 +61,13 @@ app.post('/api/auth/login', async (c) => {
   const db = c.env.DB;
   await assertNotLocked(db, email);
   const user = await first<UserRow>(db, 'SELECT * FROM users WHERE email = ?', email);
-  if (!user || !(await verifyPassword(password, user.password_hash))) {
+  // Senha copiada do WhatsApp/e-mail costuma vir com espaço no fim: tenta também sem os espaços das pontas.
+  let matched: string | null = null;
+  if (user) {
+    if (await verifyPassword(password, user.password_hash)) matched = password;
+    else if (password.trim() !== password && (await verifyPassword(password.trim(), user.password_hash))) matched = password.trim();
+  }
+  if (!matched) {
     await recordFailure(db, email);
     fail('E-mail ou senha incorretos.', 401);
   }
@@ -69,7 +75,7 @@ app.post('/api/auth/login', async (c) => {
   // Contas migradas (bcrypt) ou com custo antigo ganham hash novo, de forma transparente.
   const it = iterationsFor(c.env);
   if (needsRehash(user!.password_hash, it)) {
-    await run(db, 'UPDATE users SET password_hash = ? WHERE id = ?', await hashPassword(password, it), user!.id);
+    await run(db, 'UPDATE users SET password_hash = ? WHERE id = ?', await hashPassword(matched!, it), user!.id);
   }
   const { token, maxAge } = await createSession(db, user!.id);
   setCookie(c, SESSION_COOKIE, token, {

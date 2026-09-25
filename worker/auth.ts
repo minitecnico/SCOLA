@@ -70,7 +70,8 @@ export const needsRehash = (stored: string, iterations: number) =>
   !stored.startsWith('pbkdf2$') || Number(stored.split('$')[1]) !== iterations;
 
 export function validatePassword(pw: string) {
-  if (typeof pw !== 'string' || pw.length < 6) fail('A senha precisa de pelo menos 6 caracteres.');
+  if (typeof pw !== 'string' || pw.trim() !== pw) fail('A senha não pode começar nem terminar com espaço.');
+  if (pw.length < 6) fail('A senha precisa de pelo menos 6 caracteres.');
   if (pw.length > 200) fail('Senha longa demais.');
 }
 

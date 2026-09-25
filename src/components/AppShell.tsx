@@ -226,7 +226,7 @@ function useCounts() {
   return { unread, planUnread: Object.values(planMap).reduce((a, b) => a + b, 0) };
 }
 
-function TopHeader() {
+function TopHeader({ onMenu }: { onMenu: () => void }) {
   const { user, profile, role, activeBase, isSuperadmin, switchOrg, signOut } = useAuth();
   const navigate = useNavigate();
   const { unread } = useCounts();
@@ -234,12 +234,20 @@ function TopHeader() {
   const first = name.split(' ')[0];
   return (
     <div className="border-b border-border bg-card">
-      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-6">
+      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-2 px-3 sm:gap-4 sm:px-6">
+        <button
+          onClick={onMenu}
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          aria-label="Abrir menu"
+          title="Menu"
+        >
+          <Menu size={21} />
+        </button>
         <NavLink to={activeBase ? '/' : '/admin'} className="shrink-0" aria-label="Início">
-          <Logo compact height={30} />
+          <Logo compact height={28} />
         </NavLink>
         {activeBase ? (
-          <div className="flex min-w-0 items-center gap-2.5 border-l border-border pl-4">
+          <div className="hidden min-w-0 items-center gap-2.5 border-l border-border pl-4 md:flex">
             {activeBase.logo_url ? <img src={activeBase.logo_url} alt="" className="h-8 w-8 shrink-0 rounded-md object-contain" /> : null}
             <p className="truncate text-sm font-semibold text-foreground">{activeBase.name}</p>
             {isSuperadmin ? (
@@ -257,7 +265,11 @@ function TopHeader() {
           </div>
         ) : null}
         <div className="ml-auto flex items-center gap-2">
-          {!isSuperadmin ? <HeaderBaseSwitcher /> : null}
+          {!isSuperadmin ? (
+            <div className="hidden md:block">
+              <HeaderBaseSwitcher />
+            </div>
+          ) : null}
           {activeBase ? (
             <NavLink to="/avisos" className="relative grid h-10 w-10 place-items-center rounded-lg text-foreground hover:bg-muted" aria-label="Avisos">
               <Bell size={19} />
@@ -409,14 +421,16 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Desktop: cabeçalho branco + barra de menu escura */}
-      <div className="sticky top-0 z-40 hidden shadow-sm lg:block">
-        <TopHeader />
-        <TopNav />
+      {/* Cabeçalho branco com menu sanduíche (todas as telas) + barra de menu escura (desktop) */}
+      <div className="sticky top-0 z-40 shadow-sm">
+        <TopHeader onMenu={() => setOpen(true)} />
+        <div className="hidden lg:block">
+          <TopNav />
+        </div>
       </div>
 
       <Transition show={open} as={Fragment}>
-        <Dialog className="relative z-50 lg:hidden" onClose={() => setOpen(false)}>
+        <Dialog className="relative z-50" onClose={() => setOpen(false)}>
           <TransitionChild as={Fragment} enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0">
             <div className="fixed inset-0 bg-black/60" />
           </TransitionChild>
@@ -446,12 +460,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       </Transition>
 
       <div>
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-white/10 bg-neutral-950 px-4 py-3 text-white lg:hidden">
-          <button onClick={() => setOpen(true)} className="grid h-10 w-10 place-items-center rounded-lg bg-white/[0.06]" aria-label="Abrir menu">
-            <Menu size={20} />
-          </button>
-          <Logo variant="dark" compact />
-        </header>
         {!online ? (
           <div className="no-print bg-brand px-4 py-2 text-center text-sm font-semibold text-neutral-950">
             Você está sem internet. As alterações só serão salvas quando a conexão voltar.

@@ -96,32 +96,50 @@ ${parts.join('\n')}
 </svg>`;
 }
 
-/** Abre a impressão com uma folha por aluno (e folhas avulsas, se pedido). */
+/**
+ * Imprime uma folha por aluno (e folhas avulsas, se pedido) direto desta página:
+ * as folhas entram num contêiner que só aparece na impressão. Sem abrir aba nova,
+ * funciona em qualquer navegador (inclusive celular e navegadores embutidos).
+ */
 export async function printSheets(info: SheetInfo, students: { id: string; name: string }[], blanks = 0) {
-  const win = window.open('', '_blank');
-  if (!win) {
-    alert('Permita pop-ups para imprimir as folhas.');
-    return;
-  }
-  win.document.write('<p style="font-family:sans-serif;padding:24px">Gerando folhas…</p>');
   const pages: string[] = [];
   for (const s of students) pages.push(await sheetSvg(info, s));
   for (let i = 0; i < blanks; i++) pages.push(await sheetSvg(info, null));
-  win.document.open();
-  win.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"/>
-<title>Folhas de resposta - ${esc(info.title)} - ${esc(info.className)}</title>
-<style>
-  @page { size: A4 portrait; margin: 0; }
-  html, body { margin: 0; padding: 0; background: #e5e5e5; }
-  .page { width: 210mm; height: 297mm; margin: 12px auto; background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.2); break-after: page; overflow: hidden; }
-  .page:last-child { break-after: auto; }
-  .page svg { display: block; width: 210mm; height: 297mm; }
-  .tip { font-family: Inter, Arial, sans-serif; max-width: 210mm; margin: 12px auto; font-size: 13px; color: #333; }
-  @media print { html, body { background: #fff; } .page { margin: 0; box-shadow: none; } .tip { display: none; } }
-</style></head><body>
-<p class="tip">Imprima em A4, <b>escala 100%</b> (sem "ajustar à página"), preto e branco. ${pages.length} folha(s).</p>
-${pages.map((p) => `<div class="page">${p}</div>`).join('\n')}
-<script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); };</script>
-</body></html>`);
-  win.document.close();
+  if (!pages.length) return;
+
+  document.getElementById('scola-print')?.remove();
+  document.getElementById('scola-print-style')?.remove();
+
+  const style = document.createElement('style');
+  style.id = 'scola-print-style';
+  style.textContent = `
+    #scola-print { display: none; }
+    @media print {
+      @page { size: A4 portrait; margin: 0; }
+      html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; height: auto !important; overflow: visible !important; }
+      body > *:not(#scola-print) { display: none !important; }
+      #scola-print { display: block !important; }
+      #scola-print .page { width: 210mm; height: 297mm; overflow: hidden; break-after: page; page-break-after: always; }
+      #scola-print .page:last-child { break-after: auto; page-break-after: auto; }
+      #scola-print .page svg { display: block; width: 210mm; height: 297mm; }
+    }`;
+  const root = document.createElement('div');
+  root.id = 'scola-print';
+  // Cada folha com ids próprios (o recorte do cabeçalho usa um id no SVG).
+  root.innerHTML = pages.map((p, i) => `<div class="page">${p.replace(/hdr/g, `hdr${i}`)}</div>`).join('');
+  document.head.appendChild(style);
+  document.body.appendChild(root);
+
+  const prevTitle = document.title;
+  document.title = `Folhas de resposta - ${info.title} - ${info.className}`;
+  const cleanup = () => {
+    document.title = prevTitle;
+    root.remove();
+    style.remove();
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  // Dá tempo de o navegador montar as imagens (logo) antes de abrir a impressão.
+  await new Promise((r) => setTimeout(r, 150));
+  window.print();
 }

@@ -308,6 +308,15 @@ function SheetsTab({ data }: { data: ExamDetail }) {
   }, [info, students]);
 
   const ready = keyComplete(exam.answer_key, exam.questions);
+  const [printing, setPrinting] = useState(false);
+  async function doPrint(list: { id: string; name: string }[], extra: number) {
+    setPrinting(true);
+    try {
+      await printSheets(info, list, extra);
+    } finally {
+      setPrinting(false);
+    }
+  }
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -322,8 +331,8 @@ function SheetsTab({ data }: { data: ExamDetail }) {
           </p>
         ) : null}
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button onClick={() => printSheets(info, students)} disabled={!students.length} className="sm:flex-1">
-            <Printer size={16} /> Imprimir folhas da turma ({students.length})
+          <Button onClick={() => doPrint(students, 0)} disabled={!students.length || printing} className="sm:flex-1">
+            <Printer size={16} /> {printing ? 'Preparando folhas…' : `Imprimir folhas da turma (${students.length})`}
           </Button>
         </div>
         <div className="flex flex-wrap items-end gap-2 border-t border-border pt-4">
@@ -331,13 +340,13 @@ function SheetsTab({ data }: { data: ExamDetail }) {
             <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Folhas avulsas (sem nome)</span>
             <input value={blanks || ''} onChange={(e) => setBlanks(Math.min(60, Number(e.target.value.replace(/\D/g, '')) || 0))} inputMode="numeric" placeholder="0" className={cn(fieldCls, 'w-28')} />
           </label>
-          <Button variant="ghost" onClick={() => printSheets(info, [], blanks)} disabled={!blanks}>
+          <Button variant="ghost" onClick={() => doPrint([], blanks)} disabled={!blanks || printing}>
             <Printer size={16} /> Imprimir avulsas
           </Button>
           <p className="w-full text-xs text-muted-foreground">Para aluno novo ou folha perdida. Na correção você escolhe o aluno.</p>
         </div>
         <ul className="space-y-1.5 border-t border-border pt-4 text-xs text-muted-foreground">
-          <li>• Imprima em A4, escala 100%. Preto e branco serve.</li>
+          <li>• Imprima em A4, escala 100% (sem "ajustar à página"). Preto e branco serve. Na janela de impressão, dá para escolher "Salvar como PDF".</li>
           <li>• Oriente os alunos a preencher todo o círculo com caneta azul ou preta.</li>
           <li>• Não dobre a folha nem escreva perto dos quadrados pretos dos cantos.</li>
           <li>• Na correção, apoie a folha numa mesa com boa luz e enquadre a folha inteira.</li>

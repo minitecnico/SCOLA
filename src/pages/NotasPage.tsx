@@ -1,9 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Award, Check, ClipboardList, Eye, FileDown, FileText, GraduationCap, List, Lock, Pencil, Plus, Printer, Rows3, Save, Send, Sliders, Trash2 } from 'lucide-react';
+import { Award, Check, ClipboardList, Eye, FileDown, FileText, GraduationCap, List, MoreHorizontal, Pencil, Plus, Printer, Rows3, Save, Search, Send, Sliders, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
-import { Button, Card, EmptyState, Field, Input, Modal, PageHeader, SearchInput, Segmented, Select, Loading} from '../components/ui';
+import { ActionFooter, Button, Card, DropdownMenu, EmptyState, Field, FilterBar, FilterField, FooterButton, Input, Modal, Notice, PageHeader, SegmentedField, Select, StatGrid, StatTile, StatusBadge, Loading, fieldCls } from '../components/ui';
+import { gradeTone, situationOf, TONE, type Tone } from '../lib/tone';
+
+/** Classe CSS de impressão para a cor de significado (ver lib/print.ts). */
+const printCls = (t: Tone) => (t === 'ok' ? 'ok' : t === 'warn' ? 'warn' : t === 'bad' ? 'fail' : '');
 import { successToast } from '../components/Feedback';
 import { ConfirmClearModal } from '../components/ConfirmClearModal';
 import { ShareModal } from '../components/ShareModal';
@@ -313,50 +317,56 @@ export function NotasPage() {
     <div className="pb-28">
       <PageHeader
         title="Notas"
-        subtitle={`${TERM_LABEL[term]} • ${year} • média ${MEDIA_APROVACAO} (recuperação substitui a menor nota quando melhora a média)`}
+        subtitle={`Média ${MEDIA_APROVACAO} · a recuperação substitui a menor nota quando melhora a média`}
         action={
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
-            <Button onClick={() => setBoletimEscolarOpen(true)} className="w-full sm:w-auto">
-              <GraduationCap size={18} /> Boletins escolares
-            </Button>
-            <Button variant="soft" onClick={() => setBoletimOpen(true)} className="w-full sm:w-auto">
-              <FileText size={18} /> Relatório do trimestre
-            </Button>
-            <Button variant="ghost" onClick={() => setConfigOpen(true)} className="w-full sm:w-auto">
-              <Sliders size={18} /> Composição de notas
-            </Button>
-            <Button variant="ghost" onClick={() => navigate('/avaliacoes')} className="w-full sm:w-auto">
-              <ClipboardList size={18} /> Central de Avaliações
-            </Button>
-            {canClear && hasSavedGrades ? (
-              <Button variant="ghost" onClick={() => setClearOpen(true)} className="col-span-2 w-full text-red-600 sm:col-span-1 sm:w-auto">
-                <Trash2 size={18} /> Limpar notas
-              </Button>
-            ) : null}
+          <div className="flex gap-2">
+            <DropdownMenu
+              label="Imprimir"
+              icon={<Printer size={16} />}
+              items={[
+                { label: 'Boletins escolares', hint: 'Um por aluno, com os 3 trimestres', icon: <GraduationCap size={16} />, onClick: () => setBoletimEscolarOpen(true) },
+                { label: 'Relatório do trimestre', hint: 'Notas da turma neste trimestre', icon: <FileText size={16} />, onClick: () => setBoletimOpen(true) },
+              ]}
+            />
+            <DropdownMenu
+              label="Mais ações"
+              iconOnly
+              icon={<MoreHorizontal size={18} />}
+              items={[
+                { label: 'Composição de notas', hint: 'Atividades e valores do trimestre', icon: <Sliders size={16} />, onClick: () => setConfigOpen(true) },
+                { label: 'Central de Avaliações', hint: 'Controle de entregas e crédito variável', icon: <ClipboardList size={16} />, onClick: () => navigate('/avaliacoes') },
+                { label: 'Limpar notas do trimestre', icon: <Trash2 size={16} />, onClick: () => setClearOpen(true), danger: true, hidden: !(canClear && hasSavedGrades) },
+              ]}
+            />
           </div>
         }
       />
 
-      {/* Filtro rápido por trimestre */}
-      <Segmented<number>
-        className="mb-4"
-        value={term}
-        onChange={setTerm}
-        options={TERMS.map((t) => ({ value: t, label: TERM_LABEL[t] }))}
-      />
-
-      <div className="mb-4 grid gap-3 sm:grid-cols-2">
-        <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </Select>
-        <Select value={year} onChange={(e) => setYear(Number(e.target.value))}>
-          {years.map((y) => (
-            <option key={y} value={y}>{y}</option>
-          ))}
-        </Select>
-      </div>
+      <FilterBar>
+        <FilterField label="Trimestre" wide>
+          <SegmentedField<number> value={term} onChange={setTerm} options={TERMS.map((t) => ({ value: t, label: `${t}º tri` }))} />
+        </FilterField>
+        <FilterField label="Turma" grow>
+          <select value={classId} onChange={(e) => setClassId(e.target.value)} className={fieldCls}>
+            {classes.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </FilterField>
+        <FilterField label="Ano">
+          <select value={year} onChange={(e) => setYear(Number(e.target.value))} className={fieldCls}>
+            {years.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </FilterField>
+        <FilterField label="Buscar aluno" wide grow>
+          <span className="relative block">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nome do aluno" className={cn(fieldCls, 'pl-9')} />
+          </span>
+        </FilterField>
+      </FilterBar>
 
       {columns.length === 0 ? (
         <EmptyState
@@ -367,8 +377,6 @@ export function NotasPage() {
         />
       ) : (
         <>
-          <SearchInput value={q} onChange={setQ} placeholder="Buscar aluno…" className="mb-3" />
-
           {isLoading ? (
             <Loading />
           ) : gradesIsError ? (
@@ -384,10 +392,7 @@ export function NotasPage() {
           ) : (
             <>
               {hasSavedGrades && !editingGrades ? (
-                <div className="mb-3 flex items-center gap-2 rounded-xl border border-border bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
-                  <Lock size={16} className="text-muted-foreground" />
-                  Notas bloqueadas para evitar alterações acidentais. Clique em Editar notas para reabrir.
-                </div>
+                <Notice>Notas salvas e bloqueadas. Toque em <b>Editar notas</b> para alterar.</Notice>
               ) : null}
 
               {/* Resumo da turma */}
@@ -398,46 +403,32 @@ export function NotasPage() {
                 const rec = medias.length - aprov;
                 const pct = medias.length ? Math.round((aprov / medias.length) * 100) : 0;
                 return (
-                  <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <div className="rounded-2xl border border-border bg-card p-3 text-center">
-                      <p className="text-2xl font-black text-foreground">{list.length}</p>
-                      <p className="text-[11px] font-black uppercase tracking-wide text-muted-foreground">Alunos</p>
-                    </div>
-                    <div className="rounded-2xl border border-border bg-card p-3 text-center">
-                      <p className={cn('text-2xl font-black', turma == null ? 'text-muted-foreground' : turma >= MEDIA_APROVACAO ? 'text-foreground' : 'text-red-600')}>
-                        {turma != null ? fmtNumber(turma, 1) : '–'}
-                      </p>
-                      <p className="text-[11px] font-black uppercase tracking-wide text-muted-foreground">Média da turma</p>
-                    </div>
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-center">
-                      <p className="text-2xl font-black text-emerald-700">{aprov}</p>
-                      <p className="text-[11px] font-black uppercase tracking-wide text-emerald-700/70">Aprovados · {pct}%</p>
-                    </div>
-                    <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-center">
-                      <p className="text-2xl font-black text-red-600">{rec}</p>
-                      <p className="text-[11px] font-black uppercase tracking-wide text-red-600/70">Em recuperação</p>
-                    </div>
-                  </div>
+                  <StatGrid>
+                    <StatTile label="Alunos" value={list.length} />
+                    <StatTile label="Média da turma" value={turma != null ? fmtNumber(turma, 1) : '–'} tone={gradeTone(turma)} />
+                    <StatTile label="Aprovados" value={aprov} tone="ok" hint={medias.length ? `${pct}% da turma` : undefined} />
+                    <StatTile label="Em recuperação" value={rec} tone={rec ? 'warn' : 'none'} />
+                  </StatGrid>
                 );
               })()}
 
               <Card className="max-h-[70vh] overflow-auto p-0">
               <table className="w-full border-collapse text-sm">
-                <thead className="sticky top-0 z-20 bg-muted text-left text-[11px] font-black uppercase tracking-wide text-muted-foreground">
+                <thead className="sticky top-0 z-20 bg-muted text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                   <tr>
                     <th className="sticky left-0 top-0 z-30 w-[160px] min-w-[160px] max-w-[160px] bg-muted px-3 py-3 text-left shadow-[2px_0_0_0_rgba(226,232,240,1)]">Aluno</th>
                     {mainCols.map((a) => (
                       <th key={actKey(a)} className="min-w-[92px] px-2 py-3 text-center align-bottom">
                         <span className="block leading-tight text-muted-foreground">{a.name}</span>
                         <span className="mt-1 inline-block rounded bg-muted/70 px-1.5 py-0.5 text-[9px] font-black text-muted-foreground">0–{a.max}</span>
-                        {a.date ? <span className="mt-0.5 block text-[9px] font-black text-emerald-600">entrega {fmtDM(a.date)}</span> : null}
+                        {a.date ? <span className="mt-0.5 block text-[9px] font-semibold normal-case text-muted-foreground">entrega {fmtDM(a.date)}</span> : null}
                       </th>
                     ))}
                     {creditoCols.length > 0 ? (
-                      <th className="min-w-[104px] bg-amber-50 px-2 py-3 text-center align-bottom text-amber-700">
+                      <th className="min-w-[104px] px-2 py-3 text-center align-bottom">
                         <span className="block leading-tight">Crédito variável</span>
-                        <span className="mt-1 inline-block rounded bg-amber-200/60 px-1.5 py-0.5 text-[9px] font-black text-amber-700">0–10</span>
-                        <span className="mt-0.5 block text-[9px] font-black normal-case text-amber-600">Central · editável</span>
+                        <span className="mt-1 inline-block rounded bg-muted/70 px-1.5 py-0.5 text-[9px] font-black text-muted-foreground">0–10</span>
+                        <span className="mt-0.5 block text-[9px] font-semibold normal-case text-muted-foreground">da Central · editável</span>
                       </th>
                     ) : null}
                     <th className="px-3 py-3 text-center">Média</th>
@@ -445,7 +436,7 @@ export function NotasPage() {
                       <th className="min-w-[92px] px-2 py-3 text-center align-bottom">
                         <span className="block leading-tight text-muted-foreground">{recoveryCol.name}</span>
                         <span className="mt-1 inline-block rounded bg-muted/70 px-1.5 py-0.5 text-[9px] font-black text-muted-foreground">0–{recoveryCol.max}</span>
-                        <span className="mt-0.5 block text-[9px] font-black text-amber-600">substitui menor</span>
+                        <span className="mt-0.5 block text-[9px] font-semibold normal-case text-muted-foreground">substitui a menor</span>
                       </th>
                     ) : null}
                     <th className="px-3 py-3 text-center">Resultado</th>
@@ -455,9 +446,8 @@ export function NotasPage() {
                 <tbody>
                   {list.map((s, i) => {
                     const m = mediaOf(s.id);
-                    const ok = m != null && m >= MEDIA_APROVACAO;
                     return (
-                      <tr key={s.id} className="border-t border-border bg-card transition even:bg-muted hover:bg-emerald-50">
+                      <tr key={s.id} className="border-t border-border bg-card transition even:bg-neutral-50 hover:bg-neutral-100">
                         <td className="sticky left-0 z-10 w-[160px] min-w-[160px] max-w-[160px] bg-inherit px-3 py-2.5 align-middle shadow-[2px_0_0_0_rgba(241,245,249,1)]">
                           <div className="flex items-center gap-2.5">
                             <span className="w-6 shrink-0 text-right text-xs font-bold tabular-nums text-muted-foreground">{i + 1}</span>
@@ -469,9 +459,8 @@ export function NotasPage() {
                           const val = scores[s.id]?.[k] ?? '';
                           const numberVal = Number(val);
                           const filled = val !== '' && Number.isFinite(numberVal);
-                          // ≥ 60% do máximo = passa (verde); abaixo = vermelho. Ex.: 6/10, 3/5, 1,2/2.
-                          const lowNote = filled && numberVal < (a.max || 10) * 0.6;
-                          const okNote = filled && !lowNote;
+                          // Verde ≥ 60% do máximo · laranja 50–59% · vermelho abaixo (ex.: 6/10, 3/5).
+                          const tone = filled ? gradeTone(numberVal, a.max || 10) : 'none';
                           return (
                             <td key={k} className="px-1.5 py-1.5 text-center">
                               <input
@@ -481,9 +470,10 @@ export function NotasPage() {
                                 disabled={!editingGrades}
                                 placeholder="–"
                                 className={cn(
-                                  'h-10 w-14 rounded-lg border text-center font-bold tabular-nums outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed',
-                                  lowNote ? 'border-red-200 bg-red-50 text-red-600' : okNote ? 'border-border bg-card text-foreground' : 'border-border bg-card text-muted-foreground',
-                                  !editingGrades && 'bg-transparent disabled:bg-transparent',
+                                  'h-10 w-14 rounded-lg border border-border bg-card text-center font-semibold tabular-nums outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-brand/40 disabled:cursor-default',
+                                  TONE[tone].text,
+                                  tone === 'none' && 'text-muted-foreground',
+                                  !editingGrades && 'border-transparent bg-transparent disabled:bg-transparent',
                                 )}
                               />
                             </td>
@@ -496,7 +486,7 @@ export function NotasPage() {
                             const shown = manual !== '' ? manual : autoStr;
                             const isManual = manual !== '';
                             return (
-                              <td className="bg-amber-50/40 px-1.5 py-1.5 text-center" title="Vem da Central de Avaliações — você pode digitar para sobrescrever">
+                              <td className="px-1.5 py-1.5 text-center" title="Vem da Central de Avaliações — você pode digitar para sobrescrever">
                                 <input
                                   inputMode="decimal"
                                   value={String(shown).replace('.', ',')}
@@ -504,9 +494,10 @@ export function NotasPage() {
                                   disabled={!editingGrades}
                                   placeholder="–"
                                   className={cn(
-                                    'h-10 w-14 rounded-lg border text-center font-bold tabular-nums outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed',
-                                    isManual ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700',
-                                    !editingGrades && 'bg-transparent disabled:bg-transparent',
+                                    'h-10 w-14 rounded-lg border text-center font-semibold tabular-nums outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-brand/40 disabled:cursor-default',
+                                    isManual ? 'border-neutral-400 bg-card' : 'border-border bg-muted/60',
+                                    shown !== '' ? TONE[gradeTone(Number(String(shown).replace(',', '.')))].text : 'text-muted-foreground',
+                                    !editingGrades && 'border-transparent bg-transparent disabled:bg-transparent',
                                   )}
                                 />
                               </td>
@@ -515,7 +506,7 @@ export function NotasPage() {
                         ) : null}
                         <td className="px-3 py-3 text-center">
                           {m != null ? (
-                            <span className={cn('inline-block min-w-[44px] rounded-lg px-2 py-1 text-base font-black tabular-nums', ok ? 'text-foreground' : 'bg-red-50 text-red-600')}>
+                            <span className={cn('inline-block min-w-[44px] rounded-lg px-2 py-1 text-base font-bold tabular-nums ring-1 ring-inset', TONE[gradeTone(m)].soft)}>
                               {fmtNumber(m, 1)}
                             </span>
                           ) : (
@@ -534,11 +525,11 @@ export function NotasPage() {
                                   value={val.replace('.', ',')}
                                   onChange={(e) => setScore(s.id, k, e.target.value, recoveryCol.max)}
                                   disabled={!canEditRecovery}
-                                  placeholder={canEditRecovery ? '–' : 'Preencha 3 notas'}
+                                  placeholder={hasAllPrimaryNotes(s.id) ? '–' : 'Preencha 3 notas'}
                                   className={cn(
-                                    'h-10 w-28 rounded-lg border text-center font-bold tabular-nums outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed',
-                                    val !== '' ? 'border-border bg-card text-foreground' : 'border-border bg-card text-muted-foreground',
-                                    !canEditRecovery && 'bg-slate-100 text-muted-foreground',
+                                    'h-10 w-28 rounded-lg border border-border bg-card text-center font-semibold tabular-nums outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-brand/40 disabled:cursor-default',
+                                    val !== '' ? TONE[gradeTone(Number(val))].text : 'text-muted-foreground',
+                                    !canEditRecovery && 'border-transparent bg-transparent text-xs text-muted-foreground',
                                   )}
                                 />
                               </td>
@@ -546,13 +537,7 @@ export function NotasPage() {
                           })()
                         ) : null}
                         <td className="px-3 py-3 text-center">
-                          {m == null ? (
-                            <span className="text-muted-foreground">–</span>
-                          ) : ok ? (
-                            <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-black uppercase text-emerald-700">Aprovado</span>
-                          ) : (
-                            <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-black uppercase text-red-700">Recuperação</span>
-                          )}
+                          {m == null ? <span className="text-muted-foreground">–</span> : <StatusBadge tone={situationOf(m).tone}>{situationOf(m).label}</StatusBadge>}
                         </td>
                         <td className="px-2 py-1.5">
                           <input
@@ -565,7 +550,7 @@ export function NotasPage() {
                             disabled={!editingGrades}
                             placeholder={editingGrades ? 'Anotação…' : '–'}
                             className={cn(
-                              'h-10 w-full min-w-[150px] rounded-lg border px-2 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100',
+                              'h-10 w-full min-w-[150px] rounded-lg border px-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-brand/40',
                               editingGrades ? 'border-border bg-card text-foreground' : 'border-transparent bg-transparent text-muted-foreground',
                             )}
                           />
@@ -581,7 +566,7 @@ export function NotasPage() {
                 São 3 notas principais (peso 10): {mainCols.map((a) => a.name).join(', ')}{creditoCols.length ? ' e Crédito variável' : ''}. A média e a recuperação só aparecem depois que as 3 notas principais estiverem preenchidas. A recuperação substitui a menor nota apenas se melhorar a média.
               </p>
               {creditoCols.length > 0 ? (
-                <p className="mt-1 text-xs font-semibold text-amber-600">
+                <p className="mt-1 text-xs text-muted-foreground">
                   O Crédito variável é a soma de {creditData.defs.map((d) => d.name).join(', ')} (lançadas no Central de Avaliações) e vale 10 = 1 nota. Preenchido automaticamente.
                 </p>
               ) : null}
@@ -591,50 +576,31 @@ export function NotasPage() {
       )}
 
       {students.length > 0 && columns.length > 0 ? (
-        <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 p-3 backdrop-blur lg:pl-72">
-          <div className="mx-auto flex max-w-5xl items-center gap-2 px-1 sm:gap-3">
-            <div className="hidden min-w-0 flex-1 sm:block">
-              <p className="truncate text-sm font-bold text-foreground">
-                {saved ? '✓ Notas salvas e bloqueadas' : editingGrades ? 'Edição aberta' : `${TERM_LABEL[term]} • ${year}`}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">{editingGrades ? 'Lance as notas e salve para bloquear.' : 'Toque em editar para alterar.'}</p>
-            </div>
-            {editingGrades ? (
-              <>
-                {hasSavedGrades ? (
-                  <button
-                    onClick={resetScoresFromSaved}
-                    disabled={save.isPending}
-                    className="inline-flex min-h-12 items-center justify-center rounded-xl border border-border px-4 text-sm font-black text-muted-foreground transition hover:bg-muted disabled:opacity-60"
-                  >
-                    Cancelar
-                  </button>
-                ) : null}
-                <button
-                  onClick={handleSave}
-                  disabled={save.isPending}
-                  className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-base font-black text-white transition hover:bg-emerald-700 disabled:opacity-60 sm:flex-none sm:px-8"
-                >
-                  <Save size={20} />
-                  <span className="sm:hidden">{save.isPending ? 'Salvando…' : 'Salvar'}</span>
-                  <span className="hidden sm:inline">{save.isPending ? 'Salvando…' : 'Salvar e bloquear'}</span>
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => {
-                  setEditingGrades(true);
-                  setSaved(false);
-                }}
-                className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-base font-black text-white transition hover:bg-slate-800 sm:flex-none sm:px-8"
-              >
-                <Pencil size={20} />
-                Editar notas
-              </button>
-            )}
-          </div>
-          {save.isError ? <p className="mx-auto mt-2 max-w-5xl px-1 text-sm font-semibold text-red-600">{(save.error as Error).message}</p> : null}
-        </footer>
+        <ActionFooter
+          title={saved ? 'Notas salvas e bloqueadas' : editingGrades ? 'Edição aberta' : `${TERM_LABEL[term]} · ${year}`}
+          detail={editingGrades ? 'Lance as notas e salve para bloquear.' : `${turmaNome} · toque em editar para alterar`}
+          error={save.isError ? (save.error as Error).message : null}
+        >
+          {editingGrades ? (
+            <>
+              {hasSavedGrades ? (
+                <FooterButton kind="secondary" onClick={resetScoresFromSaved} disabled={save.isPending}>Cancelar</FooterButton>
+              ) : null}
+              <FooterButton onClick={handleSave} disabled={save.isPending}>
+                <Save size={18} /> {save.isPending ? 'Salvando…' : 'Salvar notas'}
+              </FooterButton>
+            </>
+          ) : (
+            <FooterButton
+              onClick={() => {
+                setEditingGrades(true);
+                setSaved(false);
+              }}
+            >
+              <Pencil size={18} /> Editar notas
+            </FooterButton>
+          )}
+        </ActionFooter>
       ) : null}
 
       <ComposicaoModal
@@ -729,14 +695,15 @@ function BoletimEscolarModal({
 
   function sit(m: number | null): { txt: string; cls: string } {
     if (m == null) return { txt: '—', cls: '' };
-    return m >= MEDIA_APROVACAO ? { txt: 'Aprovado', cls: 'ok' } : { txt: 'Recuperação', cls: 'fail' };
+    const s = situationOf(m);
+    return { txt: s.label, cls: printCls(s.tone) };
   }
 
   function boletimHtml(r: TermsReportRow, i: number, total: number): string {
     const linhas = TERMS.map((t) => {
       const m = r.terms[t - 1] ?? null;
       const s = sit(m);
-      return `<tr><td class="name">${escapeHtml(TERM_LABEL[t])}</td><td>${m == null ? '—' : `<span class="${m >= MEDIA_APROVACAO ? 'ok' : 'fail'}">${fmtNumber(m, 1)}</span>`}</td><td><span class="${s.cls}">${s.txt}</span></td></tr>`;
+      return `<tr><td class="name">${escapeHtml(TERM_LABEL[t])}</td><td>${m == null ? '—' : `<span class="${printCls(gradeTone(m))}">${fmtNumber(m, 1)}</span>`}</td><td><span class="${s.cls}">${s.txt}</span></td></tr>`;
     }).join('');
     // Resultado final é APROVADO/REPROVADO (a nota de recuperação já está embutida na média).
     const sf = r.final == null ? { txt: '—', cls: '' } : r.final >= MEDIA_APROVACAO ? { txt: 'Aprovado', cls: 'ok' } : { txt: 'Reprovado', cls: 'fail' };
@@ -789,7 +756,7 @@ function BoletimEscolarModal({
                 <label key={r.student_id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted">
                   <input type="checkbox" checked={selected.has(r.student_id)} onChange={() => toggle(r.student_id)} className="h-4 w-4 rounded border-border text-emerald-600 focus:ring-emerald-500" />
                   <span className="flex-1 font-bold text-foreground">{r.name}</span>
-                  <span className={cn('text-xs font-black', r.final == null ? 'text-muted-foreground' : r.final >= MEDIA_APROVACAO ? 'text-foreground' : 'text-red-600')}>
+                  <span className={cn('text-xs font-bold', r.final == null ? 'text-muted-foreground' : TONE[gradeTone(r.final)].text)}>
                     {r.final == null ? '–' : fmtNumber(r.final, 1)}
                   </span>
                 </label>
@@ -886,18 +853,17 @@ function BoletimModal({
     const body = rows
       .map((r, i) => {
         const m = r.media;
-        const mediaCell = m == null ? '–' : `<span class="${m >= MEDIA_APROVACAO ? 'ok' : 'fail'}">${fmtNumber(m, 1)}</span>`;
+        const mediaCell = m == null ? '–' : `<span class="${printCls(gradeTone(m))}">${fmtNumber(m, 1)}</span>`;
         const sit = situacao(m);
-        const sitCell = sit === '–' ? '–' : `<span class="${sit === 'Aprovado' ? 'ok' : 'fail'}">${sit}</span>`;
+        const sitCell = sit === '–' ? '–' : `<span class="${printCls(situationOf(m).tone)}">${sit}</span>`;
         const acts = activeActs
           .map((a) => {
             // Coluna "Crédito variável" = soma das atividades de crédito (0–10). Demais = nota da atividade.
             const raw = a.id === CREDITO_OVERRIDE_KEY ? creditoSumFrom((ca) => r.scores[ca.name], creditActs) : r.scores[a.name];
             const v = raw == null ? '' : String(raw);
             if (v === '') return '<td>–</td>';
-            // ≥ 60% do máximo = verde; abaixo = vermelho (mesma régua da média/nota 6 de 10).
-            const ok = Number(v) >= (a.max || 10) * 0.6;
-            return `<td class="${ok ? 'ok' : 'fail'}">${escapeHtml(v.replace('.', ','))}</td>`;
+            // Verde ≥ 60% do máximo · laranja 50–59% · vermelho abaixo (mesma régua da tela).
+            return `<td class="${printCls(gradeTone(Number(v), a.max || 10))}">${escapeHtml(v.replace('.', ','))}</td>`;
           })
           .join('');
         return `<tr><td>${i + 1}</td><td class="name">${escapeHtml(r.name)}</td>${acts}${showMedia ? `<td>${mediaCell}</td>` : ''}${showSituation ? `<td>${sitCell}</td>` : ''}${showObs ? `<td class="name">${escapeHtml(r.obs)}</td>` : ''}</tr>`;
@@ -1016,11 +982,11 @@ function BoletimModal({
                       className={cn(
                         'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold transition',
                         on
-                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                          : 'border-border bg-card text-muted-foreground hover:border-emerald-300 hover:text-foreground',
+                          ? 'border-neutral-900 bg-neutral-900 text-white'
+                          : 'border-border bg-card text-muted-foreground hover:text-foreground',
                       )}
                     >
-                      <span className={cn('grid h-4 w-4 shrink-0 place-items-center rounded-full border', on ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-border')}>
+                      <span className={cn('grid h-4 w-4 shrink-0 place-items-center rounded-full border', on ? 'border-white bg-white text-neutral-900' : 'border-border')}>
                         {on ? <Check size={11} strokeWidth={3} /> : null}
                       </span>
                       {a.name}
@@ -1046,11 +1012,11 @@ function BoletimModal({
                     className={cn(
                       'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold transition',
                       on
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                        : 'border-border bg-card text-muted-foreground hover:border-emerald-300 hover:text-foreground',
+                        ? 'border-neutral-900 bg-neutral-900 text-white'
+                        : 'border-border bg-card text-muted-foreground hover:text-foreground',
                     )}
                   >
-                    <span className={cn('grid h-4 w-4 shrink-0 place-items-center rounded-full border', on ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-border')}>
+                    <span className={cn('grid h-4 w-4 shrink-0 place-items-center rounded-full border', on ? 'border-white bg-white text-neutral-900' : 'border-border')}>
                       {on ? <Check size={11} strokeWidth={3} /> : null}
                     </span>
                     {label}
@@ -1083,7 +1049,7 @@ function BoletimModal({
               </Button>
             </div>
             {nothingSelected ? (
-              <p className="text-xs font-semibold text-amber-600">Selecione ao menos uma coluna ou campo para gerar o relatório.</p>
+              <p className="text-xs font-semibold text-orange-600">Selecione ao menos uma coluna ou campo para gerar o relatório.</p>
             ) : (
               <p className="text-xs text-muted-foreground">Visualizar abre a prévia; em PDF, escolha "Salvar como PDF" na impressão.</p>
             )}
@@ -1154,22 +1120,22 @@ function ComposicaoModal({
           Defina as atividades e quanto cada uma vale neste trimestre. A nota {RECOVERY_ACTIVITY_NAME} é coringa: substitui a menor nota do aluno somente quando for maior.
         </p>
 
-        <div className="grid gap-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-sm sm:grid-cols-3">
+        <div className="grid gap-3 rounded-xl border border-border bg-muted/50 p-3 text-sm sm:grid-cols-3">
           <div>
-            <p className="font-black text-emerald-900">Atividades</p>
-            <p className="mt-1 text-xs font-semibold text-emerald-700">
+            <p className="font-bold text-foreground">Atividades</p>
+            <p className="mt-1 text-xs text-muted-foreground">
               Cada rótulo vira uma coluna de nota. O campo valor define o máximo permitido naquela atividade.
             </p>
           </div>
           <div>
-            <p className="font-black text-emerald-900">Média</p>
-            <p className="mt-1 text-xs font-semibold text-emerald-700">
+            <p className="font-bold text-foreground">Média</p>
+            <p className="mt-1 text-xs text-muted-foreground">
               O sistema soma as notas válidas e divide por 3, mantendo a regra atual da escola.
             </p>
           </div>
           <div>
-            <p className="font-black text-emerald-900">{RECOVERY_ACTIVITY_NAME}</p>
-            <p className="mt-1 text-xs font-semibold text-emerald-700">
+            <p className="font-bold text-foreground">{RECOVERY_ACTIVITY_NAME}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
               Não soma como nota extra. Ela troca a menor nota somente se a recuperação for maior.
             </p>
           </div>

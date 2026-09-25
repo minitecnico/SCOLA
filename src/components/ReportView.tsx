@@ -3,6 +3,9 @@ import { cn } from '../lib/cn';
 import { fmtNumber } from '../lib/format';
 import { groupByMonth, weekdayLetter } from '../lib/schooldays';
 import { MONTHS, type ReportPayload } from '../lib/types';
+import { TONE, freqTone, gradeTone, situationOf, type Tone } from '../lib/tone';
+
+const exact = { printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' } as const;
 
 const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
@@ -28,7 +31,7 @@ function DateChips({
       {shown.map((d) => {
         const exam = examSet?.has(d);
         return (
-          <span key={d} className={cn('rounded-lg font-bold', exam ? 'bg-amber-100 text-amber-800' : cls, chip)} title={exam ? 'Semana de provas' : undefined}>
+          <span key={d} className={cn('rounded-lg font-bold', exam ? 'bg-orange-100 text-orange-800' : cls, chip)} title={exam ? 'Semana de provas' : undefined}>
             {d.slice(8, 10)}/{d.slice(5, 7)}{exam ? ' ⚑' : ''}
           </span>
         );
@@ -47,14 +50,17 @@ function fmtDM(iso: string) {
   return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')} (${wd})`;
 }
 function situacao(media: number | null) {
-  if (media == null) return '—';
-  return media >= 6 ? 'Aprovado' : 'Recuperação';
+  return situationOf(media).label;
 }
-/** Cor da situação/nota: verde ≥ 6,0 · vermelho < 6,0. */
+/** Cor da situação: verde aprovado · laranja recuperação · vermelho muito abaixo. */
 function situacaoCls(media: number | null): string {
-  if (media == null) return 'text-slate-400';
-  return media >= 6 ? 'text-slate-900' : 'text-red-600';
+  const t = situationOf(media).tone;
+  return t === 'none' ? 'text-slate-400' : TONE[t].text;
 }
+const gradeCls = (v: number | null | undefined, max = 10) => {
+  const t = gradeTone(v, max);
+  return t === 'none' ? 'text-slate-400' : TONE[t].text;
+};
 
 export function ReportView({ payload, compact = false }: { payload: ReportPayload; compact?: boolean }) {
   const { school, kind, minPct = 75 } = payload;
@@ -63,7 +69,7 @@ export function ReportView({ payload, compact = false }: { payload: ReportPayloa
     <div className="report-view">
       {/* Cabeçalho institucional (letterhead) */}
       <header className="mb-5 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card print:border-slate-300 print:shadow-none">
-        <div className="h-1.5 bg-emerald-600" style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }} />
+        <div className="h-1.5 bg-neutral-900" style={exact} />
         <div className="flex items-start gap-4 p-5">
           {school?.logo_url ? (
             <img src={school.logo_url} alt="" className="h-16 w-16 shrink-0 rounded-lg border border-slate-200 bg-white object-contain p-1" />
@@ -89,7 +95,7 @@ export function ReportView({ payload, compact = false }: { payload: ReportPayloa
       </header>
 
       {kind === 'freq' && payload.examDates?.length ? (
-        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-800 print:bg-transparent">
+        <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm font-semibold text-orange-800 print:bg-transparent">
           🗓 Semana de Provas — chamada com turmas misturadas em: {payload.examDates.map(fmtDM).join(', ')}
         </div>
       ) : null}
@@ -114,15 +120,19 @@ function ReportFooter({ generatedAt }: { generatedAt: string }) {
   );
 }
 
-function SummaryGrid({ stats, compact }: { stats: { label: string; value: React.ReactNode; color?: string; box?: string }[]; compact?: boolean }) {
+type Stat = { label: string; value: React.ReactNode; tone?: Tone };
+const statColor = (t?: Tone) => (t && t !== 'none' ? TONE[t].text : 'text-slate-900');
+const statBox = (t?: Tone) => (t && t !== 'none' ? TONE[t].border : '');
+
+function SummaryGrid({ stats, compact }: { stats: Stat[]; compact?: boolean }) {
   if (compact) {
     // Modo compacto: rótulo e valor na mesma linha, cartões baixinhos — economiza espaço vertical.
     return (
       <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4 print:grid-cols-4">
         {stats.map((s, i) => (
-          <div key={i} className={cn('flex items-baseline justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 print:shadow-none', s.box)}>
+          <div key={i} className={cn('flex items-baseline justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 print:shadow-none', statBox(s.tone))}>
             <p className="truncate text-[10px] font-bold uppercase tracking-wide text-slate-400">{s.label}</p>
-            <p className={cn('shrink-0 text-lg font-black leading-none text-slate-900', s.color)}>{s.value}</p>
+            <p className={cn('shrink-0 text-lg font-black leading-none', statColor(s.tone))}>{s.value}</p>
           </div>
         ))}
       </div>
@@ -131,9 +141,9 @@ function SummaryGrid({ stats, compact }: { stats: { label: string; value: React.
   return (
     <div className="mb-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4 print:grid-cols-4">
       {stats.map((s, i) => (
-        <div key={i} className={cn('rounded-xl border border-slate-200 bg-white px-4 py-3.5 print:shadow-none', s.box)}>
+        <div key={i} className={cn('rounded-xl border border-slate-200 bg-white px-4 py-3.5 print:shadow-none', statBox(s.tone))}>
           <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{s.label}</p>
-          <p className={cn('mt-1.5 text-2xl font-black text-slate-900', s.color)}>{s.value}</p>
+          <p className={cn('mt-1.5 text-2xl font-black', statColor(s.tone))}>{s.value}</p>
         </div>
       ))}
     </div>
@@ -152,9 +162,9 @@ function ReportSummary({ payload, minPct, compact }: { payload: ReportPayload; m
         compact={compact}
         stats={[
           { label: 'Alunos', value: rows.length },
-          { label: 'Presença média', value: `${presMed}%`, color: presMed < minPct ? 'text-amber-600' : 'text-emerald-700', box: 'border-emerald-200 bg-emerald-50' },
-          { label: 'Total de presenças', value: presencas, color: 'text-emerald-700', box: 'border-emerald-200 bg-emerald-50' },
-          { label: 'Total de faltas', value: faltas, color: 'text-red-600', box: 'border-red-200 bg-red-50' },
+          { label: 'Presença média', value: `${presMed}%`, tone: freqTone(presMed, minPct) },
+          { label: 'Total de presenças', value: presencas, tone: 'ok' },
+          { label: 'Total de faltas', value: faltas, tone: faltas ? 'bad' : 'none' },
         ]}
       />
     );
@@ -173,14 +183,14 @@ function ReportSummary({ payload, minPct, compact }: { payload: ReportPayload; m
         t >= 1 && t <= 3
           ? [
               { label: 'Alunos', value: rows.length },
-              { label: `Aprovados · ${pct}%`, value: aprov, color: 'text-emerald-700', box: 'border-emerald-200 bg-emerald-50' },
-              { label: 'Em recuperação', value: vals.length - aprov, color: 'text-red-600', box: 'border-red-200 bg-red-50' },
+              { label: `Aprovados · ${pct}%`, value: aprov, tone: 'ok' },
+              { label: 'Em recuperação', value: vals.length - aprov, tone: vals.length - aprov ? 'warn' : 'none' },
             ]
           : [
               { label: 'Alunos', value: rows.length },
-              { label: 'Média da turma', value: turma != null ? fmtNumber(turma, 1) : '–', color: turma != null && turma >= 6 ? 'text-slate-900' : 'text-red-600' },
-              { label: `Aprovados · ${pct}%`, value: aprov, color: 'text-emerald-700', box: 'border-emerald-200 bg-emerald-50' },
-              { label: 'Em recuperação', value: vals.length - aprov, color: 'text-red-600', box: 'border-red-200 bg-red-50' },
+              { label: 'Média da turma', value: turma != null ? fmtNumber(turma, 1) : '–', tone: gradeTone(turma) },
+              { label: `Aprovados · ${pct}%`, value: aprov, tone: 'ok' },
+              { label: 'Em recuperação', value: vals.length - aprov, tone: vals.length - aprov ? 'warn' : 'none' },
             ]
       }
     />
@@ -219,7 +229,7 @@ function FreqBody({ payload, compact, minPct }: { payload: ReportPayload; compac
           {rows.map((r, i) => {
             const presentDates = dates.filter((d) => r.days?.[d] === true);
             const absentDates = dates.filter((d) => r.days?.[d] === false);
-            const low = r.pct < minPct;
+            const tone = freqTone(r.pct, minPct);
             return (
               <tr key={r.name} className="border-t border-slate-100 align-top even:bg-slate-50/50">
                 <td className="p-3 font-bold text-slate-800">
@@ -230,8 +240,8 @@ function FreqBody({ payload, compact, minPct }: { payload: ReportPayload; compac
                 </td>
                 {show.present ?? true ? (
                   <td className="p-3">
-                    <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">{r.present} presença(s)</div>
-                    <DateChips dates={presentDates} cls="border border-emerald-200 bg-emerald-50/70 text-emerald-700" chip={chip} />
+                    <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-green-700">{r.present} presença(s)</div>
+                    <DateChips dates={presentDates} cls="border border-green-200 bg-green-50 text-green-700" chip={chip} />
                   </td>
                 ) : null}
                 {show.absent ?? true ? (
@@ -243,11 +253,11 @@ function FreqBody({ payload, compact, minPct }: { payload: ReportPayload; compac
                 {show.pct ?? true ? (
                   <td className="p-3">
                   <div className="flex flex-col items-center gap-1.5">
-                    <span className={cn('text-base font-black tabular-nums', low ? 'text-red-600' : 'text-emerald-700')}>{r.pct}%</span>
+                    <span className={cn('text-base font-black tabular-nums', TONE[tone].text)}>{r.pct}%</span>
                     <div className="h-1.5 w-14 overflow-hidden rounded-full bg-slate-100">
                       <div
-                        className={cn('h-full rounded-full', low ? 'bg-red-500' : 'bg-emerald-500')}
-                        style={{ width: `${Math.min(100, Math.max(0, r.pct))}%`, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+                        className={cn('h-full rounded-full', TONE[tone].bar)}
+                        style={{ width: `${Math.min(100, Math.max(0, r.pct))}%`, ...exact }}
                       />
                     </div>
                   </div>
@@ -295,7 +305,7 @@ function FreqGrid({ payload, minPct }: { payload: ReportPayload; minPct: number 
               <tr className="border-b-2 border-slate-200 bg-slate-50 text-slate-500">
                 <th className="sticky left-0 z-10 bg-slate-50 px-2 py-1 text-left text-[11px] font-black uppercase shadow-[2px_0_0_0_rgba(226,232,240,1)]">Aluno</th>
                 {m.days.map((d) => (
-                  <th key={d} className={cn('w-6 border-l border-slate-100 px-0 py-1 font-bold', examSet.has(d) && 'text-amber-600')} title={examSet.has(d) ? 'Semana de provas' : undefined}>
+                  <th key={d} className={cn('w-6 border-l border-slate-100 px-0 py-1 font-bold', examSet.has(d) && 'text-orange-600')} title={examSet.has(d) ? 'Semana de provas' : undefined}>
                     {d.slice(8, 10)}
                   </th>
                 ))}
@@ -316,6 +326,7 @@ function FreqGrid({ payload, minPct }: { payload: ReportPayload; minPct: number 
                 const total = m.days.length;
                 const present = total - faltas;
                 const pct = total ? Math.round((present / total) * 1000) / 10 : 0;
+                const tone = freqTone(pct, minPct);
                 const reprovado = pct < minPct;
                 return (
                   <tr key={r.name} className="border-t border-slate-100 bg-white even:bg-slate-50">
@@ -330,17 +341,17 @@ function FreqGrid({ payload, minPct }: { payload: ReportPayload; minPct: number 
                         key={d}
                         className={cn(
                           'w-6 border-l border-slate-100 px-0 py-1 font-black',
-                          absent ? 'bg-red-50 text-red-600' : 'text-emerald-600',
+                          absent ? 'bg-red-50 text-red-600' : 'text-green-600',
                         )}
                         style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
                       >
                         {absent ? 'F' : 'P'}
                       </td>
                     ))}
-                    {show.present ?? true ? <td className="border-l-2 border-slate-200 px-1 py-1 font-black text-emerald-700">{present}</td> : null}
-                    {show.absent ?? true ? <td className="px-1 py-1 font-black text-red-600">{faltas}</td> : null}
-                    {show.pct ?? true ? <td className={cn('px-1 py-1 font-black', reprovado ? 'text-red-600' : 'text-emerald-700')}>{pct}%</td> : null}
-                    {show.situation ?? true ? <td className={cn('px-1 py-1 text-[10px] font-black uppercase', reprovado ? 'text-red-600' : 'text-emerald-700')}>{reprovado ? 'Reprovado' : 'Aprovado'}</td> : null}
+                    {show.present ?? true ? <td className="border-l-2 border-slate-200 px-1 py-1 font-black text-green-700">{present}</td> : null}
+                    {show.absent ?? true ? <td className={cn('px-1 py-1 font-black', faltas ? 'text-red-600' : 'text-slate-400')}>{faltas}</td> : null}
+                    {show.pct ?? true ? <td className={cn('px-1 py-1 font-black', TONE[tone].text)}>{pct}%</td> : null}
+                    {show.situation ?? true ? <td className={cn('px-1 py-1 text-[10px] font-black uppercase', reprovado ? 'text-red-600' : 'text-green-700')}>{reprovado ? 'Reprovado' : 'Aprovado'}</td> : null}
                   </tr>
                 );
               })}
@@ -349,8 +360,11 @@ function FreqGrid({ payload, minPct }: { payload: ReportPayload; minPct: number 
         </div>
       ))}
       <div className="flex flex-wrap items-center gap-3 px-1 text-[11px] text-slate-400">
-        <span><span className="font-black text-emerald-600">P</span> Presente</span>
+        <span><span className="font-black text-green-600">P</span> Presente</span>
         <span><span className="font-black text-red-600">F</span> Falta</span>
+        <span><span className="inline-block h-2 w-2 rounded-full bg-green-500" /> ≥ {minPct}%</span>
+        <span><span className="inline-block h-2 w-2 rounded-full bg-orange-500" /> {minPct - 10}–{minPct - 1}%</span>
+        <span><span className="inline-block h-2 w-2 rounded-full bg-red-500" /> abaixo de {minPct - 10}%</span>
         <span>Situação: frequência ≥ {minPct}% = Aprovado</span>
         <span>Só dias letivos (seg–sex, sem feriados nacionais).</span>
       </div>
@@ -397,11 +411,10 @@ function NotasBody({ payload, compact }: { payload: ReportPayload; compact: bool
                   {selected.map((k) => {
                     const score = r.activityScores?.[k];
                     const max = activities.find((a) => (a.id ?? a.name) === k)?.max ?? 10;
-                    // ≥ 60% do máximo = verde (ex.: 6/10, 3/5, 1,2/2). Abaixo disso, vermelho.
-                    const ok = score != null && score >= max * 0.6;
+                    // Verde ≥ 60% do máximo · laranja 50–59% · vermelho abaixo (ex.: 6/10, 3/5).
                     return (
                       <td key={k} className={cn('text-center', pad)}>
-                        {score != null ? <span className={cn('text-base font-black', ok ? 'text-slate-900' : 'text-red-600')}>{fmtNumber(score, 1)}</span> : '–'}
+                        {score != null ? <span className={cn('text-base font-black', gradeCls(score, max))}>{fmtNumber(score, 1)}</span> : '–'}
                       </td>
                     );
                   })}
@@ -436,12 +449,12 @@ function NotasBody({ payload, compact }: { payload: ReportPayload; compact: bool
               </td>
               {r.terms.map((m, j) => ((show[`term${j + 1}`] ?? true) ? (
                 <td key={j} className={cn('text-center', pad)}>
-                  {m != null ? <span className={cn('font-bold', m >= 6 ? 'text-slate-900' : 'text-red-600')}>{fmtNumber(m, 1)}</span> : '–'}
+                  {m != null ? <span className={cn('font-bold', gradeCls(m))}>{fmtNumber(m, 1)}</span> : '–'}
                 </td>
               ) : null))}
               {(show.final ?? true) ? (
                 <td className={cn('text-center', pad)}>
-                  {r.final != null ? <span className={cn('font-black', r.final >= 6 ? 'text-slate-900' : 'text-red-600')}>{fmtNumber(r.final, 1)}</span> : '–'}
+                  {r.final != null ? <span className={cn('font-black', gradeCls(r.final))}>{fmtNumber(r.final, 1)}</span> : '–'}
                 </td>
               ) : null}
               {(show.situation ?? true) ? <td className={cn('text-center text-xs font-bold', pad, situacaoCls(r.final))}>{situacao(r.final)}</td> : null}

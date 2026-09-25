@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { Check, CheckCheck, ClipboardCheck, Layers, Lock, Pencil, Save, Users, X } from 'lucide-react';
+import { Check, CheckCheck, ClipboardCheck, Layers, Pencil, Save, Search, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
-import { Card, EmptyState, PageHeader, SearchInput, Segmented, Select, Loading} from '../components/ui';
+import { ActionFooter, EmptyState, FilterBar, FilterField, FooterButton, Loading, Notice, PageHeader, Segmented, StatGrid, StatTile, fieldCls } from '../components/ui';
+import { freqTone } from '../lib/tone';
 import { successToast } from '../components/Feedback';
 import { cn } from '../lib/cn';
 import { getRecords, getSession, listClasses, listStudentsByClass, saveAttendance } from '../lib/queries';
@@ -152,69 +153,42 @@ export function AttendancePage() {
 
   if (mode === 'prova') return <ExamRoll classes={classes} today={today} mode={mode} setMode={setMode} />;
 
+  const pct = students.length ? Math.round((counts.present / students.length) * 100) : 0;
+
   return (
     <div className="pb-28">
-      <PageHeader title="Chamadas" subtitle="Toque no aluno para marcar falta. As faltas ficam salvas por dia." />
+      <PageHeader title="Chamadas" subtitle="Toque no aluno para marcar falta." action={<ModeToggle mode={mode} setMode={setMode} />} />
 
-      <ModeToggle mode={mode} setMode={setMode} />
-
-      <div className="mb-4 grid gap-3 sm:grid-cols-2">
-        <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </Select>
-        <input
-          type="date"
-          value={date}
-          max={today}
-          onChange={(e) => setDate(e.target.value)}
-          className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-        />
-      </div>
+      <FilterBar>
+        <FilterField label="Turma" grow>
+          <select value={classId} onChange={(e) => setClassId(e.target.value)} className={fieldCls}>
+            {classes.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </FilterField>
+        <FilterField label="Data">
+          <input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} className={fieldCls} />
+        </FilterField>
+        <FilterField label="Buscar aluno" wide grow>
+          <SearchField value={q} onChange={setQ} />
+        </FilterField>
+      </FilterBar>
 
       {existing?.session?.exam_mode ? (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-black text-amber-800">
-          <Layers size={16} /> Chamada feita em MODO PROVA — turmas misturadas nesta sala.
-        </div>
+        <Notice tone="warn" icon={<Layers size={15} />}>Chamada feita em modo prova (turmas misturadas na sala).</Notice>
       ) : null}
-
       {hasSavedAttendance && !editingAttendance ? (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
-          <Lock size={16} className="text-muted-foreground" />
-          Chamada bloqueada para evitar alterações acidentais. Clique em Editar chamada para reabrir.
-          {lastMovement ? <span className="ml-auto text-xs font-bold text-muted-foreground">Últ. mov. {format(new Date(lastMovement), 'dd/MM')}</span> : null}
-        </div>
+        <Notice aside={lastMovement ? `Salva em ${format(new Date(lastMovement), 'dd/MM HH:mm')}` : undefined}>
+          Chamada salva e bloqueada. Toque em <b>Editar</b> para alterar.
+        </Notice>
       ) : null}
-      <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-center">
-          <p className="text-2xl font-black text-emerald-700">{counts.present}</p>
-          <p className="text-[11px] font-black uppercase tracking-wide text-emerald-700/70">Presentes</p>
-        </div>
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-center">
-          <p className="text-2xl font-black text-red-600">{counts.absent}</p>
-          <p className="text-[11px] font-black uppercase tracking-wide text-red-600/70">Faltas</p>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-3 text-center">
-          <p className={cn('text-2xl font-black', students.length && counts.present / students.length < 0.75 ? 'text-amber-600' : 'text-foreground')}>
-            {students.length ? Math.round((counts.present / students.length) * 100) : 0}%
-          </p>
-          <p className="text-[11px] font-black uppercase tracking-wide text-muted-foreground">Presença</p>
-        </div>
-      </div>
 
-      <div className="mb-3 flex flex-col gap-2 sm:flex-row">
-        <SearchInput value={q} onChange={setQ} placeholder="Buscar aluno…" className="flex-1" />
-        <button
-          onClick={allPresent}
-          disabled={!editingAttendance}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-50 px-4 text-sm font-bold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
-        >
-          <CheckCheck size={18} /> Todos presentes
-        </button>
-      </div>
+      <StatGrid cols={3}>
+        <StatTile label="Presentes" value={counts.present} tone="ok" />
+        <StatTile label="Faltas" value={counts.absent} tone={counts.absent ? 'bad' : 'none'} />
+        <StatTile label="Presença" value={`${pct}%`} tone={students.length ? freqTone(pct) : 'none'} />
+      </StatGrid>
 
       {isLoading ? (
         <Loading label="Carregando alunos…" />
@@ -225,91 +199,108 @@ export function AttendancePage() {
       ) : students.length === 0 ? (
         <EmptyState icon={<ClipboardCheck size={26} />} title="Turma sem alunos" hint="Cadastre alunos nesta turma para fazer a chamada." />
       ) : (
-        <div className="space-y-2">
-          {list.map((s, i) => {
-            const absent = records[s.id] === 'absent';
-            return (
-              <button
-                key={s.id}
-                onClick={() => toggle(s.id)}
-                disabled={!editingAttendance}
-                className={cn(
-                  'flex w-full items-center gap-3 rounded-2xl border p-3 text-left shadow-sm transition active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-80 disabled:active:scale-100',
-                  absent ? 'border-red-200 bg-red-50' : 'border-border bg-card hover:border-emerald-200',
-                )}
-              >
-                <span
-                  className={cn(
-                    'grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-black tabular-nums',
-                    absent ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700',
-                  )}
-                >
-                  {i + 1}
-                </span>
-                <span className={cn('min-w-0 flex-1 break-words text-base font-bold leading-snug', absent ? 'text-red-800' : 'text-foreground')}>
-                  {s.full_name}
-                </span>
-                <span
-                  className={cn(
-                    'flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-black',
-                    absent ? 'bg-red-600 text-white' : 'bg-emerald-50 text-emerald-700',
-                  )}
-                >
-                  {absent ? <X size={18} /> : <Check size={18} />}
-                  {absent ? 'Falta' : 'Presente'}
-                </span>
+        <>
+          <div className="mb-2 flex items-center justify-between px-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{list.length} aluno(s)</p>
+            {editingAttendance && counts.absent > 0 ? (
+              <button onClick={allPresent} className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-700 hover:underline">
+                <CheckCheck size={16} /> Marcar todos presentes
               </button>
-            );
-          })}
-        </div>
+            ) : null}
+          </div>
+          <StudentRollList
+            items={list.map((s) => ({ id: s.id, name: s.full_name }))}
+            records={records}
+            disabled={!editingAttendance}
+            onToggle={toggle}
+          />
+        </>
       )}
 
       {students.length > 0 ? (
-        <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 p-3 backdrop-blur lg:pl-72">
-          <div className="mx-auto flex max-w-5xl items-center gap-2 px-1 sm:gap-3">
-            <div className="hidden min-w-0 flex-1 sm:block">
-              <p className="truncate text-sm font-bold text-foreground">
-                {saved ? '✓ Chamada salva e bloqueada' : editingAttendance ? 'Edição aberta' : 'Chamada do dia'}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">{counts.absent} falta(s) • {students.length} alunos</p>
-            </div>
-            {editingAttendance ? (
-              <>
-                {hasSavedAttendance ? (
-                  <button
-                    onClick={resetRecordsFromSaved}
-                    disabled={save.isPending}
-                    className="inline-flex min-h-12 items-center justify-center rounded-xl border border-border px-4 text-sm font-black text-muted-foreground transition hover:bg-muted disabled:opacity-60"
-                  >
-                    Cancelar
-                  </button>
-                ) : null}
-                <button
-                  onClick={handleSave}
-                  disabled={save.isPending}
-                  className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-base font-black text-white transition hover:bg-emerald-700 disabled:opacity-60 sm:flex-none sm:px-8"
-                >
-                  <Save size={20} />
-                  <span className="sm:hidden">{save.isPending ? 'Salvando…' : 'Salvar'}</span>
-                  <span className="hidden sm:inline">{save.isPending ? 'Salvando…' : 'Salvar e bloquear'}</span>
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => {
-                  setEditingAttendance(true);
-                  setSaved(false);
-                }}
-                className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-base font-black text-white transition hover:bg-slate-800 sm:flex-none sm:px-8"
-              >
-                <Pencil size={20} />
-                Editar chamada
-              </button>
-            )}
-          </div>
-          {save.isError ? <p className="mx-auto mt-2 max-w-5xl px-1 text-sm font-semibold text-red-600">{(save.error as Error).message}</p> : null}
-        </footer>
+        <ActionFooter
+          title={saved ? 'Chamada salva e bloqueada' : editingAttendance ? 'Edição aberta' : 'Chamada do dia'}
+          detail={`${counts.absent} falta(s) · ${students.length} alunos · ${format(new Date(date + 'T00:00:00'), 'dd/MM/yyyy')}`}
+          error={save.isError ? (save.error as Error).message : null}
+        >
+          {editingAttendance ? (
+            <>
+              {hasSavedAttendance ? (
+                <FooterButton kind="secondary" onClick={resetRecordsFromSaved} disabled={save.isPending}>Cancelar</FooterButton>
+              ) : null}
+              <FooterButton onClick={handleSave} disabled={save.isPending}>
+                <Save size={18} /> {save.isPending ? 'Salvando…' : 'Salvar chamada'}
+              </FooterButton>
+            </>
+          ) : (
+            <FooterButton
+              onClick={() => {
+                setEditingAttendance(true);
+                setSaved(false);
+              }}
+            >
+              <Pencil size={18} /> Editar chamada
+            </FooterButton>
+          )}
+        </ActionFooter>
       ) : null}
+    </div>
+  );
+}
+
+/** Campo de busca compacto (mesma altura dos filtros). */
+function SearchField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <span className="relative block">
+      <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="Nome do aluno" className={cn(fieldCls, 'pl-9')} />
+    </span>
+  );
+}
+
+/** Lista de chamada: verde = presente, vermelho = falta. Um toque alterna. */
+function StudentRollList({
+  items,
+  records,
+  disabled,
+  onToggle,
+}: {
+  items: { id: string; name: string; sub?: string }[];
+  records: Record<string, AttendanceStatus>;
+  disabled?: boolean;
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
+      {items.map((s, i) => {
+        const absent = records[s.id] === 'absent';
+        return (
+          <button
+            key={s.id}
+            onClick={() => onToggle(s.id)}
+            disabled={disabled}
+            className={cn(
+              'flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left transition last:border-b-0 disabled:cursor-default sm:px-4',
+              absent ? 'bg-red-50/70' : 'hover:bg-muted/60',
+            )}
+          >
+            <span className="w-6 shrink-0 text-right text-xs font-semibold tabular-nums text-muted-foreground">{i + 1}</span>
+            <span className="min-w-0 flex-1">
+              <span className={cn('block break-words text-[15px] font-medium leading-snug', absent ? 'text-red-800' : 'text-foreground')}>{s.name}</span>
+              {s.sub ? <span className="block text-xs text-muted-foreground">{s.sub}</span> : null}
+            </span>
+            <span
+              className={cn(
+                'inline-flex w-[6.5rem] shrink-0 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold ring-1 ring-inset',
+                absent ? 'bg-red-600 text-white ring-red-600' : 'bg-green-50 text-green-700 ring-green-200',
+              )}
+            >
+              {absent ? <X size={16} /> : <Check size={16} />}
+              {absent ? 'Falta' : 'Presente'}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -317,7 +308,6 @@ export function AttendancePage() {
 function ModeToggle({ mode, setMode }: { mode: 'turma' | 'prova'; setMode: (m: 'turma' | 'prova') => void }) {
   return (
     <Segmented<'turma' | 'prova'>
-      className="mb-4"
       value={mode}
       onChange={setMode}
       options={[
@@ -412,127 +402,78 @@ function ExamRoll({
 
   return (
     <div className="pb-28">
-      <PageHeader title="Chamadas" subtitle="Modo prova: turmas misturadas na mesma sala, chamada única." />
+      <PageHeader title="Chamadas" subtitle="Modo prova: turmas misturadas na mesma sala." action={<ModeToggle mode={mode} setMode={setMode} />} />
 
-      <ModeToggle mode={mode} setMode={setMode} />
-
-      <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-black text-amber-800">
-        <Layers size={16} /> MODO PROVA ativo — a chamada será marcada como turmas misturadas.
-      </div>
-
-      {/* Seleção de turmas que estão na sala */}
-      <Card className="mb-4">
-        <p className="mb-2 text-xs font-black uppercase tracking-wide text-muted-foreground">Turmas nesta sala</p>
+      <div className="mb-4 rounded-xl border border-border bg-card p-3 shadow-soft sm:p-4">
+        <div className="mb-3 grid grid-cols-2 gap-3 lg:flex lg:items-end">
+          <FilterField label="Data">
+            <input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} className={fieldCls} />
+          </FilterField>
+          <FilterField label="Buscar aluno" grow>
+            <SearchField value={q} onChange={setQ} />
+          </FilterField>
+        </div>
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Turmas nesta sala</p>
         {examClasses.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhuma turma faz provas. Marque "Esta turma faz provas" no cadastro da turma.</p>
-        ) : null}
-        <div className="flex flex-wrap gap-2">
-          {examClasses.map((c) => {
-            const on = selected.includes(c.id);
-            return (
-              <button
-                key={c.id}
-                onClick={() => toggleClass(c.id)}
-                className={cn(
-                  'rounded-xl border px-3 py-2 text-sm font-bold transition',
-                  on ? 'border-emerald-300 bg-emerald-600 text-white' : 'border-border bg-card text-muted-foreground hover:bg-muted',
-                )}
-              >
-                {c.name}
-              </button>
-            );
-          })}
-        </div>
-        <div className="mt-3">
-          <label className="mb-1 block text-xs font-black uppercase tracking-wide text-muted-foreground">Data</label>
-          <input
-            type="date"
-            value={date}
-            max={today}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 sm:w-56"
-          />
-        </div>
-      </Card>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {examClasses.map((c) => {
+              const on = selected.includes(c.id);
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => toggleClass(c.id)}
+                  aria-pressed={on}
+                  className={cn(
+                    'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold ring-1 ring-inset transition',
+                    on ? 'bg-neutral-900 text-white ring-neutral-900' : 'bg-card text-muted-foreground ring-border hover:text-foreground',
+                  )}
+                >
+                  {on ? <Check size={14} /> : null}
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {selIds.length === 0 ? (
         <EmptyState icon={<Layers size={26} />} title="Selecione as turmas" hint="Marque as turmas que estão fazendo prova nesta sala para montar a lista única." />
       ) : (
         <>
-          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <div className="rounded-2xl border border-border bg-card p-3 text-center">
-              <p className="text-2xl font-black text-foreground">{students.length}</p>
-              <p className="text-[11px] font-black uppercase tracking-wide text-muted-foreground">Alunos</p>
-            </div>
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-center">
-              <p className="text-2xl font-black text-emerald-700">{counts.present}</p>
-              <p className="text-[11px] font-black uppercase tracking-wide text-emerald-700/70">Presentes</p>
-            </div>
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-center">
-              <p className="text-2xl font-black text-red-600">{counts.absent}</p>
-              <p className="text-[11px] font-black uppercase tracking-wide text-red-600/70">Faltas</p>
-            </div>
-            <div className="rounded-2xl border border-border bg-card p-3 text-center">
-              <p className="text-2xl font-black text-foreground">{selIds.length}</p>
-              <p className="text-[11px] font-black uppercase tracking-wide text-muted-foreground">Turmas</p>
-            </div>
-          </div>
-
-          <SearchInput value={q} onChange={setQ} placeholder="Buscar aluno…" className="mb-3" />
+          <StatGrid>
+            <StatTile label="Alunos" value={students.length} />
+            <StatTile label="Presentes" value={counts.present} tone="ok" />
+            <StatTile label="Faltas" value={counts.absent} tone={counts.absent ? 'bad' : 'none'} />
+            <StatTile label="Turmas" value={selIds.length} />
+          </StatGrid>
 
           {isLoading ? (
             <Loading label="Carregando alunos…" />
           ) : students.length === 0 ? (
             <EmptyState icon={<ClipboardCheck size={26} />} title="Turmas sem alunos" hint="As turmas selecionadas não têm alunos cadastrados." />
           ) : (
-            <div className="space-y-2">
-              {list.map((s, i) => {
-                const absent = records[s.id] === 'absent';
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => toggleStudent(s.id)}
-                    className={cn(
-                      'flex w-full items-center gap-3 rounded-2xl border p-3 text-left shadow-sm transition active:scale-[.99]',
-                      absent ? 'border-red-200 bg-red-50' : 'border-border bg-card hover:border-emerald-200',
-                    )}
-                  >
-                    <span className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-black tabular-nums', absent ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700')}>
-                      {i + 1}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className={cn('block break-words text-base font-bold leading-snug', absent ? 'text-red-800' : 'text-foreground')}>{s.full_name}</span>
-                      <span className="text-xs font-bold text-muted-foreground">{classNameById.get(s.class_id) ?? 'Turma'}</span>
-                    </span>
-                    <span className={cn('flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-black', absent ? 'bg-red-600 text-white' : 'bg-emerald-50 text-emerald-700')}>
-                      {absent ? <X size={18} /> : <Check size={18} />}
-                      {absent ? 'Falta' : 'Presente'}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <StudentRollList
+              items={list.map((s) => ({ id: s.id, name: s.full_name, sub: classNameById.get(s.class_id) ?? 'Turma' }))}
+              records={records}
+              onToggle={toggleStudent}
+            />
           )}
         </>
       )}
 
       {students.length > 0 ? (
-        <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 p-3 backdrop-blur lg:pl-72">
-          <div className="mx-auto flex max-w-5xl items-center gap-2 px-1 sm:gap-3">
-            <div className="hidden min-w-0 flex-1 sm:block">
-              <p className="truncate text-sm font-bold text-foreground">Chamada de prova • {selIds.length} turma(s)</p>
-              <p className="truncate text-xs text-muted-foreground">{counts.absent} falta(s) • {students.length} alunos • {format(new Date(date + 'T00:00:00'), 'dd/MM')}</p>
-            </div>
-            <button
-              onClick={() => save.mutate()}
-              disabled={save.isPending}
-              className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-base font-black text-white transition hover:bg-emerald-700 disabled:opacity-60 sm:flex-none sm:px-8"
-            >
-              <Save size={20} /> {save.isPending ? 'Salvando…' : 'Salvar chamada'}
-            </button>
-          </div>
-          {save.isError ? <p className="mx-auto mt-2 max-w-5xl px-1 text-sm font-semibold text-red-600">{(save.error as Error).message}</p> : null}
-        </footer>
+        <ActionFooter
+          title={`Chamada de prova · ${selIds.length} turma(s)`}
+          detail={`${counts.absent} falta(s) · ${students.length} alunos · ${format(new Date(date + 'T00:00:00'), 'dd/MM/yyyy')}`}
+          error={save.isError ? (save.error as Error).message : null}
+        >
+          <FooterButton onClick={() => save.mutate()} disabled={save.isPending}>
+            <Save size={18} /> {save.isPending ? 'Salvando…' : 'Salvar chamada'}
+          </FooterButton>
+        </ActionFooter>
       ) : null}
     </div>
   );

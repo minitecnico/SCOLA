@@ -105,14 +105,14 @@ export function DashboardPage() {
 
       {/* Atenção: frequência baixa */}
       {showAlerts && alerts.length > 0 ? (
-        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+        <div className="mb-6 rounded-xl border border-orange-200 bg-orange-50/60 p-4">
           <div className="mb-3 flex items-center gap-2">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-orange-100 text-orange-700">
               <TriangleAlert size={18} />
             </span>
             <div>
-              <h2 className="text-sm font-black text-amber-900">Atenção · frequência abaixo de 75%</h2>
-              <p className="text-xs font-bold text-amber-700/70">{alerts.length} aluno(s) em risco de reprovação por falta.</p>
+              <h2 className="text-sm font-black text-orange-900">Atenção · frequência abaixo de 75%</h2>
+              <p className="text-xs font-bold text-orange-700/80">{alerts.length} aluno(s) em risco de reprovação por falta.</p>
             </div>
           </div>
           <div className="space-y-1.5">
@@ -126,8 +126,8 @@ export function DashboardPage() {
               </div>
             ))}
           </div>
-          {alerts.length > 5 ? <p className="mt-2 text-xs font-bold text-amber-700/70">+{alerts.length - 5} aluno(s)…</p> : null}
-          <Link to="/relatorios" className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-amber-800 hover:underline">
+          {alerts.length > 5 ? <p className="mt-2 text-xs font-bold text-orange-700/80">+{alerts.length - 5} aluno(s)…</p> : null}
+          <Link to="/relatorios" className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-orange-800 hover:underline">
             <BarChart3 size={14} /> Ver relatório de frequência →
           </Link>
         </div>
@@ -205,12 +205,13 @@ export function DashboardPage() {
             const presPct = total > 0 ? Math.round((presentes / total) * 100) : 100;
             const lastDate = sessions[0]?.session_date;
             // Polimorfismo: o tom acompanha a severidade das faltas da turma.
+            // Verde: presença ≥ 90% · laranja: 75–89% · vermelho: abaixo de 75%.
             const tone =
-              faltas === 0
-                ? { accent: 'border-l-emerald-400', icon: 'bg-emerald-50 text-emerald-700', bar: 'bg-emerald-500', pill: 'bg-emerald-50 text-emerald-700' }
-                : rate < 0.15
-                ? { accent: 'border-l-amber-400', icon: 'bg-amber-50 text-amber-700', bar: 'bg-amber-500', pill: 'bg-amber-50 text-amber-700' }
-                : { accent: 'border-l-rose-400', icon: 'bg-rose-50 text-rose-700', bar: 'bg-rose-500', pill: 'bg-rose-50 text-rose-700' };
+              rate <= 0.1
+                ? { accent: 'border-l-green-500', icon: 'bg-green-50 text-green-700', bar: 'bg-green-500', pill: 'bg-green-50 text-green-700' }
+                : rate <= 0.25
+                ? { accent: 'border-l-orange-500', icon: 'bg-orange-50 text-orange-700', bar: 'bg-orange-500', pill: 'bg-orange-50 text-orange-700' }
+                : { accent: 'border-l-red-500', icon: 'bg-red-50 text-red-700', bar: 'bg-red-500', pill: 'bg-red-50 text-red-700' };
             return (
               <Card key={classId} className={cn('overflow-hidden border-l-4 p-0 transition', tone.accent, isOpen && 'sm:col-span-2 xl:col-span-3')}>
                 <button onClick={() => setOpen(isOpen ? null : classId)} className="flex w-full items-center gap-3 p-4 text-left">
@@ -243,11 +244,11 @@ export function DashboardPage() {
                         <p className="min-w-0 flex-1 text-sm font-bold text-foreground">
                           {format(parseISO(s.session_date), "EEE, d 'de' MMM", { locale: ptBR })}
                         </p>
-                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">{s.present} pres.</span>
-                        <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700">{s.absent} falt.</span>
+                        <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700">{s.present} pres.</span>
+                        <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">{s.absent} falt.</span>
                         <button
                           onClick={() => confirm(`Excluir a chamada de ${format(parseISO(s.session_date), 'dd/MM/yyyy')}?`) && delSession.mutate(s.id)}
-                          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
+                          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground ring-1 ring-inset ring-border hover:bg-red-50 hover:text-red-600"
                           aria-label="Excluir chamada"
                         >
                           <Trash2 size={15} />

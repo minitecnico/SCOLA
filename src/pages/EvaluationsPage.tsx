@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ClipboardList, ListChecks, Lock, Pencil, Plus, Save, Sliders, Trash2, Users } from 'lucide-react';
+import { Check, ClipboardList, MoreHorizontal, Pencil, Plus, Save, Search, Sliders, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { successToast } from '../components/Feedback';
 import { ConfirmClearModal } from '../components/ConfirmClearModal';
 import { canManageOrg } from '../lib/permissions';
-import { Button, Card, EmptyState, Input, Modal, PageHeader, SearchInput, Segmented, Select, Loading} from '../components/ui';
+import { ActionFooter, Button, Card, DropdownMenu, EmptyState, FilterBar, FilterField, FooterButton, Input, Loading, Modal, Notice, PageHeader, SegmentedField, StatGrid, StatTile, fieldCls } from '../components/ui';
+import { TONE, gradeTone, type Tone } from '../lib/tone';
 import { cn } from '../lib/cn';
 import {
   applyCreditoToGrades,
@@ -23,6 +24,14 @@ import { useOnlineStatus } from '../lib/useOnlineStatus';
 import { usePersistentState } from '../lib/usePersistentState';
 
 type CellState = { done: boolean; score: string };
+
+/** Entregas: 100–80% verde · 79–50% laranja · abaixo vermelho. */
+function deliveryTone(pct: number, possible: number): Tone {
+  if (!possible) return 'none';
+  if (pct >= 80) return 'ok';
+  if (pct >= 50) return 'warn';
+  return 'bad';
+}
 
 /** yyyy-mm-dd → dd/mm (prazo curto no cabeçalho). */
 function fmtDM(d: string): string {
@@ -204,101 +213,75 @@ export function EvaluationsPage() {
     <div className="pb-28">
       <PageHeader
         title="Central de Avaliações"
-        subtitle={`${TERM_LABEL[term]} • ${year} • controle de atividades (sem média)`}
+        subtitle="Quem entregou cada atividade e a pontuação (não calcula média)."
         action={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="ghost" onClick={() => setConfigOpen(true)}>
-              <Sliders size={18} /> Composição de avaliações
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setConfigOpen(true)} className="min-h-10 py-2">
+              <Sliders size={16} /> Atividades
             </Button>
-            {canClear && hasSavedMarks ? (
-              <Button variant="ghost" onClick={() => setClearOpen(true)}>
-                <Trash2 size={18} /> Limpar avaliações
-              </Button>
-            ) : null}
+            <DropdownMenu
+              label="Mais ações"
+              iconOnly
+              icon={<MoreHorizontal size={18} />}
+              items={[{ label: 'Limpar avaliações do trimestre', icon: <Trash2 size={16} />, danger: true, onClick: () => setClearOpen(true), hidden: !(canClear && hasSavedMarks) }]}
+            />
           </div>
         }
       />
 
-      <Segmented<number>
-        className="mb-4"
-        value={term}
-        onChange={setTerm}
-        options={TERMS.map((t) => ({ value: t, label: TERM_LABEL[t] }))}
-      />
-
-      <div className="mb-4 grid gap-3 sm:grid-cols-2">
-        <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </Select>
-        <Select value={year} onChange={(e) => setYear(Number(e.target.value))}>
-          {years.map((y) => (
-            <option key={y} value={y}>{y}</option>
-          ))}
-        </Select>
-      </div>
+      <FilterBar>
+        <FilterField label="Trimestre" wide>
+          <SegmentedField<number> value={term} onChange={setTerm} options={TERMS.map((t) => ({ value: t, label: `${t}º tri` }))} />
+        </FilterField>
+        <FilterField label="Turma" grow>
+          <select value={classId} onChange={(e) => setClassId(e.target.value)} className={fieldCls}>
+            {classes.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </FilterField>
+        <FilterField label="Ano">
+          <select value={year} onChange={(e) => setYear(Number(e.target.value))} className={fieldCls}>
+            {years.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </FilterField>
+        <FilterField label="Buscar aluno" wide grow>
+          <span className="relative block">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nome do aluno" className={cn(fieldCls, 'pl-9')} />
+          </span>
+        </FilterField>
+      </FilterBar>
 
       {activities.length === 0 ? (
         <EmptyState
           icon={<Sliders size={26} />}
           title="Defina as atividades deste trimestre"
           hint="Em Composição de avaliações, dê nome às atividades que a turma vai fazer (ex.: Trabalho de Ciências, Leitura)."
-          action={<Button onClick={() => setConfigOpen(true)}><Sliders size={18} /> Composição de avaliações</Button>}
+          action={<Button onClick={() => setConfigOpen(true)}><Sliders size={18} /> Definir atividades</Button>}
         />
       ) : (
         <>
-          <SearchInput value={q} onChange={setQ} placeholder="Buscar aluno…" className="mb-3" />
-
           {isLoading || marksLoading ? (
             <Loading />
           ) : students.length === 0 ? (
             <EmptyState icon={<ClipboardList size={26} />} title="Turma sem alunos" hint="Cadastre alunos nesta turma." />
           ) : (
             <>
-              <div className="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-soft">
-                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground">
-                    <Users size={20} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-2xl font-black leading-none text-foreground">{list.length}</p>
-                    <p className="mt-1 text-[11px] font-black uppercase tracking-wide text-muted-foreground">Alunos</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-soft">
-                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-500">
-                    <ClipboardList size={20} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-2xl font-black leading-none text-foreground">{activities.length}</p>
-                    <p className="mt-1 text-[11px] font-black uppercase tracking-wide text-muted-foreground">Atividades</p>
-                  </div>
-                </div>
-                <div className="col-span-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 shadow-soft sm:col-span-1">
-                  <div className="flex items-center gap-3">
-                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-600">
-                      <ListChecks size={20} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-2xl font-black leading-none text-emerald-700">{totals.pct}%</p>
-                      <p className="mt-1 text-[11px] font-black uppercase tracking-wide text-emerald-700/70">Entregas · {totals.done}/{totals.possible}</p>
-                    </div>
-                  </div>
-                  <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-emerald-100">
-                    <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${totals.pct}%` }} />
-                  </div>
-                </div>
-              </div>
+              <StatGrid cols={3}>
+                <StatTile label="Alunos" value={list.length} />
+                <StatTile label="Atividades" value={activities.length} />
+                <StatTile label="Entregas" value={`${totals.pct}%`} tone={deliveryTone(totals.pct, totals.possible)} hint={`${totals.done} de ${totals.possible}`} />
+              </StatGrid>
 
               {hasSavedMarks && !editing ? (
-                <div className="mb-3 flex items-center gap-2 rounded-xl border border-border bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
-                  <Lock size={16} className="text-muted-foreground" /> Avaliações bloqueadas para evitar alterações acidentais. Clique em Editar para reabrir.
-                </div>
+                <Notice>Avaliações salvas e bloqueadas. Toque em <b>Editar</b> para alterar.</Notice>
               ) : null}
               <Card className="max-h-[70vh] overflow-auto p-0">
                 <table className="w-full border-collapse text-sm">
-                  <thead className="sticky top-0 z-20 bg-muted text-left text-[11px] font-black uppercase tracking-wide text-muted-foreground">
+                  <thead className="sticky top-0 z-20 bg-muted text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                     {creditoGrouped ? (
                       <>
                         <tr>
@@ -307,8 +290,8 @@ export function EvaluationsPage() {
                             if (a.credito) {
                               if (idx !== firstCreditoIdx) return null;
                               return (
-                                <th key="credito-group" colSpan={creditoCount} className="border-b border-amber-200 bg-amber-50 px-2 py-2 text-center text-amber-700">
-                                  Crédito variável <span className="font-bold normal-case text-amber-600">· vale 1 nota</span>
+                                <th key="credito-group" colSpan={creditoCount} className="border-b border-border bg-muted px-2 py-2 text-center">
+                                  Crédito variável <span className="font-medium normal-case text-muted-foreground">· vale 1 nota</span>
                                 </th>
                               );
                             }
@@ -316,19 +299,19 @@ export function EvaluationsPage() {
                               <th key={actKey(a)} rowSpan={2} className="min-w-[84px] px-1.5 py-2 text-center align-bottom">
                                 <span className="block text-[11px] leading-tight text-muted-foreground">{a.name}</span>
                                 <span className="mt-1 inline-block rounded bg-muted/70 px-1.5 py-0.5 text-[9px] font-black text-muted-foreground">{a.max > 0 ? `0–${a.max}` : 'nota livre'}</span>
-                                {a.date ? <span className="mt-0.5 block text-[9px] font-black text-emerald-600">{fmtDM(a.date)}</span> : null}
+                                {a.date ? <span className="mt-0.5 block text-[9px] font-semibold text-muted-foreground">até {fmtDM(a.date)}</span> : null}
                               </th>
                             );
                           })}
-                          {hasCredito ? <th rowSpan={2} className="min-w-[96px] bg-amber-50 px-3 py-3 text-center text-amber-700">Crédito Variável</th> : null}
+                          {hasCredito ? <th rowSpan={2} className="min-w-[96px] px-3 py-3 text-center">Crédito Variável</th> : null}
                           <th rowSpan={2} className="px-3 py-3 text-center">Feitas</th>
                         </tr>
                         <tr>
                           {activities.filter((a) => a.credito).map((a) => (
-                            <th key={actKey(a)} className="min-w-[84px] bg-amber-50 px-1.5 py-2 text-center align-bottom">
-                              <span className="block text-[11px] leading-tight text-amber-800">{a.name}</span>
-                              <span className="mt-1 inline-block rounded bg-amber-200/60 px-1.5 py-0.5 text-[9px] font-black text-amber-700">{a.max > 0 ? `0–${a.max}` : 'nota livre'}</span>
-                              {a.date ? <span className="mt-0.5 block text-[9px] font-black text-emerald-600">{fmtDM(a.date)}</span> : null}
+                            <th key={actKey(a)} className="min-w-[84px] bg-muted px-1.5 py-2 text-center align-bottom">
+                              <span className="block text-[11px] leading-tight text-muted-foreground">{a.name}</span>
+                              <span className="mt-1 inline-block rounded bg-muted/70 px-1.5 py-0.5 text-[9px] font-black text-muted-foreground">{a.max > 0 ? `0–${a.max}` : 'nota livre'}</span>
+                              {a.date ? <span className="mt-0.5 block text-[9px] font-semibold text-muted-foreground">até {fmtDM(a.date)}</span> : null}
                             </th>
                           ))}
                         </tr>
@@ -337,13 +320,13 @@ export function EvaluationsPage() {
                       <tr>
                         <th className="sticky left-0 top-0 z-30 w-[160px] min-w-[160px] max-w-[160px] bg-muted px-3 py-3 text-left shadow-[2px_0_0_0_rgba(226,232,240,1)]">Aluno</th>
                         {activities.map((a) => (
-                          <th key={actKey(a)} className={cn('min-w-[84px] px-1.5 py-2 text-center align-bottom', a.credito && 'bg-amber-50')}>
+                          <th key={actKey(a)} className={cn('min-w-[84px] px-1.5 py-2 text-center align-bottom', a.credito && 'bg-muted')}>
                             <span className="block text-[11px] leading-tight text-muted-foreground">{a.name}</span>
                             <span className="mt-1 inline-block rounded bg-muted/70 px-1.5 py-0.5 text-[9px] font-black text-muted-foreground">{a.max > 0 ? `0–${a.max}` : 'nota livre'}</span>
-                            {a.date ? <span className="mt-0.5 block text-[9px] font-black text-emerald-600">{fmtDM(a.date)}</span> : null}
+                            {a.date ? <span className="mt-0.5 block text-[9px] font-semibold text-muted-foreground">até {fmtDM(a.date)}</span> : null}
                           </th>
                         ))}
-                        {hasCredito ? <th className="min-w-[96px] bg-amber-50 px-3 py-3 text-center text-amber-700">Crédito Variável</th> : null}
+                        {hasCredito ? <th className="min-w-[96px] px-3 py-3 text-center">Crédito Variável</th> : null}
                         <th className="px-3 py-3 text-center">Feitas</th>
                       </tr>
                     )}
@@ -355,7 +338,7 @@ export function EvaluationsPage() {
                         .filter((a) => a.credito)
                         .reduce((acc, a) => acc + (Number(cells[s.id]?.[actKey(a)]?.score) || 0), 0);
                       return (
-                        <tr key={s.id} className="border-t border-border transition even:bg-muted/40 hover:bg-emerald-50/30">
+                        <tr key={s.id} className="border-t border-border bg-card transition even:bg-neutral-50 hover:bg-neutral-100">
                           <td className="sticky left-0 z-10 w-[160px] min-w-[160px] max-w-[160px] bg-inherit px-3 py-2.5 align-middle shadow-[2px_0_0_0_rgba(241,245,249,1)]">
                             <div className="flex items-center gap-2.5">
                               <span className="w-6 shrink-0 text-right text-xs font-bold tabular-nums text-muted-foreground">{i + 1}</span>
@@ -369,12 +352,12 @@ export function EvaluationsPage() {
                             // Modo leitura: nada de caixas vazias — só o que importa (nota / ✓ / vazio discreto).
                             if (!editing) {
                               return (
-                                <td key={k} className={cn('px-1.5 py-2 text-center', a.credito && 'bg-amber-50/40')}>
+                                <td key={k} className="px-1.5 py-2 text-center">
                                   {hasScore || c.done ? (
                                     <span
                                       className={cn(
-                                        'inline-flex min-w-[2rem] items-center justify-center rounded-lg px-2 py-1 text-[13px] font-black tabular-nums',
-                                        a.credito ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700',
+                                        'inline-flex min-w-[2rem] items-center justify-center rounded-lg px-2 py-1 text-[13px] font-bold tabular-nums ring-1 ring-inset',
+                                        TONE[hasScore && a.max > 0 ? gradeTone(Number(c.score), a.max) : 'ok'].soft,
                                       )}
                                     >
                                       {hasScore ? c.score : <Check size={14} />}
@@ -386,7 +369,7 @@ export function EvaluationsPage() {
                               );
                             }
                             return (
-                              <td key={k} className={cn('px-1 py-1.5 text-center', a.credito && 'bg-amber-50/40')}>
+                              <td key={k} className="px-1 py-1.5 text-center">
                                 <div className="flex items-center justify-center gap-1">
                                   <button
                                     onClick={() => toggleDone(s.id, k)}
@@ -394,8 +377,8 @@ export function EvaluationsPage() {
                                     className={cn(
                                       'grid h-8 w-8 shrink-0 place-items-center rounded-lg border transition',
                                       c.done
-                                        ? 'border-emerald-500 bg-emerald-600 text-white shadow-sm'
-                                        : 'border-border bg-card text-slate-200 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-400',
+                                        ? 'border-green-600 bg-green-600 text-white shadow-sm'
+                                        : 'border-border bg-card text-neutral-300 hover:border-green-300 hover:bg-green-50 hover:text-green-500',
                                     )}
                                   >
                                     <Check size={16} />
@@ -407,21 +390,21 @@ export function EvaluationsPage() {
                                     value={String(c.score).replace('.', ',')}
                                     onChange={(e) => setScore(s.id, k, e.target.value, a.max)}
                                     placeholder="nota"
-                                    className="h-8 w-11 rounded-lg border border-border bg-card text-center font-bold tabular-nums text-foreground outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                                    className="h-8 w-11 rounded-lg border border-border bg-card text-center font-semibold tabular-nums text-foreground outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-brand/40"
                                   />
                                 </div>
                               </td>
                             );
                           })}
                           {hasCredito ? (
-                            <td className="bg-amber-50/40 px-3 py-3 text-center">
-                              <span className="inline-block min-w-[44px] rounded-lg bg-amber-100 px-2 py-1 text-sm font-black tabular-nums text-amber-700">
+                            <td className="px-3 py-3 text-center">
+                              <span className={cn('inline-block min-w-[44px] rounded-lg px-2 py-1 text-sm font-bold tabular-nums ring-1 ring-inset', TONE[gradeTone(creditoTotal)].soft)}>
                                 {creditoTotal % 1 === 0 ? creditoTotal : creditoTotal.toFixed(1).replace('.', ',')}
                               </span>
                             </td>
                           ) : null}
                           <td className="px-3 py-3 text-center">
-                            <span className={cn('inline-block min-w-[44px] rounded-lg px-2 py-1 text-sm font-black tabular-nums', doneCount ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground')}>
+                            <span className={cn('inline-block min-w-[44px] rounded-lg px-2 py-1 text-sm font-bold tabular-nums ring-1 ring-inset', TONE[deliveryTone((doneCount / activities.length) * 100, activities.length)].soft)}>
                               {doneCount}/{activities.length}
                             </span>
                           </td>
@@ -441,46 +424,26 @@ export function EvaluationsPage() {
       )}
 
       {students.length > 0 && activities.length > 0 ? (
-        <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 p-3 backdrop-blur lg:pl-72">
-          <div className="mx-auto flex max-w-5xl items-center gap-2 px-1 sm:gap-3">
-            <div className="hidden min-w-0 flex-1 sm:block">
-              <p className="truncate text-sm font-bold text-foreground">
-                {saved ? '✓ Avaliações salvas e bloqueadas' : editing ? 'Edição aberta' : `${TERM_LABEL[term]} • ${year}`}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">{totals.done} entrega(s) registrada(s)</p>
-            </div>
-            {editing ? (
-              <>
-                {hasSavedMarks ? (
-                  <button
-                    onClick={resetCells}
-                    disabled={save.isPending}
-                    className="inline-flex min-h-12 items-center justify-center rounded-xl border border-border px-4 text-sm font-black text-muted-foreground transition hover:bg-muted disabled:opacity-60"
-                  >
-                    Cancelar
-                  </button>
-                ) : null}
-                <button
-                  onClick={handleSave}
-                  disabled={save.isPending}
-                  className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-base font-black text-white transition hover:bg-emerald-700 disabled:opacity-60 sm:flex-none sm:px-8"
-                >
-                  <Save size={20} />
-                  <span className="sm:hidden">{save.isPending ? 'Salvando…' : 'Salvar'}</span>
-                  <span className="hidden sm:inline">{save.isPending ? 'Salvando…' : 'Salvar e bloquear'}</span>
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => { setEditing(true); setSaved(false); }}
-                className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-base font-black text-white transition hover:bg-slate-800 sm:flex-none sm:px-8"
-              >
-                <Pencil size={20} /> Editar
-              </button>
-            )}
-          </div>
-          {save.isError ? <p className="mx-auto mt-2 max-w-5xl px-1 text-sm font-semibold text-red-600">{(save.error as Error).message}</p> : null}
-        </footer>
+        <ActionFooter
+          title={saved ? 'Avaliações salvas e bloqueadas' : editing ? 'Edição aberta' : `${TERM_LABEL[term]} · ${year}`}
+          detail={`${totals.done} entrega(s) registrada(s)`}
+          error={save.isError ? (save.error as Error).message : null}
+        >
+          {editing ? (
+            <>
+              {hasSavedMarks ? (
+                <FooterButton kind="secondary" onClick={resetCells} disabled={save.isPending}>Cancelar</FooterButton>
+              ) : null}
+              <FooterButton onClick={handleSave} disabled={save.isPending}>
+                <Save size={18} /> {save.isPending ? 'Salvando…' : 'Salvar avaliações'}
+              </FooterButton>
+            </>
+          ) : (
+            <FooterButton onClick={() => { setEditing(true); setSaved(false); }}>
+              <Pencil size={18} /> Editar
+            </FooterButton>
+          )}
+        </ActionFooter>
       ) : null}
 
       <ComposicaoAvaliacoesModal
@@ -619,7 +582,7 @@ function ComposicaoAvaliacoesModal({
                     type="checkbox"
                     checked={!!a.credito}
                     onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, credito: e.target.checked } : x)))}
-                    className="h-4 w-4 rounded border-border text-amber-600 focus:ring-amber-500"
+                    className="h-4 w-4 rounded border-border text-neutral-900 focus:ring-brand"
                   />
                   Compõe o crédito variável
                 </label>

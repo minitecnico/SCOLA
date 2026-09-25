@@ -22,9 +22,12 @@ export function printDocument(title: string, bodyHtml: string, opts?: { autoPrin
   th, td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: center; }
   th { background: #f1f5f9; text-transform: uppercase; font-size: 10px; letter-spacing: .04em; color: #475569; }
   td.name, th.name { text-align: left; }
+  /* Cores de significado: verde = ok, laranja = atenção, vermelho = abaixo */
   .zero { color: #dc2626; font-weight: 700; }
   .fail { color: #dc2626; font-weight: 700; }
-  .ok { color: #0f172a; font-weight: 700; }
+  .warn { color: #ea580c; font-weight: 700; }
+  .ok { color: #15803d; font-weight: 700; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .foot { margin-top: 16px; font-size: 11px; color: #94a3b8; }
   @media print { body { margin: 0; } @page { margin: 14mm; } }
 </style></head><body>${bodyHtml}

@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
-import { BarChart3, Check, Eye, FileDown, List, Printer, Rows3, Send } from 'lucide-react';
+import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
+import { BarChart3, Check, ChevronDown, Columns3, Download, Eye, FileDown, Printer, Send } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ReportView } from '../components/ReportView';
 import { ShareModal } from '../components/ShareModal';
-import { Button, Card, EmptyState, Field, Input, Modal, PageHeader, Segmented, Select, Loading} from '../components/ui';
+import { Button, DropdownMenu, EmptyState, FilterBar, FilterField, Loading, Modal, PageHeader, SegmentedField, fieldCls } from '../components/ui';
 import { cn } from '../lib/cn';
 import { listNationalHolidays } from '../lib/holidays';
 import { downloadXlsx } from '../lib/importSheet';
@@ -142,7 +143,8 @@ export function ReportsPage() {
     [freqLayout, from, to, holidaysQ.data],
   );
 
-  function preset(p: 'mes' | 'mesPassado' | 'ano' | 'tri1' | 'tri2' | 'tri3') {
+  function preset(p: string) {
+    if (p === 'custom') return setActivePreset('custom');
     setActivePreset(p);
     const y = today.getFullYear();
     if (p === 'mes') {
@@ -334,207 +336,168 @@ export function ReportsPage() {
   const years = [today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1];
   const loading = tipo === 'freq' ? freq.isLoading : notas.isLoading;
 
+  // Colunas disponíveis para o menu "Colunas" (conforme tipo e trimestre).
+  const fieldOptions: { key: string; label: string }[] =
+    tipo === 'freq'
+      ? [
+          { key: 'present', label: 'Presenças' },
+          { key: 'absent', label: 'Faltas' },
+          { key: 'pct', label: '% de presença' },
+          { key: 'absentDays', label: 'Dias de falta' },
+          { key: 'situation', label: 'Situação' },
+        ]
+      : notaTerm === 0
+        ? [
+            { key: 'term1', label: '1º trimestre' },
+            { key: 'term2', label: '2º trimestre' },
+            { key: 'term3', label: '3º trimestre' },
+            { key: 'final', label: 'Média final' },
+            { key: 'situation', label: 'Situação' },
+          ]
+        : [{ key: 'situation', label: 'Situação' }];
+  const activeCount = fieldOptions.filter((f) => showFields[f.key]).length + (showActivities ? selectedActivities.length : 0);
+  const totalCount = fieldOptions.length + (showActivities ? termActKeys.length : 0);
+  const summary = classId
+    ? [className, tipo === 'freq' ? `${fmtBR(from)} a ${fmtBR(to)}` : notaTerm ? `${notaTerm}º trimestre / ${year}` : String(year)].join(' · ')
+    : '';
+
   return (
     <div>
       <div className="no-print">
-        <PageHeader
-          title="Relatórios"
-          subtitle="Frequência e notas, com filtros, compartilhamento e exportação."
-        />
+        <PageHeader title="Relatórios" subtitle="Frequência e notas prontas para imprimir, exportar ou enviar." />
 
-        {/* Filtros */}
-        <Card className="mb-5">
-          <Segmented<Tipo>
-            className="mb-4"
-            value={tipo}
-            onChange={setTipo}
-            options={[
-              { value: 'freq', label: 'Frequência' },
-              { value: 'notas', label: 'Notas' },
-            ]}
-          />
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Turma">
-              <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
-                <option value="">Selecione a turma…</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Aluno">
-              <Select value={studentId} onChange={(e) => setStudentId(e.target.value)} disabled={!classId}>
-                <option value="all">Todos os alunos</option>
-                {students.map((s) => (
-                  <option key={s.id} value={s.id}>{s.full_name}</option>
-                ))}
-              </Select>
-            </Field>
-
-            {tipo === 'freq' ? (
-              <>
-                <Field label="De">
-                  <Input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
-                </Field>
-                <Field label="Até">
-                  <Input type="date" value={to} min={from} max={iso(today)} onChange={(e) => setTo(e.target.value)} />
-                </Field>
-              </>
-            ) : (
-              <Field label="Ano">
-                <Select value={year} onChange={(e) => setYear(Number(e.target.value))}>
-                  {years.map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </Select>
-              </Field>
-            )}
-          </div>
+        <FilterBar className="lg:grid lg:grid-cols-6 lg:items-end">
+          <FilterField label="Relatório" wide className="lg:col-span-2">
+            <SegmentedField<Tipo>
+              value={tipo}
+              onChange={setTipo}
+              options={[
+                { value: 'freq', label: 'Frequência' },
+                { value: 'notas', label: 'Notas' },
+              ]}
+            />
+          </FilterField>
+          <FilterField label="Turma" className="lg:col-span-2">
+            <select value={classId} onChange={(e) => setClassId(e.target.value)} className={fieldCls}>
+              <option value="">Selecione…</option>
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </FilterField>
+          <FilterField label="Aluno" className="lg:col-span-2">
+            <select value={studentId} onChange={(e) => setStudentId(e.target.value)} disabled={!classId} className={fieldCls}>
+              <option value="all">Todos</option>
+              {students.map((s) => (
+                <option key={s.id} value={s.id}>{s.full_name}</option>
+              ))}
+            </select>
+          </FilterField>
 
           {tipo === 'freq' ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {([['mes', 'Este mês'], ['mesPassado', 'Mês passado'], ['ano', 'Ano letivo'], ['tri1', '1º trimestre'], ['tri2', '2º trimestre'], ['tri3', '3º trimestre']] as const).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => preset(key)}
-                  className={cn(
-                    'rounded-lg px-3 py-1.5 text-xs font-bold transition',
-                    activePreset === key ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground hover:bg-muted',
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-              <div className="ml-auto flex items-center gap-2">
-                <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
-                  <input type="checkbox" checked={onlyBelow} onChange={(e) => setOnlyBelow(e.target.checked)} />
-                  Só faltosos abaixo de
-                </label>
-                <Select value={minPct} onChange={(e) => setMinPct(Number(e.target.value))} className="w-24 py-1.5">
+            <>
+              <FilterField label="Período" wide className="lg:col-span-2">
+                <select value={activePreset} onChange={(e) => preset(e.target.value)} className={fieldCls}>
+                  <option value="mes">Este mês</option>
+                  <option value="mesPassado">Mês passado</option>
+                  <option value="tri1">1º trimestre</option>
+                  <option value="tri2">2º trimestre</option>
+                  <option value="tri3">3º trimestre</option>
+                  <option value="ano">Ano letivo</option>
+                  <option value="custom">Personalizado…</option>
+                </select>
+              </FilterField>
+              <FilterField label="De">
+                <input type="date" value={from} max={to} onChange={(e) => { setFrom(e.target.value); setActivePreset('custom'); }} className={fieldCls} />
+              </FilterField>
+              <FilterField label="Até">
+                <input type="date" value={to} min={from} max={iso(today)} onChange={(e) => { setTo(e.target.value); setActivePreset('custom'); }} className={fieldCls} />
+              </FilterField>
+              <FilterField label="Frequência mínima">
+                <select value={minPct} onChange={(e) => setMinPct(Number(e.target.value))} className={fieldCls}>
                   {[60, 70, 75, 80, 90].map((p) => (
                     <option key={p} value={p}>{p}%</option>
                   ))}
-                </Select>
-              </div>
-            </div>
-          ) : null}
+                </select>
+              </FilterField>
+              <FilterField label="Mostrar">
+                <select value={onlyBelow ? 'below' : 'all'} onChange={(e) => setOnlyBelow(e.target.value === 'below')} className={fieldCls}>
+                  <option value="all">Todos os alunos</option>
+                  <option value="below">Só abaixo do mínimo</option>
+                </select>
+              </FilterField>
+            </>
+          ) : (
+            <>
+              <FilterField label="Ano" className="lg:col-span-2">
+                <select value={year} onChange={(e) => setYear(Number(e.target.value))} className={fieldCls}>
+                  {years.map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </FilterField>
+              <FilterField label="Trimestre" wide className="lg:col-span-4">
+                <SegmentedField<number>
+                  value={notaTerm}
+                  onChange={setNotaTerm}
+                  options={[
+                    { value: 0, label: 'Ano todo' },
+                    { value: 1, label: '1º' },
+                    { value: 2, label: '2º' },
+                    { value: 3, label: '3º' },
+                  ]}
+                />
+              </FilterField>
+            </>
+          )}
+        </FilterBar>
 
-          {tipo === 'freq' ? (
-            <Segmented<'list' | 'grid'>
-              className="mt-3"
-              value={freqLayout}
-              onChange={setFreqLayout}
-              options={[
-                { value: 'grid', label: 'Mapa de chamada' },
-                { value: 'list', label: 'Lista detalhada' },
-              ]}
-            />
-          ) : null}
-
-          {tipo === 'notas' ? (
-            <Segmented<number>
-              className="mt-3"
-              value={notaTerm}
-              onChange={setNotaTerm}
-              options={[
-                { value: 0, label: 'Todos' },
-                { value: 1, label: '1º trimestre' },
-                { value: 2, label: '2º trimestre' },
-                { value: 3, label: '3º trimestre' },
-              ]}
-            />
-          ) : null}
-
-          {/* Campos selecionáveis pelo professor */}
-          <div className="mt-4 space-y-4 rounded-2xl border border-border bg-muted/30 p-4">
-            {/* Cabeçalho geral: Todas/Limpar únicos p/ campos + atividades */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Campos do relatório</p>
-                {showActivities ? (
-                  <p className="text-[11px] font-semibold text-muted-foreground">{selectedActivities.length} de {termActKeys.length} atividade(s) selecionada(s)</p>
-                ) : null}
-              </div>
-              <div className="flex shrink-0 gap-1.5">
-                <button
-                  onClick={selectAllFields}
-                  className="rounded-lg bg-card px-2.5 py-1 text-xs font-bold text-muted-foreground shadow-sm transition hover:text-foreground"
-                >
-                  Todas
-                </button>
-                <button
-                  onClick={clearAllFields}
-                  className="rounded-lg bg-card px-2.5 py-1 text-xs font-bold text-muted-foreground shadow-sm transition hover:text-foreground"
-                >
-                  Limpar
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex flex-wrap gap-2">
-                {tipo === 'notas' ? (
-                  <>
-                    {notaTerm === 0 ? (
-                      <>
-                        <Chip on={!!showFields.term1} onClick={() => toggleField('term1')}>1º tri</Chip>
-                        <Chip on={!!showFields.term2} onClick={() => toggleField('term2')}>2º tri</Chip>
-                        <Chip on={!!showFields.term3} onClick={() => toggleField('term3')}>3º tri</Chip>
-                        <Chip on={!!showFields.final} onClick={() => toggleField('final')}>Final</Chip>
-                      </>
-                    ) : null}
-                    <Chip on={!!showFields.situation} onClick={() => toggleField('situation')}>Situação</Chip>
-                  </>
-                ) : (
-                  <>
-                    <Chip on={!!showFields.present} onClick={() => toggleField('present')}>Presenças</Chip>
-                    <Chip on={!!showFields.absent} onClick={() => toggleField('absent')}>Faltas</Chip>
-                    <Chip on={!!showFields.pct} onClick={() => toggleField('pct')}>% Presença</Chip>
-                    <Chip on={!!showFields.absentDays} onClick={() => toggleField('absentDays')}>Dias de falta</Chip>
-                    <Chip on={!!showFields.situation} onClick={() => toggleField('situation')}>Situação</Chip>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {tipo === 'notas' && notaTerm >= 1 && termDisplayActs.length ? (
-              <div className="border-t border-border pt-3">
-                <p className="mb-2.5 text-xs font-black uppercase tracking-wide text-muted-foreground">Colunas de notas</p>
-                <div className="flex flex-wrap gap-2">
-                  {termDisplayActs.map((a) => {
-                    const k = a.id ?? a.name;
-                    const on = selectedActivities.includes(k);
-                    return (
-                      <Chip key={k} on={on} onClick={() => setSelectedActivities((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}>
-                        {a.name}
-                      </Chip>
-                    );
-                  })}
-                </div>
+        {/* Barra do relatório: formato à esquerda, ações à direita */}
+        {classId ? (
+          <div className="mb-5 flex flex-wrap items-center gap-2">
+            <p className="mr-auto hidden min-w-0 truncate text-sm font-semibold text-foreground md:block">{summary}</p>
+            {tipo === 'freq' ? (
+              <div className="w-full sm:w-64">
+                <SegmentedField<'list' | 'grid'>
+                  value={freqLayout}
+                  onChange={setFreqLayout}
+                  options={[
+                    { value: 'grid', label: 'Mapa' },
+                    { value: 'list', label: 'Lista' },
+                  ]}
+                />
               </div>
             ) : null}
-          </div>
-        </Card>
-
-        {/* Barra de ações (responsiva) */}
-        {classId ? (
-          <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-2 shadow-soft sm:flex sm:flex-wrap sm:items-center">
-            <Button variant="ghost" onClick={() => setCompact((c) => !c)} className="w-full sm:w-auto" title="Alternar layout">
-              {compact ? <Rows3 size={18} /> : <List size={18} />} {compact ? 'Detalhado' : 'Compacto'}
+            <ColumnsMenu
+              count={activeCount}
+              total={totalCount}
+              fields={fieldOptions.map((f) => ({ ...f, on: !!showFields[f.key], toggle: () => toggleField(f.key) }))}
+              activities={
+                showActivities
+                  ? termDisplayActs.map((a) => {
+                      const k = a.id ?? a.name;
+                      return { key: k, label: a.name, on: selectedActivities.includes(k), toggle: () => setSelectedActivities((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k])) };
+                    })
+                  : []
+              }
+              compact={compact}
+              onCompact={() => setCompact((c) => !c)}
+              onAll={selectAllFields}
+              onNone={clearAllFields}
+            />
+            <Button variant="ghost" onClick={() => setPreview(true)} disabled={!payload} className="min-h-10 py-2">
+              <Eye size={16} /> <span className="hidden sm:inline">Visualizar</span>
             </Button>
-            <Button variant="ghost" onClick={() => setPreview(true)} disabled={!payload} className="w-full sm:w-auto">
-              <Eye size={18} /> Visualizar
-            </Button>
-            <Button variant="ghost" onClick={() => setShare(true)} disabled={!payload} className="w-full sm:w-auto">
-              <Send size={18} /> Enviar
-            </Button>
-            <Button variant="ghost" onClick={printPdf} className="w-full sm:w-auto">
-              <Printer size={18} /> PDF
-            </Button>
-            <Button onClick={exportExcel} className="col-span-2 w-full sm:ml-auto sm:w-auto">
-              <FileDown size={18} /> Excel
-            </Button>
+            <DropdownMenu
+              label="Exportar"
+              variant="primary"
+              icon={<Download size={16} />}
+              items={[
+                { label: 'PDF / Imprimir', hint: 'Abre a impressão do navegador', icon: <Printer size={16} />, onClick: printPdf },
+                { label: 'Planilha Excel', hint: 'Arquivo .xlsx', icon: <FileDown size={16} />, onClick: exportExcel },
+                { label: 'Enviar por link', hint: 'WhatsApp ou e-mail, sem login', icon: <Send size={16} />, onClick: () => setShare(true), hidden: !payload },
+              ]}
+            />
           </div>
         ) : null}
       </div>
@@ -558,28 +521,74 @@ export function ReportsPage() {
   );
 }
 
+type Toggle = { key: string; label: string; on: boolean; toggle: () => void };
+
+/** Menu "Colunas": escolhe o que entra no relatório (substitui a fileira de chips). */
+function ColumnsMenu({
+  count,
+  total,
+  fields,
+  activities,
+  compact,
+  onCompact,
+  onAll,
+  onNone,
+}: {
+  count: number;
+  total: number;
+  fields: Toggle[];
+  activities: Toggle[];
+  compact: boolean;
+  onCompact: () => void;
+  onAll: () => void;
+  onNone: () => void;
+}) {
+  return (
+    <Popover className="relative">
+      <PopoverButton className="inline-flex h-10 items-center gap-2 rounded-lg bg-card px-3.5 text-sm font-semibold ring-1 ring-inset ring-border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+        <Columns3 size={16} /> <span>Colunas</span>
+        <span className="rounded bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">{count}/{total}</span>
+        <ChevronDown size={15} className="opacity-60" />
+      </PopoverButton>
+      <PopoverPanel anchor="bottom end" className="z-50 w-72 rounded-xl border border-border bg-card p-3 shadow-lift [--anchor-gap:4px]">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Campos</p>
+          <div className="flex gap-3 text-xs font-semibold">
+            <button onClick={onAll} className="text-foreground hover:underline">Todos</button>
+            <button onClick={onNone} className="text-muted-foreground hover:underline">Nenhum</button>
+          </div>
+        </div>
+        <div className="space-y-0.5">
+          {fields.map((f) => <CheckRow key={f.key} item={f} />)}
+        </div>
+        {activities.length ? (
+          <>
+            <p className="mb-1 mt-3 border-t border-border pt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Notas do trimestre</p>
+            <div className="max-h-48 space-y-0.5 overflow-y-auto">
+              {activities.map((a) => <CheckRow key={a.key} item={a} />)}
+            </div>
+          </>
+        ) : null}
+        <div className="mt-3 border-t border-border pt-3">
+          <CheckRow item={{ key: 'compact', label: 'Modo compacto (cabe mais por página)', on: compact, toggle: onCompact }} />
+        </div>
+      </PopoverPanel>
+    </Popover>
+  );
+}
+
+function CheckRow({ item }: { item: Toggle }) {
+  return (
+    <button type="button" onClick={item.toggle} aria-pressed={item.on} className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted">
+      <span className={cn('grid h-4 w-4 shrink-0 place-items-center rounded border', item.on ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300')}>
+        {item.on ? <Check size={11} strokeWidth={3} /> : null}
+      </span>
+      {item.label}
+    </button>
+  );
+}
+
 function slug(s: string) {
   return s.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'turma';
 }
 
-/** Chip selecionável (toggle) — padrão visual compartilhado com o modal de Notas. */
-function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={on}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold transition',
-        on
-          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-          : 'border-border bg-card text-muted-foreground hover:border-emerald-300 hover:text-foreground',
-      )}
-    >
-      <span className={cn('grid h-4 w-4 shrink-0 place-items-center rounded-full border', on ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-border')}>
-        {on ? <Check size={11} strokeWidth={3} /> : null}
-      </span>
-      {children}
-    </button>
-  );
-}

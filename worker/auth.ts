@@ -182,6 +182,24 @@ export async function assertClassInBase(ctx: Ctx, base: string, classId: string 
   if (!k) fail('Turma não encontrada.', 404);
 }
 
+/** Para gravações: a turma é da base e não está arquivada (ano letivo encerrado = só consulta). */
+export async function assertClassOpen(ctx: Ctx, base: string, classId: string | null | undefined) {
+  if (!classId) return;
+  const k = await ctx.db.prepare('SELECT archived_at, year FROM classes WHERE id = ? AND base_id = ?').bind(classId, base).first<{ archived_at: string | null; year: number | null }>();
+  if (!k) fail('Turma não encontrada.', 404);
+  if (k!.archived_at) fail(`Esta turma é do ano letivo ${k!.year ?? ''} (encerrado): fica só para consulta. Para alterar, reabra o ano em Cadastros → Ano letivo.`.replace('  ', ' '));
+}
+
+/**
+ * Alunos de uma turma (?1 = base, ?2 = turma). Turma ativa: quem está nela hoje.
+ * Turma arquivada: quem estava nela ao encerrar o ano (mesmo que já tenha mudado de turma).
+ */
+export const ROSTER_SQL = `SELECT id, full_name FROM students
+  WHERE base_id = ?1 AND (
+    (class_id = ?2 AND active = 1 AND NOT EXISTS (SELECT 1 FROM classes WHERE id = ?2 AND archived_at IS NOT NULL))
+    OR id IN (SELECT r.student_id FROM class_rosters r JOIN classes c ON c.id = r.class_id WHERE r.class_id = ?2 AND c.archived_at IS NOT NULL))
+  ORDER BY full_name COLLATE NOCASE`;
+
 export function requireAdmin(ctx: Ctx) {
   if (!ctx.isAdmin) fail('Apenas o administrador do sistema.', 403);
 }

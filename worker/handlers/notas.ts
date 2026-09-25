@@ -1,5 +1,5 @@
 import { calcMedia, normalizeScores, withRecoveryActivity, type GradeActivity } from '../../src/lib/types';
-import { assertClassInBase, requireBase, requireRole, type Ctx } from '../auth';
+import { assertClassOpen as assertClassInBase, requireBase, requireRole, ROSTER_SQL, type Ctx } from '../auth';
 import { all, fail, first, inList, json, now, parse, run } from '../db';
 
 const PEDAGOGICO = ['gestor', 'professor'] as const;
@@ -175,8 +175,7 @@ async function termContext(ctx: Ctx, classId: string, year: number) {
     all<{ term: number; activities: string }>(ctx.db, 'SELECT term, activities FROM grade_terms WHERE base_id = ? AND year = ?', base, year),
     all<{ term: number; activities: string }>(ctx.db,
       'SELECT term, activities FROM evaluation_terms WHERE base_id = ? AND class_id = ? AND year = ?', base, classId, year),
-    all<{ id: string; full_name: string }>(ctx.db,
-      'SELECT id, full_name FROM students WHERE base_id = ? AND class_id = ? AND active = 1 ORDER BY full_name COLLATE NOCASE', base, classId),
+    all<{ id: string; full_name: string }>(ctx.db, ROSTER_SQL, base, classId),
   ]);
   const actByTerm = new Map(
     [1, 2, 3].map((t) => [t, composeTermActs(configs.find((c) => c.term === t)?.activities, evalConfigs.find((c) => c.term === t)?.activities)] as const),

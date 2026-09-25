@@ -34,6 +34,28 @@ export const saveSchool = (input: Partial<School> & { name: string }) => rpc<Sch
 
 /* ----------------------------------- Turmas ------------------------------------ */
 export const listClasses = () => rpc<ClassRoom[]>('listClasses');
+/** Inclui as turmas de anos encerrados (relatórios, histórico). */
+export const listAllClasses = () => rpc<ClassRoom[]>('listClasses', true);
+/** Rótulo da turma com o ano, quando arquivada: "6º ano A (2025)". */
+export const classLabel = (c: Pick<ClassRoom, 'name' | 'year' | 'archived_at'>) => (c.archived_at ? `${c.name} (${c.year ?? 'arquivada'})` : c.name);
+
+/* ------------------------------- Ano letivo ------------------------------- */
+export interface YearOverview {
+  today: string;
+  classes: { id: string; name: string; shift: string | null; year: number | null; effective_year: number; archived_at: string | null; students: number; sessions: number; terms_with_grades: number[] }[];
+  students: { id: string; name: string; class_id: string; registration: string | null }[];
+}
+export const schoolYearOverview = () => rpc<YearOverview>('schoolYearOverview');
+export type CloseYearInput = {
+  year: number;
+  classIds: string[];
+  newClasses: { key: string; name: string; shift?: string | null; does_exams?: boolean; from?: string | null }[];
+  moves: { studentId: string; to: string }[];
+  copyGradeConfig?: boolean;
+};
+export const closeSchoolYear = (input: CloseYearInput) =>
+  rpc<{ archived: number; created: number; moved: number; left: number; noClass: number; year: number; next: number }>('closeSchoolYear', input);
+export const reopenSchoolYear = (year: number) => rpc<{ reopened: number }>('reopenSchoolYear', year);
 export const saveClass = (input: Partial<ClassRoom> & { name: string }) => rpc<ClassRoom>('saveClass', input);
 export const deleteClass = (id: string) => rpc<void>('deleteClass', id);
 export const bulkDeleteClasses = (ids: string[]) => rpc<void>('bulkDeleteClasses', ids);

@@ -7,6 +7,7 @@ import {
 import { ACTIONS, deviceOf, insertLog, labelOf, type LogEntry, type Refs } from './audit';
 import { all, fail, first, HttpError, parse, run, uid, type Env } from './db';
 import * as alertas from './handlers/alertas';
+import * as anoletivo from './handlers/anoletivo';
 import * as cadastros from './handlers/cadastros';
 import * as chamadas from './handlers/chamadas';
 import * as comunicacao from './handlers/comunicacao';
@@ -21,7 +22,7 @@ import * as usuarios from './handlers/usuarios';
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
 const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades']);
 const handlers: Record<string, Handler> = {};
-for (const mod of [alertas, cadastros, chamadas, comunicacao, contas, logs, notas, painel, provas, usuarios]) {
+for (const mod of [alertas, anoletivo, cadastros, chamadas, comunicacao, contas, logs, notas, painel, provas, usuarios]) {
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn === 'function' && !INTERNAL.has(name)) handlers[name] = fn as Handler;
   }

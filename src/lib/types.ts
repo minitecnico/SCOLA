@@ -23,6 +23,8 @@ export interface ClassRoom {
   year: number | null;
   does_exams?: boolean;
   created_at?: string;
+  /** Ano letivo encerrado: turma só para consulta (relatórios, boletins). */
+  archived_at?: string | null;
 }
 
 export interface Student {

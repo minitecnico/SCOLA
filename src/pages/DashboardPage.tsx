@@ -8,6 +8,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { Button, Card, DropdownMenu, Loading, Modal, SectionTitle, StatCard } from '../components/ui';
 import { successToast, undoToast } from '../components/Feedback';
 import { SmartAlerts } from '../components/SmartAlerts';
+import { YearEndBanner } from './AnoLetivoPage';
 import { RecentNoticesPanel, UpcomingEventsPanel } from '../components/DashboardAgenda';
 import { AttendanceCalendarWidget, ClassFrequencyWidget, SchoolCalendarWidget } from '../components/DashboardWidgets';
 import { cn } from '../lib/cn';
@@ -78,6 +79,7 @@ export function DashboardPage() {
 
   return (
     <>
+      <YearEndBanner />
       {/* Saudação + atalhos */}
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>

@@ -15,7 +15,8 @@ export type ModuleKey =
   | 'equipe'
   | 'configuracoes'
   | 'avisos'
-  | 'planejamentos';
+  | 'planejamentos'
+  | 'anoletivo';
 
 const ACCESS: Record<ModuleKey, AppRole[]> = {
   dashboard: ['gestor', 'professor', 'secretaria'],
@@ -29,6 +30,7 @@ const ACCESS: Record<ModuleKey, AppRole[]> = {
   configuracoes: ['gestor', 'professor', 'secretaria'],
   avisos: ['gestor', 'professor', 'secretaria'],
   planejamentos: ['gestor', 'professor'],
+  anoletivo: ['gestor'],
 };
 
 /** O papel pode acessar o módulo? O administrador (superadmin) pode tudo. */

@@ -1,5 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FileSpreadsheet, GraduationCap } from 'lucide-react';
+import { Archive, FileSpreadsheet, GraduationCap } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../auth/AuthProvider';
+import { canManageOrg } from '../lib/permissions';
 import { useState } from 'react';
 import { ImportModal } from '../components/ImportModal';
 import { successToast } from '../components/Feedback';
@@ -12,6 +15,7 @@ import { SHIFTS, type ClassRoom } from '../lib/types';
 export function ClassesPage() {
   const qc = useQueryClient();
   const { data: classes = [], isLoading } = useQuery({ queryKey: ['classes'], queryFn: listClasses });
+  const manager = canManageOrg(useAuth().role);
   const [editing, setEditing] = useState<ClassRoom | null>(null);
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -79,6 +83,11 @@ export function ClassesPage() {
         subtitle="Turmas da escola, com turno e ano letivo."
         action={
           <div className="flex flex-wrap gap-2">
+            {manager ? (
+              <Link to="/ano-letivo" className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-semibold ring-1 ring-inset ring-border hover:bg-muted">
+                <Archive size={17} /> Ano letivo
+              </Link>
+            ) : null}
             <SelectModeButton active={sel.active} onEnable={sel.enable} onCancel={sel.disable} />
             <Button variant="ghost" onClick={() => setImportOpen(true)}>
               <FileSpreadsheet size={18} /> Importar

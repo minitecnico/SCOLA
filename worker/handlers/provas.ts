@@ -1,7 +1,7 @@
 import { MAX_QUESTIONS, studentShort } from '../../src/lib/omr/layout';
 import { scoreAnswers } from '../../src/lib/omr/score';
 import { actKey } from '../../src/lib/types';
-import { assertClassInBase, requireRole, type Ctx } from '../auth';
+import { assertClassOpen as assertClassInBase, requireRole, ROSTER_SQL, type Ctx } from '../auth';
 import { all, fail, first, json, now, parse, run, uid } from '../db';
 import { composeTermActs } from './notas';
 
@@ -32,7 +32,9 @@ export async function listExams(ctx: Ctx) {
   const [exams, answers] = await Promise.all([
     all<ExamRow & { class_name: string; students: number }>(ctx.db,
       `SELECT e.*, c.name AS class_name,
-              (SELECT COUNT(*) FROM students s WHERE s.class_id = e.class_id AND s.active = 1) AS students
+              CASE WHEN c.archived_at IS NULL THEN (SELECT COUNT(*) FROM students s WHERE s.class_id = e.class_id AND s.active = 1)
+                   ELSE (SELECT COUNT(*) FROM class_rosters r WHERE r.class_id = e.class_id) END AS students,
+              c.archived_at AS class_archived_at
          FROM exams e JOIN classes c ON c.id = e.class_id
         WHERE e.base_id = ? ORDER BY COALESCE(e.exam_date, e.created_at) DESC`, base),
     all<{ exam_id: string; answers: string }>(ctx.db, 'SELECT exam_id, answers FROM exam_answers WHERE base_id = ?', base),
@@ -58,8 +60,7 @@ export async function listExams(ctx: Ctx) {
 async function examDetail(ctx: Ctx, base: string, e: ExamRow) {
   const [cls, students, answers] = await Promise.all([
     first<{ name: string }>(ctx.db, 'SELECT name FROM classes WHERE id = ?', e.class_id),
-    all<{ id: string; full_name: string }>(ctx.db,
-      'SELECT id, full_name FROM students WHERE base_id = ? AND class_id = ? AND active = 1 ORDER BY full_name COLLATE NOCASE', base, e.class_id),
+    all<{ id: string; full_name: string }>(ctx.db, ROSTER_SQL, base, e.class_id),
     all<{ student_id: string; answers: string; source: string; updated_at: string }>(ctx.db,
       'SELECT student_id, answers, source, updated_at FROM exam_answers WHERE exam_id = ?', e.id),
   ]);
@@ -165,6 +166,7 @@ export async function deleteExam(ctx: Ctx, id: string) {
 export async function saveExamAnswer(ctx: Ctx, examId: string, studentId: string, answers: string[], source: 'camera' | 'manual' = 'camera') {
   const base = requireRole(ctx, ...PEDAGOGICO);
   const e = await examInBase(ctx, base, examId);
+  await assertClassInBase(ctx, base, e.class_id);
   const st = await first(ctx.db, 'SELECT 1 FROM students WHERE id = ? AND base_id = ? AND class_id = ?', studentId, base, e.class_id);
   if (!st) fail('Aluno não pertence à turma desta prova.');
   const arr = Array.isArray(answers) ? answers : [];
@@ -185,6 +187,7 @@ export async function saveExamAnswer(ctx: Ctx, examId: string, studentId: string
 export async function deleteExamAnswer(ctx: Ctx, examId: string, studentId: string) {
   const base = requireRole(ctx, ...PEDAGOGICO);
   const e = await examInBase(ctx, base, examId);
+  await assertClassInBase(ctx, base, e.class_id);
   await run(ctx.db, 'DELETE FROM exam_answers WHERE exam_id = ? AND student_id = ?', examId, studentId);
   // Correção apagada: tira também a nota que ela tinha lançado no diário.
   if (e.grade_term && e.grade_key && !/["\\]/.test(e.grade_key)) {
@@ -231,6 +234,7 @@ export async function targetsFor(ctx: Ctx, base: string, classId: string, year: 
 export async function sendExamToGrades(ctx: Ctx, examId: string, year: number, term: number, key: string) {
   const base = requireRole(ctx, ...PEDAGOGICO);
   const e = await examInBase(ctx, base, examId);
+  await assertClassInBase(ctx, base, e.class_id);
   if (!(term >= 1 && term <= 3)) fail('Trimestre inválido.');
   const targets = await targetsFor(ctx, base, e.class_id, year, term);
   const target = targets.find((t) => t.key === key);

@@ -28,6 +28,7 @@ const SettingsPage = lazyPage(() => import('../pages/SettingsPage'), 'SettingsPa
 const DownloadPlanPage = lazyPage(() => import('../pages/DownloadPlanPage'), 'DownloadPlanPage');
 const SharedReportPage = lazyPage(() => import('../pages/SharedReportPage'), 'SharedReportPage');
 const AdminPage = lazyPage(() => import('../pages/admin/AdminPage'), 'AdminPage');
+const AnoLetivoPage = lazyPage(() => import('../pages/AnoLetivoPage'), 'AnoLetivoPage');
 const LogsPage = lazyPage(() => import('../pages/admin/LogsPage'), 'LogsPage');
 const UsersPage = lazyPage(() => import('../pages/admin/UsersPage'), 'UsersPage');
 const ProvasPage = lazyPage(() => import('../pages/ProvasPage'), 'ProvasPage');
@@ -87,6 +88,7 @@ function Protected() {
               <Route path="/turmas" element={<Gate module="turmas"><ClassesPage /></Gate>} />
               <Route path="/alunos" element={<Gate module="alunos"><StudentsPage /></Gate>} />
               <Route path="/equipe" element={<Gate module="equipe"><EquipePage /></Gate>} />
+              <Route path="/ano-letivo" element={<Gate module="anoletivo"><AnoLetivoPage /></Gate>} />
               <Route path="/configuracoes" element={<SettingsPage />} />
               <Route path="/baixar/:id" element={<DownloadPlanPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />

@@ -11,7 +11,7 @@ import { cn } from '../lib/cn';
 import { listNationalHolidays } from '../lib/holidays';
 import { downloadXlsx } from '../lib/importSheet';
 import { groupByMonth, schoolDaysBetween, weekdayLetter } from '../lib/schooldays';
-import { listClasses, listSchools, listStudentsByClass, reportAttendance, reportTerms, reportTermDetails } from '../lib/queries';
+import { classLabel, listAllClasses, listSchools, listStudentsByClass, reportAttendance, reportTerms, reportTermDetails } from '../lib/queries';
 import { CREDITO_OVERRIDE_KEY, MONTHS, SCHOOL_YEAR_MONTHS, SUBJECT, SUBJECT_SHORT, TERM_MONTHS, collapseCreditoColumns, creditoSumFrom, isCreditoActivity, type ReportPayload } from '../lib/types';
 import { DateInput } from '../components/DateInput';
 
@@ -59,7 +59,7 @@ export function ReportsPage() {
     if (st?.tipo) setTipo(st.tipo);
   }, [location.state]);
 
-  const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: listClasses });
+  const { data: classes = [] } = useQuery({ queryKey: ['classes-all'], queryFn: listAllClasses });
   const { data: schools = [] } = useQuery({ queryKey: ['schools'], queryFn: listSchools });
   const { data: students = [] } = useQuery({
     queryKey: ['students-by-class', classId],
@@ -69,6 +69,14 @@ export function ReportsPage() {
 
   const klass = classes.find((c) => c.id === classId);
   const className = klass?.name ?? '';
+  // Turma de ano encerrado: relatório já no ano dela (notas e ano letivo inteiro de frequência).
+  useEffect(() => {
+    if (klass?.archived_at && klass.year) {
+      setYear(klass.year);
+      preset('ano');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [klass?.id]);
   const school = schools.find((s) => s.id === klass?.school_id);
 
   const freq = useQuery({
@@ -148,7 +156,7 @@ export function ReportsPage() {
   function preset(p: string) {
     if (p === 'custom') return setActivePreset('custom');
     setActivePreset(p);
-    const y = today.getFullYear();
+    const y = klass?.archived_at && klass.year ? klass.year : today.getFullYear();
     if (p === 'mes') {
       setFrom(iso(startOfMonth(today)));
       setTo(iso(endOfMonth(today)));
@@ -335,7 +343,7 @@ export function ReportsPage() {
     }
   }
 
-  const years = [today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1];
+  const years = [...new Set([...(klass?.year ? [klass.year] : []), today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1])].sort();
   const loading = tipo === 'freq' ? freq.isLoading : notas.isLoading;
 
   // Colunas disponíveis para o menu "Colunas" (conforme tipo e trimestre).
@@ -383,7 +391,7 @@ export function ReportsPage() {
             <select value={classId} onChange={(e) => setClassId(e.target.value)} className={fieldCls}>
               <option value="">Selecione…</option>
               {classes.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id}>{classLabel(c)}</option>
               ))}
             </select>
           </FilterField>

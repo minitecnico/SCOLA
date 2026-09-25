@@ -1,4 +1,4 @@
-import { assertClassInBase, requireBase, requireRole, type Ctx } from '../auth';
+import { assertClassInBase, assertClassOpen, requireBase, requireRole, ROSTER_SQL, type Ctx } from '../auth';
 import { all, bools, fail, first, inList, json, run, stmt, uid } from '../db';
 
 /* A base É a escola: o frontend continua enxergando uma "escola" (id = base.id)
@@ -38,9 +38,12 @@ export async function saveSchool(ctx: Ctx, input: Record<string, string | null>)
 }
 
 /* ------------------------------------ Turmas -------------------------------------- */
-export async function listClasses(ctx: Ctx) {
+/** Turmas do dia a dia. `includeArchived` = também as de anos encerrados (relatórios, histórico). */
+export async function listClasses(ctx: Ctx, includeArchived?: boolean) {
   const base = requireBase(ctx);
-  const rows = await all(ctx.db, 'SELECT * FROM classes WHERE base_id = ? ORDER BY name COLLATE NOCASE', base);
+  const rows = await all(ctx.db,
+    `SELECT * FROM classes WHERE base_id = ?${includeArchived === true ? '' : ' AND archived_at IS NULL'}
+      ORDER BY archived_at IS NOT NULL, year DESC, name COLLATE NOCASE`, base);
   return rows.map(mapClass);
 }
 
@@ -77,7 +80,7 @@ export async function listStudents(ctx: Ctx) {
 
 export async function listStudentsByClass(ctx: Ctx, classId: string) {
   const base = requireBase(ctx);
-  const rows = await all(ctx.db, 'SELECT * FROM students WHERE base_id = ? AND class_id = ? AND active = 1 ORDER BY full_name COLLATE NOCASE', base, classId);
+  const rows = await all(ctx.db, ROSTER_SQL.replace('SELECT id, full_name FROM', 'SELECT * FROM'), base, classId);
   return rows.map(mapStudent);
 }
 
@@ -99,7 +102,10 @@ export async function saveStudent(ctx: Ctx, input: {
   if (!name) fail('Informe o nome do aluno.');
   const reg = (input.registration || '').trim() || null;
   const classId = input.class_id || null;
-  await assertClassInBase(ctx, base, classId);
+  // Não põe aluno em turma de ano encerrado (mas deixa editar quem já está nela, ex.: aluno que saiu).
+  const cur = input.id ? await first<{ class_id: string | null }>(ctx.db, 'SELECT class_id FROM students WHERE id = ? AND base_id = ?', input.id, base) : null;
+  if (cur && cur.class_id === classId) await assertClassInBase(ctx, base, classId);
+  else await assertClassOpen(ctx, base, classId);
 
   if (reg) {
     const dup = await first(ctx.db, 'SELECT id FROM students WHERE base_id = ? AND registration = ? AND id <> ?', base, reg, input.id ?? '');

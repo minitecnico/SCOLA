@@ -1,4 +1,4 @@
-import { requireBase, requireRole, type Ctx } from '../auth';
+import { assertClassOpen, requireBase, requireRole, ROSTER_SQL, type Ctx } from '../auth';
 import { all, fail, first, inList, json, now, run, uid } from '../db';
 
 const PEDAGOGICO = ['gestor', 'professor'] as const;
@@ -27,8 +27,7 @@ export async function saveAttendance(
 ) {
   const base = requireRole(ctx, ...PEDAGOGICO);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) fail('Data inválida.');
-  const klass = await first(ctx.db, 'SELECT id FROM classes WHERE id = ? AND base_id = ?', classId, base);
-  if (!klass) fail('Turma não encontrada.', 404);
+  await assertClassOpen(ctx, base, classId);
 
   const ts = now();
   // Upsert pela chave (turma, data): reabre a chamada do dia, inclusive se estava na lixeira.
@@ -77,17 +76,17 @@ export async function listDeletedSessions(ctx: Ctx, limit = 50) {
 
 export async function deleteAttendanceSession(ctx: Ctx, id: string) {
   const base = requireRole(ctx, ...PEDAGOGICO);
-  await run(ctx.db, 'UPDATE attendance_sessions SET deleted_at = ? WHERE id = ? AND base_id = ?', now(), id, base);
+  await run(ctx.db, 'UPDATE attendance_sessions SET deleted_at = ? WHERE id = ? AND base_id = ? AND class_id NOT IN (SELECT id FROM classes WHERE archived_at IS NOT NULL)', now(), id, base);
 }
 
 export async function restoreAttendanceSession(ctx: Ctx, id: string) {
   const base = requireRole(ctx, ...PEDAGOGICO);
-  await run(ctx.db, 'UPDATE attendance_sessions SET deleted_at = NULL WHERE id = ? AND base_id = ?', id, base);
+  await run(ctx.db, 'UPDATE attendance_sessions SET deleted_at = NULL WHERE id = ? AND base_id = ? AND class_id NOT IN (SELECT id FROM classes WHERE archived_at IS NOT NULL)', id, base);
 }
 
 export async function purgeAttendanceSession(ctx: Ctx, id: string) {
   const base = requireRole(ctx, ...PEDAGOGICO);
-  await run(ctx.db, 'DELETE FROM attendance_sessions WHERE id = ? AND base_id = ?', id, base);
+  await run(ctx.db, 'DELETE FROM attendance_sessions WHERE id = ? AND base_id = ? AND class_id NOT IN (SELECT id FROM classes WHERE archived_at IS NOT NULL)', id, base);
 }
 
 /** Alunos com frequência abaixo do mínimo no ano (ignora quem tem poucas chamadas). */
@@ -123,8 +122,7 @@ export async function reportAttendance(ctx: Ctx, classId: string, from: string, 
         base, json(sessions.map((s) => s.id)))
     : [];
   const dateById = new Map(sessions.map((s) => [s.id, s.session_date]));
-  const students = await all<{ id: string; full_name: string }>(ctx.db,
-    'SELECT id, full_name FROM students WHERE base_id = ? AND class_id = ? AND active = 1 ORDER BY full_name COLLATE NOCASE', base, classId);
+  const students = await all<{ id: string; full_name: string }>(ctx.db, ROSTER_SQL, base, classId);
   const dates = [...new Set(sessions.map((s) => s.session_date))].sort();
 
   const byStudent = new Map<string, typeof records>();

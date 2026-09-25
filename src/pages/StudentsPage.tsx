@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { ImportModal } from '../components/ImportModal';
 import { successToast } from '../components/Feedback';
 import { ActionsMenu, AddButton, Button, Card, CheckBox, EmptyState, Field, Input, Modal, PageHeader, SearchInput, Select, SelectionBar, SelectModeButton, Loading} from '../components/ui';
-import { archiveStudent, bulkDeleteStudents, bulkImportAll, importResultToModal, deleteStudent, listClasses, listStudents, saveStudent } from '../lib/queries';
+import { archiveStudent, classLabel, listAllClasses, bulkDeleteStudents, bulkImportAll, importResultToModal, deleteStudent, listClasses, listStudents, saveStudent } from '../lib/queries';
 import { CADASTRO_COLUMNS } from '../lib/importSheet';
 import type { Student } from '../lib/types';
 import { useSelection } from '../lib/useSelection';
@@ -14,6 +14,8 @@ export function StudentsPage() {
   const qc = useQueryClient();
   const { data: students = [], isLoading } = useQuery({ queryKey: ['students'], queryFn: listStudents });
   const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: listClasses });
+  // Nomes também das turmas de anos encerrados (ex.: aluno que saiu no fim do ano).
+  const { data: allClasses = [] } = useQuery({ queryKey: ['classes-all'], queryFn: listAllClasses });
   const [editing, setEditing] = useState<Student | null>(null);
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -61,7 +63,10 @@ export function StudentsPage() {
     },
   });
 
-  const className = (id: string | null) => classes.find((c) => c.id === id)?.name ?? 'Sem turma';
+  const className = (id: string | null) => {
+    const c = allClasses.find((x) => x.id === id);
+    return c ? classLabel(c) : 'Sem turma';
+  };
 
   const list = useMemo(
     () =>

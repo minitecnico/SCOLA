@@ -1,5 +1,6 @@
 import { Dialog, DialogPanel, Menu as HMenu, MenuButton, MenuItem, MenuItems, Transition, TransitionChild } from '@headlessui/react';
 import {
+  Archive,
   Award,
   BarChart3,
   Bell,
@@ -63,6 +64,7 @@ const groups: { title?: string; items: NavItem[] }[] = [
       { label: 'Turmas', to: '/turmas', icon: <GraduationCap size={18} />, module: 'turmas' },
       { label: 'Alunos', to: '/alunos', icon: <Users size={18} />, module: 'alunos' },
       { label: 'Equipe', to: '/equipe', icon: <UserCog size={18} />, module: 'equipe' },
+      { label: 'Ano letivo', to: '/ano-letivo', icon: <Archive size={18} />, module: 'anoletivo' },
     ],
   },
   { title: 'Conta', items: [{ label: 'Configurações', to: '/configuracoes', icon: <Settings size={18} />, module: 'configuracoes' }] },

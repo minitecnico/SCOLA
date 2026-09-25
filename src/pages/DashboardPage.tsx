@@ -8,6 +8,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { Button, Card, DropdownMenu, Loading, Modal, PageHeader, SectionTitle, StatCard } from '../components/ui';
 import { successToast, undoToast } from '../components/Feedback';
 import { SmartAlerts } from '../components/SmartAlerts';
+import { RecentNoticesPanel, UpcomingEventsPanel } from '../components/DashboardAgenda';
 import { cn } from '../lib/cn';
 import { can } from '../lib/permissions';
 import {
@@ -64,7 +65,7 @@ export function DashboardPage() {
     return [...map.entries()];
   }, [recent]);
 
-  const recentNotices = notices.slice(0, 3);
+  const recentNotices = notices.slice(0, 4);
 
   // Ações rápidas conforme o papel.
   const actions = [
@@ -109,50 +110,9 @@ export function DashboardPage() {
       <SmartAlerts />
 
       {/* Próximos eventos + Avisos recentes */}
-      <div className="mb-6 grid gap-4 lg:grid-cols-2">
-        <div>
-          <SectionTitle action={<Link to="/calendario" className="text-xs font-bold text-emerald-700 hover:underline">Ver calendário</Link>}>
-            Próximos eventos
-          </SectionTitle>
-          {upcoming.length === 0 ? (
-            <Card><p className="text-sm text-muted-foreground">Nenhum evento agendado.</p></Card>
-          ) : (
-            <div className="space-y-2">
-              {upcoming.map((e) => (
-                <Link key={e.id} to="/calendario" className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition hover:border-emerald-200">
-                  <span className="grid h-11 w-12 shrink-0 place-items-center rounded-lg text-xs font-black text-white" style={{ backgroundColor: e.color }}>
-                    {e.event_date.slice(8, 10)}/{e.event_date.slice(5, 7)}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-bold text-foreground">{e.title}</span>
-                    <span className="block text-xs font-bold text-muted-foreground">{e.category}</span>
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <SectionTitle action={<Link to="/avisos" className="text-xs font-bold text-emerald-700 hover:underline">Ver avisos</Link>}>
-            Avisos recentes
-          </SectionTitle>
-          {recentNotices.length === 0 ? (
-            <Card><p className="text-sm text-muted-foreground">Nenhum aviso recebido.</p></Card>
-          ) : (
-            <div className="space-y-2">
-              {recentNotices.map((n) => (
-                <Link key={n.id} to="/avisos" className={cn('flex items-start gap-3 rounded-xl border bg-card p-3 transition hover:border-emerald-200', n.read ? 'border-border' : 'border-emerald-300 bg-emerald-50/40')}>
-                  <span className={cn('mt-1 h-2.5 w-2.5 shrink-0 rounded-full', n.read ? 'bg-muted' : 'bg-emerald-500')} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-bold text-foreground">{n.title}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{n.body}</span>
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
+      <div className="mb-6 grid items-stretch gap-4 lg:grid-cols-2">
+        <UpcomingEventsPanel events={upcoming} />
+        <RecentNoticesPanel notices={recentNotices} unread={unread} />
       </div>
 
       <SectionTitle

@@ -1,0 +1,51 @@
+{
+  "name": "scola",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c yellow,white \"wrangler dev --port 8787\" \"vite --host 0.0.0.0\"",
+    "build": "tsc --noEmit && tsc --noEmit -p worker && vite build",
+    "preview": "npm run build && wrangler dev --port 8787",
+    "deploy": "npm run build && wrangler d1 migrations apply scola --remote && wrangler deploy",
+    "db:local": "wrangler d1 migrations apply scola --local",
+    "cf:setup": "node scripts/cf-setup.mjs",
+    "admin": "node scripts/criar-admin.mjs",
+    "migrar": "node scripts/migrar-supabase.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@headlessui/react": "^2.2.10",
+    "@tanstack/react-query": "^5.66.0",
+    "bcryptjs": "^3.0.3",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "hono": "^4.13.9",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.468.0",
+    "pdfjs-dist": "^4.10.38",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.1.5",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss-animate": "^1.0.7",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.13.1",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.2.4",
+    "pg": "^8.23.0",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vite-plugin-pwa": "^0.21.1",
+    "wrangler": "^4.86.0"
+  }
+}

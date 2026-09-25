@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---- Tokens de tema (padrão shadcn/ui): triplo HSL, suportam opacidade ----
+   Visual claro único. As classes semânticas (bg-background, bg-card,
+   text-foreground, border-border, …) leem destes tokens. */
+:root {
+  /* SCOLA — branco, preto e amarelo */
+  --background: 0 0% 97.5%;
+  --foreground: 0 0% 9%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 9%;
+  --muted: 0 0% 95%;
+  --muted-foreground: 0 0% 38%;
+  --border: 0 0% 89%;
+  --input: 0 0% 87%;
+  --ring: 48 96% 53%;
+  --primary: 0 0% 9%;
+  --primary-foreground: 0 0% 100%;
+  --brand: 48 96% 53%;
+  --brand-foreground: 0 0% 9%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  color-scheme: light;
+  font-family: "Inter Variable", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-feature-settings: "cv11", "ss01";
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  background: hsl(var(--background));
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  color: hsl(var(--foreground));
+  background-color: hsl(var(--background));
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: hsl(var(--brand) / 0.45);
+}
+
+/* Scrollbars discretas e modernas */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(0 0% 78%) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: hsl(0 0% 80%);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: hsl(0 0% 62%);
+  background-clip: content-box;
+}
+
+/* Respeita quem prefere menos movimento */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  -webkit-text-size-adjust: 100%;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+/* ---- Popup de sucesso (check animado, estilo SweetAlert) ---- */
+@keyframes pop-in {
+  0% { transform: scale(0.85); opacity: 0; }
+  60% { transform: scale(1.02); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes draw-circle {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes draw-check {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes ring-fade {
+  0% { transform: scale(0.6); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.success-card { animation: pop-in 0.25s ease-out both; }
+.success-ring { animation: ring-fade 0.3s ease-out both; }
+.success-circle {
+  stroke-dasharray: 151;
+  stroke-dashoffset: 151;
+  animation: draw-circle 0.5s ease-out 0.1s forwards;
+}
+.success-check {
+  stroke-dasharray: 36;
+  stroke-dashoffset: 36;
+  animation: draw-check 0.3s ease-out 0.55s forwards;
+}
+
+@media print {
+  aside,
+  header,
+  .no-print {
+    display: none !important;
+  }
+  /* O cabeçalho institucional do relatório também é um <header>: precisa aparecer no PDF. */
+  .report-view header {
+    display: block !important;
+  }
+  .lg\:pl-72 {
+    padding-left: 0 !important;
+  }
+  body {
+    background: #fff;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  table {
+    font-size: 11px;
+  }
+}

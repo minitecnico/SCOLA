@@ -1,0 +1,22 @@
+{
+  // SCOLA — Worker único: API (/api/*) + site (pasta dist/). Plano gratuito do Cloudflare.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "scola",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  // IDs preenchidos pelo comando `npm run cf:setup` (uma vez só).
+  "d1_databases": [
+    { "binding": "DB", "database_name": "scola", "database_id": "PREENCHER_COM_npm_run_cf_setup", "migrations_dir": "migrations" }
+  ],
+  "kv_namespaces": [
+    { "binding": "FILES", "id": "PREENCHER_COM_npm_run_cf_setup" }
+  ],
+  // Limpeza diária dos anexos excluídos (03:00 UTC).
+  "triggers": { "crons": ["0 3 * * *"] },
+  "observability": { "enabled": true }
+}

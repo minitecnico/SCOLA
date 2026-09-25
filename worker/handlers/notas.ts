@@ -161,6 +161,12 @@ export async function applyCreditoToGrades(ctx: Ctx, classId: string, year: numb
 }
 
 /* ---------------------------------- Relatórios ----------------------------------- */
+/** Composição do trimestre = colunas da base + atividades de crédito da turma + recuperação (mesma regra das Notas). */
+export function composeTermActs(gradeActs: unknown, evalActs: unknown): GradeActivity[] {
+  const credit = cleanActs(evalActs).filter((a) => a.credito && a.id);
+  return withRecoveryActivity([...cleanActs(gradeActs), ...credit]);
+}
+
 async function termContext(ctx: Ctx, classId: string, year: number) {
   const base = requireBase(ctx);
   const [grades, configs, evalConfigs, students] = await Promise.all([
@@ -172,13 +178,8 @@ async function termContext(ctx: Ctx, classId: string, year: number) {
     all<{ id: string; full_name: string }>(ctx.db,
       'SELECT id, full_name FROM students WHERE base_id = ? AND class_id = ? AND active = 1 ORDER BY full_name COLLATE NOCASE', base, classId),
   ]);
-  const creditByTerm = new Map(evalConfigs.map((c) => [c.term, cleanActs(c.activities).filter((a) => a.credito && a.id)]));
-  // Composição por trimestre = colunas próprias + atividades de crédito (mesma regra das Notas).
   const actByTerm = new Map(
-    [1, 2, 3].map((t) => {
-      const gradeActs = cleanActs(configs.find((c) => c.term === t)?.activities);
-      return [t, withRecoveryActivity([...gradeActs, ...(creditByTerm.get(t) ?? [])])] as const;
-    }),
+    [1, 2, 3].map((t) => [t, composeTermActs(configs.find((c) => c.term === t)?.activities, evalConfigs.find((c) => c.term === t)?.activities)] as const),
   );
   const gradeOf = (sid: string, t: number) => {
     const g = grades.find((x) => x.student_id === sid && x.term === t);

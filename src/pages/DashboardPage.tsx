@@ -1,18 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Award, BarChart3, Bell, CalendarDays, ChevronDown, ClipboardCheck, GraduationCap, Megaphone, RotateCcw, TriangleAlert, Trash2, Users } from 'lucide-react';
+import { Award, BarChart3, Bell, CalendarDays, ChevronDown, ClipboardCheck, GraduationCap, Megaphone, RotateCcw, Trash2, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { Button, Card, Loading, Modal, PageHeader, SectionTitle, StatCard } from '../components/ui';
 import { successToast } from '../components/Feedback';
+import { SmartAlerts } from '../components/SmartAlerts';
 import { cn } from '../lib/cn';
 import { can } from '../lib/permissions';
 import {
   dashboardCounts,
   deleteAttendanceSession,
-  listAttendanceAlerts,
   listClasses,
   listDeletedSessions,
   listUpcomingEvents,
@@ -36,8 +36,6 @@ export function DashboardPage() {
   const { data: upcoming = [] } = useQuery({ queryKey: ['cal-upcoming'], queryFn: () => listUpcomingEvents(4) });
   const { data: unread = 0 } = useQuery({ queryKey: ['notices-unread', uid], queryFn: () => unreadNoticeCount(uid!), enabled: !!uid });
   const { data: notices = [] } = useQuery({ queryKey: ['notices-received', uid], queryFn: () => listReceivedNotices(uid!), enabled: !!uid });
-  const showAlerts = can(role, 'chamadas') || can(role, 'relatorios');
-  const { data: alerts = [] } = useQuery({ queryKey: ['attendance-alerts'], queryFn: () => listAttendanceAlerts(), enabled: showAlerts });
 
   const [open, setOpen] = useState<string | null>(null);
   const [trashOpen, setTrashOpen] = useState(false);
@@ -103,35 +101,7 @@ export function DashboardPage() {
         <StatCard to="/calendario" icon={<CalendarDays size={18} />} value={upcoming.length} label="Próximos eventos" />
       </div>
 
-      {/* Atenção: frequência baixa */}
-      {showAlerts && alerts.length > 0 ? (
-        <div className="mb-6 rounded-xl border border-orange-200 bg-orange-50/60 p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-orange-100 text-orange-700">
-              <TriangleAlert size={18} />
-            </span>
-            <div>
-              <h2 className="text-sm font-black text-orange-900">Atenção · frequência abaixo de 75%</h2>
-              <p className="text-xs font-bold text-orange-700/80">{alerts.length} aluno(s) em risco de reprovação por falta.</p>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            {alerts.slice(0, 5).map((a) => (
-              <div key={a.student_id} className="flex items-center gap-3 rounded-xl bg-card/70 px-3 py-2">
-                <span className="min-w-0 flex-1">
-                  <span className="block break-words text-sm font-bold leading-snug text-foreground">{a.name}</span>
-                  <span className="block text-xs font-bold text-muted-foreground">{className(a.class_id ?? '')} · {a.absent} falta(s)</span>
-                </span>
-                <span className="shrink-0 rounded-lg bg-red-100 px-2.5 py-1 text-sm font-black tabular-nums text-red-700">{a.pct}%</span>
-              </div>
-            ))}
-          </div>
-          {alerts.length > 5 ? <p className="mt-2 text-xs font-bold text-orange-700/80">+{alerts.length - 5} aluno(s)…</p> : null}
-          <Link to="/relatorios" className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-orange-800 hover:underline">
-            <BarChart3 size={14} /> Ver relatório de frequência →
-          </Link>
-        </div>
-      ) : null}
+      <SmartAlerts />
 
       {/* Próximos eventos + Avisos recentes */}
       <div className="mb-6 grid gap-4 lg:grid-cols-2">

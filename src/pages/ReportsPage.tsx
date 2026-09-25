@@ -53,8 +53,9 @@ export function ReportsPage() {
 
   const location = useLocation();
   useEffect(() => {
-    const fromState = (location.state as { classId?: string } | null)?.classId;
-    if (fromState) setClassId(fromState);
+    const st = location.state as { classId?: string; tipo?: Tipo } | null;
+    if (st?.classId) setClassId(st.classId);
+    if (st?.tipo) setTipo(st.tipo);
   }, [location.state]);
 
   const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: listClasses });

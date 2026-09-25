@@ -90,6 +90,47 @@ export interface AttendanceAlert {
 export const listAttendanceAlerts = (minPct = 75, year = new Date().getFullYear(), minSessions = 4) =>
   rpc<AttendanceAlert[]>('listAttendanceAlerts', minPct, year, minSessions);
 
+/* Central de alertas (frequência, faltas seguidas, queda recente, notas, pendências de turma). */
+export type AlertSeverity = 'critical' | 'warning' | 'info';
+export interface AlertSignal {
+  kind: 'freq_low' | 'freq_watch' | 'streak' | 'trend' | 'grade_low' | 'no_call' | 'missing_grades';
+  severity: AlertSeverity;
+  label: string;
+  detail: string;
+}
+export interface StudentAlert {
+  key: string;
+  student_id: string;
+  name: string;
+  class_id: string;
+  class_name: string;
+  guardian_name: string | null;
+  guardian_phone: string | null;
+  severity: AlertSeverity;
+  score: number;
+  pct: number | null;
+  media: number | null;
+  signals: AlertSignal[];
+}
+export interface ClassAlert {
+  key: string;
+  class_id: string;
+  class_name: string;
+  severity: AlertSeverity;
+  signal: AlertSignal;
+}
+export interface SmartAlerts {
+  minPct: number;
+  media: number;
+  students: StudentAlert[];
+  classes: ClassAlert[];
+}
+export const smartAlerts = (minPct = 75) => {
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return rpc<SmartAlerts>('smartAlerts', d.getFullYear(), today, minPct);
+};
+
 export interface AttendanceReportRow {
   student_id: string;
   name: string;

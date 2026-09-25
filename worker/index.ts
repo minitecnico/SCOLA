@@ -5,6 +5,7 @@ import {
   recordFailure, requireBase, requireRole, SESSION_COOKIE, userFromToken, verifyPassword, type Ctx, type UserRow,
 } from './auth';
 import { all, fail, first, HttpError, parse, run, uid, type Env } from './db';
+import * as alertas from './handlers/alertas';
 import * as cadastros from './handlers/cadastros';
 import * as chamadas from './handlers/chamadas';
 import * as comunicacao from './handlers/comunicacao';
@@ -13,9 +14,9 @@ import * as notas from './handlers/notas';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
-const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl']);
+const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs']);
 const handlers: Record<string, Handler> = {};
-for (const mod of [cadastros, chamadas, comunicacao, contas, notas]) {
+for (const mod of [alertas, cadastros, chamadas, comunicacao, contas, notas]) {
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn === 'function' && !INTERNAL.has(name)) handlers[name] = fn as Handler;
   }

@@ -2,7 +2,7 @@
  * Folha de respostas para impressão (SVG em milímetros, A4).
  * Tudo vem de layout.ts — a mesma geometria que a câmera usa para ler.
  */
-import { LETTERS, MARKER, MARKERS, PAGE, QR, qrPayload, sheetLayout } from './layout';
+import { LETTERS, MARKER, MARKERS, PAGE, QR, keyPayload, qrPayload, sheetLayout } from './layout';
 
 export interface SheetInfo {
   school: string;
@@ -29,11 +29,113 @@ function marker(cx: number, cy: number) {
 <rect x="${cx - c / 2}" y="${cy - c / 2}" width="${c}" height="${c}" fill="#000"/>`;
 }
 
-async function qrSvg(text: string): Promise<string> {
+/**
+ * QR em SVG, posicionado na página. Na folha do aluno, correção "M" cabe na
+ * versão 1 (21×21): módulos maiores, legíveis com a folha mais longe da câmera.
+ */
+async function qrSvg(text: string, box: { x: number; y: number; size: number } = QR, level: 'M' | 'Q' = 'M'): Promise<string> {
   const QRCode = await import('qrcode');
-  const svg = await QRCode.toString(text, { type: 'svg', margin: 0, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } });
-  // Reposiciona o <svg> do QR dentro da folha.
-  return svg.replace('<svg ', `<svg x="${QR.x}" y="${QR.y}" width="${QR.size}" height="${QR.size}" `);
+  const svg = await QRCode.toString(text, { type: 'svg', margin: 0, errorCorrectionLevel: level, color: { dark: '#000000', light: '#ffffff' } });
+  return svg.replace('<svg ', `<svg x="${box.x}" y="${box.y}" width="${box.size}" height="${box.size}" `);
+}
+
+/** QR como imagem, para mostrar na tela. */
+export async function qrDataUrl(text: string): Promise<string> {
+  const QRCode = await import('qrcode');
+  return QRCode.toDataURL(text, { margin: 1, width: 480, errorCorrectionLevel: 'M' });
+}
+
+export interface KeyInfo extends SheetInfo {
+  key: string[];
+  points: number;
+}
+
+/**
+ * Gabarito do professor (A4): as respostas certas + o QR que abre a correção desta
+ * prova com este gabarito. Fica com o professor — não vai para os alunos.
+ */
+export async function keyCardSvg(info: KeyInfo, origin = window.location.origin): Promise<string> {
+  const Q = { x: 140, y: 40, size: 58 };
+  const qr = await qrSvg(keyPayload(origin, info.examCode, info.choices, info.points, info.key, info.questions), Q, 'M');
+  const n = info.questions;
+  const k = info.choices;
+  const p: string[] = [];
+  // Faixa de aviso
+  p.push(`<rect x="0" y="0" width="${PAGE.w}" height="14" fill="#000"/>`);
+  p.push(`<text x="12" y="9.2" font-size="4.2" font-weight="800" fill="#fff">GABARITO DO PROFESSOR</text>`);
+  p.push(`<text x="${PAGE.w - 12}" y="9.2" font-size="3.2" font-weight="600" fill="#fff" text-anchor="end">NÃO ENTREGUE AOS ALUNOS</text>`);
+  // Dados da prova (recortados para não invadir o QR)
+  p.push(`<clipPath id="khdr"><rect x="0" y="14" width="${Q.x - 4}" height="90"/></clipPath><g clip-path="url(#khdr)">`);
+  p.push(`<text x="12" y="27" font-size="3.4" fill="#444">${esc(info.school.toUpperCase())}</text>`);
+  p.push(`<text x="12" y="36" font-size="6" font-weight="800">${esc(info.title)}</text>`);
+  p.push(`<text x="12" y="43" font-size="3.6" fill="#333">${esc(info.className)}${info.date ? ` · ${br(info.date)}` : ''}</text>`);
+  const facts = [
+    ['Questões', String(n)],
+    ['Alternativas', `A a ${LETTERS[k - 1]}`],
+    ['Valor', String(info.points).replace('.', ',')],
+    ['Código', info.examCode],
+  ];
+  facts.forEach(([l, v], i) => {
+    const x = 12 + i * 30;
+    p.push(`<text x="${x}" y="54" font-size="2.7" fill="#666">${l.toUpperCase()}</text>`);
+    p.push(`<text x="${x}" y="60.5" font-size="5" font-weight="800">${esc(v)}</text>`);
+  });
+  // Como corrigir
+  const steps = [
+    'Aponte a câmera do celular para o QR ao lado: a correção',
+    'desta prova abre já com este gabarito.',
+    'Passe as folhas dos alunos, uma atrás da outra. Cada nota é',
+    'salva sozinha (e vai para o diário, se estiver configurado).',
+  ];
+  p.push(`<text x="12" y="74" font-size="3" font-weight="700">COMO CORRIGIR</text>`);
+  p.push(`<circle cx="14" cy="80" r="2.2" fill="#000"/><text x="14" y="81.1" font-size="3" font-weight="800" fill="#fff" text-anchor="middle">1</text>`);
+  p.push(`<text x="19" y="81" font-size="3.1" fill="#222">${steps[0]}</text><text x="19" y="85.5" font-size="3.1" fill="#222">${steps[1]}</text>`);
+  p.push(`<circle cx="14" cy="92" r="2.2" fill="#000"/><text x="14" y="93.1" font-size="3" font-weight="800" fill="#fff" text-anchor="middle">2</text>`);
+  p.push(`<text x="19" y="93" font-size="3.1" fill="#222">${steps[2]}</text><text x="19" y="97.5" font-size="3.1" fill="#222">${steps[3]}</text>`);
+  p.push('</g>');
+  // QR do professor
+  p.push(`<rect x="${Q.x - 3}" y="${Q.y - 3}" width="${Q.size + 6}" height="${Q.size + 6}" rx="3" fill="none" stroke="#000" stroke-width="0.5"/>`);
+  p.push(qr);
+  p.push(`<text x="${Q.x + Q.size / 2}" y="${Q.y + Q.size + 8}" font-size="3" font-weight="700" text-anchor="middle">QR DO PROFESSOR</text>`);
+  p.push(`<text x="${Q.x + Q.size / 2}" y="${Q.y + Q.size + 12.5}" font-size="2.6" fill="#555" text-anchor="middle">abre a correção com o gabarito</text>`);
+
+  // Respostas certas (bolinha preenchida), em colunas de até 15
+  const top = 122;
+  p.push(`<line x1="12" y1="${top - 8}" x2="${PAGE.w - 12}" y2="${top - 8}" stroke="#000" stroke-width="0.3"/>`);
+  p.push(`<text x="12" y="${top - 2}" font-size="3.2" font-weight="800">RESPOSTAS</text>`);
+  const perCol = 15;
+  const cols = Math.ceil(n / perCol);
+  const colW = (PAGE.w - 24) / Math.max(cols, 2);
+  const rowH = 10;
+  for (let q = 0; q < n; q++) {
+    const c = Math.floor(q / perCol);
+    const r = q % perCol;
+    const x0 = 12 + c * colW;
+    const y = top + 8 + r * rowH;
+    const ans = info.key[q] ?? '';
+    p.push(`<text x="${x0 + 7}" y="${y + 1.4}" font-size="3.8" font-weight="800" text-anchor="end">${String(q + 1).padStart(2, '0')}</text>`);
+    if (ans === 'X') {
+      p.push(`<text x="${x0 + 10}" y="${y + 1.3}" font-size="3.2" font-weight="700" fill="#555">ANULADA</text>`);
+      continue;
+    }
+    for (let a = 0; a < k; a++) {
+      const cx = x0 + 12.5 + a * 6.2;
+      const on = LETTERS[a] === ans;
+      p.push(`<circle cx="${cx}" cy="${y}" r="2.4" fill="${on ? '#000' : '#fff'}" stroke="${on ? '#000' : '#aaa'}" stroke-width="0.3"/>`);
+      p.push(`<text x="${cx}" y="${y + 1.05}" font-size="2.8" font-weight="${on ? 800 : 500}" text-anchor="middle" fill="${on ? '#fff' : '#aaa'}">${LETTERS[a]}</text>`);
+    }
+    if (!ans) p.push(`<text x="${x0 + 12.5 + k * 6.2}" y="${y + 1.1}" font-size="2.6" fill="#c00">sem resposta</text>`);
+  }
+  p.push(`<text x="${PAGE.w / 2}" y="291.5" font-size="2.5" text-anchor="middle" fill="#888">SCOLA · gabarito da prova ${esc(info.examCode)} · se o gabarito for alterado no sistema, imprima de novo</text>`);
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PAGE.w} ${PAGE.h}" width="${PAGE.w}mm" height="${PAGE.h}mm" font-family="Inter, Arial, sans-serif">
+<rect width="${PAGE.w}" height="${PAGE.h}" fill="#fff"/>
+${p.join('\n')}
+</svg>`;
+}
+
+export async function printKeyCard(info: KeyInfo) {
+  await printPages([await keyCardSvg(info)], `Gabarito do professor - ${info.title} - ${info.className}`);
 }
 
 /** Uma página (SVG) — com o nome do aluno, ou avulsa (nome em branco). */
@@ -105,8 +207,12 @@ export async function printSheets(info: SheetInfo, students: { id: string; name:
   const pages: string[] = [];
   for (const s of students) pages.push(await sheetSvg(info, s));
   for (let i = 0; i < blanks; i++) pages.push(await sheetSvg(info, null));
-  if (!pages.length) return;
+  await printPages(pages, `Folhas de resposta - ${info.title} - ${info.className}`);
+}
 
+/** Páginas A4 (SVG) num contêiner que só aparece na impressão. */
+async function printPages(pages: string[], title: string) {
+  if (!pages.length) return;
   document.getElementById('scola-print')?.remove();
   document.getElementById('scola-print-style')?.remove();
 
@@ -126,12 +232,12 @@ export async function printSheets(info: SheetInfo, students: { id: string; name:
   const root = document.createElement('div');
   root.id = 'scola-print';
   // Cada folha com ids próprios (o recorte do cabeçalho usa um id no SVG).
-  root.innerHTML = pages.map((p, i) => `<div class="page">${p.replace(/hdr/g, `hdr${i}`)}</div>`).join('');
+  root.innerHTML = pages.map((p, i) => `<div class="page">${p.replace(/(k?hdr)/g, `$1${i}`)}</div>`).join('');
   document.head.appendChild(style);
   document.body.appendChild(root);
 
   const prevTitle = document.title;
-  document.title = `Folhas de resposta - ${info.title} - ${info.className}`;
+  document.title = title;
   const cleanup = () => {
     document.title = prevTitle;
     root.remove();

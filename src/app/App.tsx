@@ -76,6 +76,7 @@ function Protected() {
               <Route path="/notas" element={<Gate module="notas"><NotasPage /></Gate>} />
               <Route path="/avaliacoes" element={<Gate module="notas"><EvaluationsPage /></Gate>} />
               <Route path="/provas" element={<Gate module="notas"><ProvasPage /></Gate>} />
+              <Route path="/corrigir" element={<Gate module="notas"><ProvasPage /></Gate>} />
               <Route path="/provas/:id" element={<Gate module="notas"><ProvaDetailPage /></Gate>} />
               <Route path="/planejamento" element={<Gate module="planejamentos"><PlanejamentoPage /></Gate>} />
               <Route path="/relatorios" element={<Gate module="relatorios"><ReportsPage /></Gate>} />

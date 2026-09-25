@@ -44,7 +44,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2,webmanifest,wasm}'],
+        // Leitor de QR (ZXing, ~1 MB) entra no cache: a correção funciona sem internet.
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         // Pesados e raros no celular (Excel, PDF, ZIP): baixam só quando usados.
         globIgnores: ['screenshots/**', 'og-image.png', '**/xlsx-*.js', '**/pdf-*.js', '**/pdf.worker*', '**/jszip*'],
         navigateFallback: '/index.html',

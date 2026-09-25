@@ -18,7 +18,7 @@ import * as provas from './handlers/provas';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
-const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs']);
+const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades']);
 const handlers: Record<string, Handler> = {};
 for (const mod of [alertas, cadastros, chamadas, comunicacao, contas, logs, notas, painel, provas]) {
   for (const [name, fn] of Object.entries(mod)) {

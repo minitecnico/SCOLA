@@ -76,13 +76,18 @@ npm run migrar -- --aplicar    # grava no Cloudflare
 
 Menu **Provas e correção** (gestão e professores):
 
-1. **Gabarito:** cria a prova (turma, nº de questões até 60, alternativas A–D ou A–E, valor) e marca a resposta certa. "Anular" conta a questão como certa para todos.
-2. **Folhas:** imprime uma folha de respostas por aluno, com o nome e um QR code (`S1:<código da prova>:<aluno>`). Também há folhas avulsas.
-3. **Corrigir:** a câmera do celular lê o QR (identifica prova e aluno), acha as 4 marcas dos cantos, corrige a perspectiva e lê as bolinhas. O professor confere e salva.
-4. **Resultados:** notas, acerto por questão (com aviso de possível erro no gabarito), Excel e **Lançar no diário**, que grava a nota proporcional ao valor da coluna escolhida em Notas, sem mexer nas outras colunas.
+1. **Gabarito:** cria a prova (turma, nº de questões até 60, alternativas A–D ou A–E, valor) e marca a resposta certa. "Anular" conta a questão como certa para todos. Opcional: **lançar notas no diário automaticamente** (trimestre + coluna de Notas).
+2. **QR e folhas:** a prova gera 2 QR codes:
+   - **QR do professor** (gabarito): link `…/corrigir#K1:<código>:<alternativas>:<valor>:<gabarito>`. Mostrado na tela e no "gabarito do professor" impresso. A câmera de qualquer celular abre a correção desta prova já com o gabarito.
+   - **QR da folha do aluno** (`S1:<código da prova>:<aluno>`): uma folha de respostas por aluno, com o nome. Também há folhas avulsas.
+3. **Corrigir:** dois modos.
+   - **Em massa** (padrão): leia o QR do professor e passe as folhas uma atrás da outra. Cada leitura segura é salva sozinha (bipe + vibração) e, se configurado, a nota já vai para o diário. Folhas avulsas ou com marcação duvidosa vão para **Conferir**, sem parar a fila. Também aceita várias fotos da galeria de uma vez.
+   - **Uma a uma:** cada folha abre a revisão antes de salvar.
+   Sem internet, as correções ficam numa fila no aparelho e são enviadas quando a conexão volta. A prova fica guardada no aparelho depois da primeira leitura.
+4. **Resultados:** notas, acerto por questão (com aviso de possível erro no gabarito), Excel e **Lançar no diário** manual. A nota lançada é proporcional ao valor da coluna escolhida em Notas e não mexe nas outras colunas. Se o gabarito mudar, as notas lançadas são recalculadas. Apagar uma correção tira também a nota dela.
 
-Tudo roda no aparelho (sem custo de servidor). A câmera ao vivo exige HTTPS; no computador de desenvolvimento acessado pelo IP da rede, use "Usar foto".
-Código: `src/lib/omr/` (geometria da folha, leitura e nota), `src/components/ExamScanner.tsx`, `worker/handlers/provas.ts`.
+Tudo roda no aparelho (sem custo de servidor). O QR é lido pelo **ZXing** (`zxing-wasm`, WebAssembly, que entra no cache do app e funciona offline), com o jsQR de reserva. Quando a folha está longe, o app amplia a região do QR usando as marcas dos cantos. Em último caso, mede cada módulo do QR e redesenha uma versão nítida. A câmera ao vivo exige HTTPS; no computador de desenvolvimento acessado pelo IP da rede, use "Usar fotos".
+Código: `src/lib/omr/` (geometria, leitura, QR, fila offline e nota), `src/components/ExamScanner.tsx`, `worker/handlers/provas.ts`, `migrations/0005_provas_diario.sql`.
 
 ## App no celular (PWA)
 

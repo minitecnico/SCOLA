@@ -9,6 +9,7 @@
  *     a alternativa marcada, apontando dupla marcação e leituras duvidosas.
  */
 import { LETTERS, MARKERS, QR, sheetLayout, type SheetLayout } from './layout';
+import { readQrCodes } from './qr';
 
 export interface Img {
   data: Uint8ClampedArray;
@@ -189,20 +190,27 @@ const inPoly = (p: Pt, poly: Pt[]) => {
  * assim a folha pode estar girada em qualquer sentido.
  */
 export function locateCorners(img: Img, qr?: Pt[] | null): Pt[] | null {
+  return cornerCandidates(img, qr, 1)[0] ?? null;
+}
+
+/** Quadriláteros plausíveis para a folha, do maior para o menor (até `max`). */
+export function cornerCandidates(img: Img, qr?: Pt[] | null, max = 4): Pt[][] {
   const g = toGray(img);
   const bin = adaptiveThreshold(g, img.width, img.height);
   let cands = findMarkers(bin, img.width, img.height);
+  // Os 3 quadrados de posição do QR parecem marcas de canto (anel com miolo, ~11 mm),
+  // mas ficam colados uns nos outros (~2 tamanhos). As marcas de verdade ficam a 17 cm.
+  cands = cands.filter((m) => !cands.some((o) => o !== m && Math.hypot(o.x - m.x, o.y - m.y) < Math.max(m.size, o.size) * 2.6));
   if (qr && qr.length >= 3) {
     // Exclui os padrões do próprio QR (um pouco de folga em volta dele).
     const c = { x: qr.reduce((s, q) => s + q.x, 0) / qr.length, y: qr.reduce((s, q) => s + q.y, 0) / qr.length };
     const grown = qr.map((q) => ({ x: c.x + (q.x - c.x) * 1.25, y: c.y + (q.y - c.y) * 1.25 }));
     cands = cands.filter((m) => !inPoly(m, grown));
   }
-  if (cands.length < 4) return null;
+  if (cands.length < 4) return [];
   cands.sort((a, b) => b.size - a.size);
   const top = cands.slice(0, 9);
-  let best: Pt[] | null = null;
-  let bestArea = 0;
+  const found: { quad: Pt[]; area: number }[] = [];
   for (let a = 0; a < top.length; a++)
     for (let b = a + 1; b < top.length; b++)
       for (let c = b + 1; c < top.length; c++)
@@ -214,13 +222,14 @@ export function locateCorners(img: Img, qr?: Pt[] | null): Pt[] | null {
           const sizes = [top[a], top[b], top[c], top[d]].map((m) => m.size);
           if (Math.min(...sizes) < Math.max(...sizes) * 0.4) continue;
           const area = quadArea(quad);
-          if (area > bestArea) {
-            bestArea = area;
-            best = quad;
-          }
+          if (area >= img.width * img.height * 0.08) found.push({ quad, area });
         }
-  if (!best || bestArea < img.width * img.height * 0.08) return null;
+  found.sort((a, b) => b.area - a.area);
+  return found.map((f) => orient(f.quad, qr)).filter((q): q is Pt[] => !!q).slice(0, max);
+}
 
+/** Põe o quadrilátero na ordem TL, TR, BR, BL e confere a proporção da folha. */
+function orient(best: Pt[], qr?: Pt[] | null): Pt[] | null {
   // Qual aresta é o topo? A mais próxima do QR (ou, sem QR, a de cima na imagem).
   let topEdge = 0;
   let bestDist = Infinity;
@@ -367,54 +376,48 @@ export interface QrHit {
   corners: Pt[];
 }
 
-type Detector = { detect: (src: ImageBitmapSource) => Promise<{ rawValue: string; cornerPoints: Pt[] }[]> };
-let nativeDetector: Detector | null | undefined;
+/** QR de folha do aluno ("S1:…") ou do gabarito do professor ("K1:…", também dentro de um link). */
+const isSheetQr = (t: string) => t.startsWith('S1:');
+const isKeyQr = (t: string) => t.includes('K1:');
 
-/** Lê o QR: usa o leitor nativo do aparelho quando existe; senão, jsQR. */
-export async function decodeQr(img: Img): Promise<QrHit | null> {
-  if (nativeDetector === undefined) {
-    const BD = (globalThis as unknown as { BarcodeDetector?: new (o: { formats: string[] }) => Detector }).BarcodeDetector;
-    try {
-      nativeDetector = BD ? new BD({ formats: ['qr_code'] }) : null;
-    } catch {
-      nativeDetector = null;
-    }
-  }
-  if (nativeDetector) {
-    try {
-      const found = await nativeDetector.detect(new ImageData(new Uint8ClampedArray(img.data), img.width, img.height));
-      const hit = found.find((f) => f.rawValue.startsWith('S1:'));
-      if (hit) return { text: hit.rawValue, corners: hit.cornerPoints };
-    } catch {
-      /* cai no jsQR */
-    }
-  }
-  const { default: jsQR } = await import('jsqr');
-  const r = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
-  if (!r) return null;
-  const l = r.location;
-  return { text: r.data, corners: [l.topLeftCorner, l.topRightCorner, l.bottomRightCorner, l.bottomLeftCorner] };
+/** Lê o QR da imagem (ZXing; jsQR de reserva). Prefere o da folha do aluno. */
+export async function decodeQr(img: Img, hard = false): Promise<QrHit | null> {
+  const found = await readQrCodes(img, hard);
+  return found.find((f) => isSheetQr(f.text)) ?? found.find((f) => isKeyQr(f.text)) ?? null;
 }
 
 /**
  * Encontra a folha: QR + cantos, já na orientação certa.
  * Se o QR estiver pequeno demais para ler direto, localiza a folha pelas marcas,
- * "recorta e amplia" a região do QR (testando os 4 sentidos) e lê de novo.
+ * "recorta e amplia" a região do QR e lê de novo.
+ * Se o QR lido for o do gabarito do professor, devolve só o texto (sem cantos).
  */
 export async function findSheet(img: Img): Promise<{ text: string | null; corners: Pt[] | null } | null> {
   const qr = await decodeQr(img);
+  if (qr && !isSheetQr(qr.text)) return { text: qr.text, corners: null };
   if (qr) return { text: qr.text, corners: locateCorners(img, qr.corners) };
-  const base = locateCorners(img, null);
-  if (!base) return null;
-  const { default: jsQR } = await import('jsqr');
+  const quads = cornerCandidates(img, null, 3);
+  if (!quads.length) return null;
   const g = toGray(img);
+  // Vários formatos possíveis de folha (uma marca pode ser confundida com o QR):
+  // vale o primeiro em que o QR decodifica — um QR lido confirma a geometria.
+  for (const base of quads) {
+    const hit = (await readQrCrop(img, g, base)) ?? (await readQrGridAll(g, img.width, img.height, base));
+    if (hit) return hit;
+  }
+  // Achou a folha, mas o QR está pequeno demais: a folha está longe.
+  return { text: null, corners: quads[0] };
+}
+
+/** Recorta e amplia a região do QR (4 sentidos) e lê. */
+async function readQrCrop(img: Img, g: Uint8Array, base: Pt[]) {
   const PX = 8; // px por mm no recorte
-  const pad = 3;
+  const pad = 4;
   const size = Math.round((QR.size + pad * 2) * PX);
-  const out = new Uint8ClampedArray(size * size * 4);
   for (let rot = 0; rot < 4; rot++) {
     const corners = [0, 1, 2, 3].map((k) => base[(rot + k) % 4]);
     const h = homography([...MARKERS], corners);
+    const out = new Uint8ClampedArray(size * size * 4);
     for (let y = 0; y < size; y++)
       for (let x = 0; x < size; x++) {
         const p = project(h, { x: QR.x - pad + x / PX, y: QR.y - pad + y / PX });
@@ -423,9 +426,79 @@ export async function findSheet(img: Img): Promise<{ text: string | null; corner
         out[o] = out[o + 1] = out[o + 2] = v;
         out[o + 3] = 255;
       }
-    const r = jsQR(out, size, size, { inversionAttempts: 'dontInvert' });
-    if (r && r.data.startsWith('S1:')) return { text: r.data, corners };
+    const hit = (await readQrCodes({ data: out, width: size, height: size }, true)).find((r) => isSheetQr(r.text));
+    // O ZXing lê em qualquer giro, então confere o sentido pelo próprio QR:
+    // no recorte certo, o canto superior-esquerdo do QR fica em cima à esquerda.
+    if (hit) {
+      const tl = hit.corners[0];
+      const c = hit.corners.reduce((a, p) => ({ x: a.x + p.x / 4, y: a.y + p.y / 4 }), { x: 0, y: 0 });
+      if (tl.x < c.x && tl.y < c.y) return { text: hit.text, corners };
+    }
   }
-  // Achou a folha, mas o QR está pequeno demais: a folha está longe.
-  return { text: null, corners: base };
+  return null;
+}
+
+/**
+ * Último recurso (folha longe, QR com 2–3 px por quadradinho): como a posição do QR
+ * na folha é conhecida, mede o centro de cada módulo e redesenha um QR nítido.
+ */
+async function readQrGridAll(g: Uint8Array, w: number, hgt: number, base: Pt[]) {
+  for (let rot = 0; rot < 4; rot++) {
+    const corners = [0, 1, 2, 3].map((k) => base[(rot + k) % 4]);
+    const h = homography([...MARKERS], corners);
+    for (const n of [21, 25]) {
+      const text = await readQrGrid(g, w, hgt, h, n);
+      if (text && isSheetQr(text)) return { text, corners };
+    }
+  }
+  return null;
+}
+
+/** Amostra a grade n×n de módulos do QR (posição conhecida) e decodifica a versão redesenhada. */
+async function readQrGrid(g: Uint8Array, w: number, hgt: number, h: H, n: number): Promise<string | null> {
+  const m = QR.size / n;
+  const vals = new Float32Array(n * n);
+  for (let j = 0; j < n; j++)
+    for (let i = 0; i < n; i++) {
+      let sum = 0;
+      for (const dy of [-0.2, 0, 0.2])
+        for (const dx of [-0.2, 0, 0.2]) {
+          const p = project(h, { x: QR.x + (i + 0.5 + dx) * m, y: QR.y + (j + 0.5 + dy) * m });
+          sum += sample(g, w, hgt, p.x, p.y);
+        }
+      vals[j * n + i] = sum / 9;
+    }
+  // Limiar de Otsu sobre os módulos.
+  const sorted = [...vals].sort((a, b) => a - b);
+  let best = 0;
+  let thr = sorted[sorted.length >> 1];
+  for (let k = 1; k < sorted.length; k++) {
+    const a = sorted.slice(0, k);
+    const b = sorted.slice(k);
+    const ma = a.reduce((x, y) => x + y, 0) / a.length;
+    const mb = b.reduce((x, y) => x + y, 0) / b.length;
+    const v = a.length * b.length * (ma - mb) ** 2;
+    if (v > best) {
+      best = v;
+      thr = (sorted[k - 1] + sorted[k]) / 2;
+    }
+  }
+  const PXM = 8;
+  const quiet = 4;
+  const size = (n + quiet * 2) * PXM;
+  const out = new Uint8ClampedArray(size * size * 4).fill(255);
+  for (let j = 0; j < n; j++)
+    for (let i = 0; i < n; i++) {
+      if (vals[j * n + i] >= thr) continue;
+      for (let y = 0; y < PXM; y++)
+        for (let x = 0; x < PXM; x++) {
+          const o = (((quiet + j) * PXM + y) * size + (quiet + i) * PXM + x) * 4;
+          out[o] = out[o + 1] = out[o + 2] = 0;
+        }
+    }
+  const hit = (await readQrCodes({ data: out, width: size, height: size })).find((r) => isSheetQr(r.text));
+  if (!hit) return null;
+  // Sentido certo: o canto superior-esquerdo do QR fica em cima à esquerda.
+  const tl = hit.corners[0];
+  return tl.x < size / 2 && tl.y < size / 2 ? hit.text : null;
 }

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardCheck, FileText, Plus, Printer, ScanLine } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { DateInput } from '../components/DateInput';
 import { ExamScanner } from '../components/ExamScanner';
 import { Button, EmptyState, Field, Input, Loading, Modal, PageHeader, SegmentedField, StatusBadge, fieldCls } from '../components/ui';
@@ -31,6 +31,22 @@ export function ProvasPage() {
       setParams({}, { replace: true });
     }
   }, [params, exams.length, setParams]);
+  // QR do professor lido pela câmera do celular: /corrigir#K1:… abre a correção com o gabarito.
+  const location = useLocation();
+  const [keyText, setKeyText] = useState<string | null>(null);
+  useEffect(() => {
+    if (location.pathname === '/corrigir') {
+      // A troca de rota remonta a página: o gabarito segue junto no state.
+      navigate('/provas', { replace: true, state: { corrigir: location.hash.includes('K1:') ? location.hash.slice(1) : '' } });
+      return;
+    }
+    const st = location.state as { corrigir?: string } | null;
+    if (st && typeof st.corrigir === 'string') {
+      setKeyText(st.corrigir || null);
+      setScanning(true);
+      window.history.replaceState({ ...window.history.state, usr: null }, ''); // não reabre ao voltar
+    }
+  }, [location.pathname, location.hash, location.state, navigate]);
 
   return (
     <>
@@ -52,9 +68,9 @@ export function ProvasPage() {
       {/* Como funciona: aparece enquanto há poucas provas */}
       <ol className={cn('mb-6 grid gap-2 sm:grid-cols-3', exams.length >= 2 && 'hidden')}>
         {[
-          { icon: <FileText size={16} />, t: 'Crie a prova e o gabarito', d: 'Número de questões, alternativas e a resposta certa de cada uma.' },
+          { icon: <FileText size={16} />, t: 'Crie a prova e o gabarito', d: 'Gera 2 QR codes: o seu (com as respostas) e o da folha de cada aluno.' },
           { icon: <Printer size={16} />, t: 'Imprima as folhas', d: 'Uma por aluno, já com o nome e um QR code que identifica a prova.' },
-          { icon: <ScanLine size={16} />, t: 'Aponte a câmera', d: 'A nota sai na hora. Depois é só lançar no diário.' },
+          { icon: <ScanLine size={16} />, t: 'Corrija em massa', d: 'Leia o seu QR e passe as folhas: as notas saem na hora e vão para o diário.' },
         ].map((s, i) => (
           <li key={s.t} className="flex gap-3 rounded-xl border border-border bg-card p-3">
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-neutral-950 text-sm font-bold text-brand">{i + 1}</span>
@@ -119,7 +135,7 @@ export function ProvasPage() {
       )}
 
       <NewExamModal open={creating} onClose={() => setCreating(false)} onCreated={(id) => navigate(`/provas/${id}`)} />
-      <ExamScanner open={scanning} onClose={() => setScanning(false)} />
+      <ExamScanner open={scanning} onClose={() => { setScanning(false); setKeyText(null); }} keyText={keyText} />
     </>
   );
 }

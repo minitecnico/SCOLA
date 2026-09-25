@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookCheck, Download, FileSpreadsheet, MoreHorizontal, Pencil, Printer, ScanLine, Trash2 } from 'lucide-react';
+import { BookCheck, BookOpenCheck, Download, FileSpreadsheet, KeyRound, MoreHorizontal, Pencil, Printer, ScanLine, Trash2, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
@@ -9,11 +9,11 @@ import { successToast } from '../components/Feedback';
 import { Button, DropdownMenu, EmptyState, Field, Input, Loading, Modal, PageHeader, SegmentedField, StatTile, StatusBadge, fieldCls } from '../components/ui';
 import { cn } from '../lib/cn';
 import { downloadXlsx } from '../lib/importSheet';
-import { LETTERS } from '../lib/omr/layout';
+import { keyPayload, LETTERS } from '../lib/omr/layout';
 import { keyComplete, scoreAnswers } from '../lib/omr/score';
-import { printSheets, sheetSvg } from '../lib/omr/sheet';
+import { printKeyCard, printSheets, qrDataUrl, sheetSvg } from '../lib/omr/sheet';
 import {
-  deleteExam, deleteExamAnswer, examGradeTargets, getExam, listClasses, listSchools, saveExam, saveExamAnswer, sendExamToGrades, type ExamDetail,
+  classGradeTargets, deleteExam, deleteExamAnswer, examGradeTargets, getExam, listClasses, listSchools, saveExam, saveExamAnswer, sendExamToGrades, type ExamDetail,
 } from '../lib/queries';
 import { gradeTone, TONE, type Tone } from '../lib/tone';
 
@@ -84,7 +84,7 @@ export function ProvaDetailPage() {
           onChange={setTab}
           options={[
             { value: 'gabarito', label: '1. Gabarito' },
-            { value: 'folhas', label: '2. Folhas' },
+            { value: 'folhas', label: '2. QR e folhas' },
             { value: 'resultados', label: `3. Resultados${data.answers.length ? ` (${data.answers.length})` : ''}` },
           ]}
         />
@@ -114,6 +114,8 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
       choices: exam.choices,
       points: String(exam.points).replace('.', ','),
       key: Array.from({ length: exam.questions }, (_, i) => exam.answer_key[i] ?? ''),
+      grade_term: exam.grade_term ?? 0,
+      grade_key: exam.grade_key ?? '',
     }),
     [exam],
   );
@@ -125,6 +127,17 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
   const letters = LETTERS.slice(0, form.choices);
   const filled = key.filter(Boolean).length;
   const [quick, setQuick] = useState('');
+  // Destino no diário: coluna de Notas do trimestre escolhido.
+  const gradeYear = exam.grade_year ?? Number((form.exam_date || new Date().toISOString()).slice(0, 4));
+  const { data: targets = [], isFetching: loadingTargets } = useQuery({
+    queryKey: ['class-targets', form.class_id, gradeYear, form.grade_term],
+    queryFn: () => classGradeTargets(form.class_id, gradeYear, form.grade_term),
+    enabled: !!form.grade_term,
+  });
+  useEffect(() => {
+    if (form.grade_term && targets.length && !targets.some((t) => t.key === form.grade_key)) setForm((f) => ({ ...f, grade_key: targets[0].key }));
+  }, [targets, form.grade_term, form.grade_key]);
+  const target = targets.find((t) => t.key === form.grade_key);
 
   const save = useMutation({
     mutationFn: () =>
@@ -137,6 +150,9 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
         choices: form.choices,
         points: Number(form.points.replace(',', '.')),
         answer_key: key,
+        grade_year: gradeYear,
+        grade_term: form.grade_term || null,
+        grade_key: form.grade_term ? form.grade_key : null,
       }),
     onSuccess: (d) => {
       qc.setQueryData(['exam', exam.id], d);
@@ -209,6 +225,54 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
           </Field>
         </div>
         {locked ? <p className="mt-3 text-xs text-muted-foreground">Turma, questões e alternativas ficam travadas depois da primeira correção (as folhas já impressas dependem disso).</p> : null}
+
+        {/* Lançamento automático no diário */}
+        <div className="mt-5 border-t border-border pt-4">
+          <div className="mb-3 flex items-start gap-2.5">
+            <BookOpenCheck size={18} className="mt-0.5 shrink-0 text-foreground" />
+            <div>
+              <h3 className="text-sm font-bold text-foreground">Lançar notas no diário automaticamente</h3>
+              <p className="text-xs text-muted-foreground">Cada folha corrigida já vira nota na tela de Notas ({gradeYear}). Se mudar o gabarito, as notas são recalculadas.</p>
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
+            <Field label="Trimestre">
+              <SegmentedField
+                value={form.grade_term}
+                onChange={(v) => setForm((f) => ({ ...f, grade_term: Number(v) }))}
+                options={[
+                  { value: 0, label: 'Não lançar' },
+                  { value: 1, label: '1º' },
+                  { value: 2, label: '2º' },
+                  { value: 3, label: '3º' },
+                ]}
+              />
+            </Field>
+            {form.grade_term ? (
+              <Field label="Coluna de notas">
+                {!loadingTargets && !targets.length ? (
+                  <p className="flex h-11 items-center rounded-lg bg-orange-50 px-3 text-xs text-orange-900 ring-1 ring-inset ring-orange-200">
+                    Esta turma ainda não tem colunas de notas neste trimestre. Configure em Notas.
+                  </p>
+                ) : (
+                  <select value={form.grade_key} onChange={(e) => setForm((f) => ({ ...f, grade_key: e.target.value }))} className={fieldCls} disabled={loadingTargets}>
+                    {targets.map((t) => (
+                      <option key={t.key} value={t.key}>
+                        {t.name} (vale {fmt(t.max)})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+            ) : null}
+          </div>
+          {form.grade_term && target ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Quem acertar metade recebe {fmt(Math.round(target.max * 50) / 100)} em {target.name}.
+              {target.filled ? ` ${target.filled} aluno(s) já têm nota nessa coluna: a de quem fizer a prova será substituída.` : ''}
+            </p>
+          ) : null}
+        </div>
       </section>
 
       <section className="rounded-xl border border-border bg-card p-4 shadow-soft sm:p-5">
@@ -266,7 +330,7 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
               Descartar
             </Button>
           ) : null}
-          <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
+          <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending || (!!form.grade_term && !form.grade_key)}>
             {save.isPending ? 'Salvando…' : 'Salvar gabarito'}
           </Button>
         </div>
@@ -308,6 +372,14 @@ function SheetsTab({ data }: { data: ExamDetail }) {
   }, [info, students]);
 
   const ready = keyComplete(exam.answer_key, exam.questions);
+  const [keyQr, setKeyQr] = useState('');
+  useEffect(() => {
+    let alive = true;
+    void qrDataUrl(keyPayload(window.location.origin, exam.code, exam.choices, exam.points, exam.answer_key, exam.questions)).then((u) => alive && setKeyQr(u));
+    return () => {
+      alive = false;
+    };
+  }, [exam]);
   const [printing, setPrinting] = useState(false);
   async function doPrint(list: { id: string; name: string }[], extra: number) {
     setPrinting(true);
@@ -319,42 +391,85 @@ function SheetsTab({ data }: { data: ExamDetail }) {
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <section className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-soft sm:p-5">
-        <div>
-          <h2 className="text-sm font-bold text-foreground">Folhas de resposta</h2>
-          <p className="text-xs text-muted-foreground">Cada folha já sai com o nome do aluno e um QR code. Na correção, a câmera reconhece quem é o aluno sozinha.</p>
+    <div className="space-y-5">
+      {/* QR 1: do professor */}
+      <section className="grid gap-5 rounded-xl border border-border bg-card p-4 shadow-soft sm:grid-cols-[11rem_minmax(0,1fr)] sm:p-5">
+        <div className="mx-auto w-44 sm:w-full">
+          <div className={cn('rounded-xl bg-white p-2 ring-1 ring-border', !ready && 'opacity-40')}>
+            {keyQr ? <img src={keyQr} alt="QR do gabarito do professor" className="aspect-square w-full" /> : <div className="aspect-square" />}
+          </div>
         </div>
-        {!ready ? (
-          <p className="rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-900 ring-1 ring-inset ring-orange-200">
-            Dá para imprimir antes, mas complete o gabarito antes de corrigir.
-          </p>
-        ) : null}
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button onClick={() => doPrint(students, 0)} disabled={!students.length || printing} className="sm:flex-1">
-            <Printer size={16} /> {printing ? 'Preparando folhas…' : `Imprimir folhas da turma (${students.length})`}
-          </Button>
+        <div className="min-w-0 space-y-3">
+          <div className="flex items-start gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-neutral-950 text-brand">
+              <KeyRound size={16} />
+            </span>
+            <div>
+              <h2 className="text-sm font-bold text-foreground">QR 1 · Gabarito do professor</h2>
+              <p className="text-xs text-muted-foreground">Guarda as respostas certas. Fica com você: não entregue aos alunos.</p>
+            </div>
+          </div>
+          <ol className="space-y-1 text-xs text-muted-foreground">
+            <li>
+              <b className="text-foreground">Na hora de corrigir,</b> aponte a câmera do celular para este QR (aqui na tela ou impresso): a correção abre com o gabarito.
+            </li>
+            <li>
+              <b className="text-foreground">Depois,</b> passe as folhas dos alunos uma atrás da outra. As notas saem na hora{exam.grade_term ? ' e já vão para o diário' : ''}.
+            </li>
+          </ol>
+          {!ready ? (
+            <p className="rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-900 ring-1 ring-inset ring-orange-200">Complete o gabarito para usar este QR.</p>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Button variant="ghost" onClick={() => void printKeyCard({ ...info, key: exam.answer_key, points: exam.points })} disabled={!ready}>
+              <Printer size={16} /> Imprimir gabarito do professor
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-end gap-2 border-t border-border pt-4">
-          <label>
-            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Folhas avulsas (sem nome)</span>
-            <input value={blanks || ''} onChange={(e) => setBlanks(Math.min(60, Number(e.target.value.replace(/\D/g, '')) || 0))} inputMode="numeric" placeholder="0" className={cn(fieldCls, 'w-28')} />
-          </label>
-          <Button variant="ghost" onClick={() => doPrint([], blanks)} disabled={!blanks || printing}>
-            <Printer size={16} /> Imprimir avulsas
-          </Button>
-          <p className="w-full text-xs text-muted-foreground">Para aluno novo ou folha perdida. Na correção você escolhe o aluno.</p>
-        </div>
-        <ul className="space-y-1.5 border-t border-border pt-4 text-xs text-muted-foreground">
-          <li>• Imprima em A4, escala 100% (sem "ajustar à página"). Preto e branco serve. Na janela de impressão, dá para escolher "Salvar como PDF".</li>
-          <li>• Oriente os alunos a preencher todo o círculo com caneta azul ou preta.</li>
-          <li>• Não dobre a folha nem escreva perto dos quadrados pretos dos cantos.</li>
-          <li>• Na correção, apoie a folha numa mesa com boa luz e enquadre a folha inteira.</li>
-        </ul>
       </section>
-      <div className="rounded-xl border border-border bg-muted/40 p-3">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Prévia</p>
-        {preview ? <img src={preview} alt="Prévia da folha de respostas" className="w-full rounded-md bg-white shadow-sm" /> : <Loading />}
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <section className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-soft sm:p-5">
+          <div className="flex items-start gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-neutral-950 text-brand">
+              <Users size={16} />
+            </span>
+            <div>
+              <h2 className="text-sm font-bold text-foreground">QR 2 · Folha de respostas do aluno</h2>
+              <p className="text-xs text-muted-foreground">Cada folha sai com o nome do aluno e o QR dele. Na correção, a câmera reconhece prova e aluno sozinha.</p>
+            </div>
+          </div>
+          {!ready ? (
+            <p className="rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-900 ring-1 ring-inset ring-orange-200">
+              Dá para imprimir antes, mas complete o gabarito antes de corrigir.
+            </p>
+          ) : null}
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button onClick={() => doPrint(students, 0)} disabled={!students.length || printing} className="sm:flex-1">
+              <Printer size={16} /> {printing ? 'Preparando folhas…' : `Imprimir folhas da turma (${students.length})`}
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-end gap-2 border-t border-border pt-4">
+            <label>
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Folhas avulsas (sem nome)</span>
+              <input value={blanks || ''} onChange={(e) => setBlanks(Math.min(60, Number(e.target.value.replace(/\D/g, '')) || 0))} inputMode="numeric" placeholder="0" className={cn(fieldCls, 'w-28')} />
+            </label>
+            <Button variant="ghost" onClick={() => doPrint([], blanks)} disabled={!blanks || printing}>
+              <Printer size={16} /> Imprimir avulsas
+            </Button>
+            <p className="w-full text-xs text-muted-foreground">Para aluno novo ou folha perdida. Na correção você escolhe o aluno.</p>
+          </div>
+          <ul className="space-y-1.5 border-t border-border pt-4 text-xs text-muted-foreground">
+            <li>• Imprima em A4, escala 100% (sem "ajustar à página"). Preto e branco serve. Na janela de impressão, dá para escolher "Salvar como PDF".</li>
+            <li>• Oriente os alunos a preencher todo o círculo com caneta azul ou preta.</li>
+            <li>• Não dobre a folha nem escreva perto dos quadrados pretos dos cantos.</li>
+            <li>• Na correção, apoie a folha numa mesa com boa luz e enquadre a folha inteira.</li>
+          </ul>
+        </section>
+        <div className="rounded-xl border border-border bg-muted/40 p-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Prévia</p>
+          {preview ? <img src={preview} alt="Prévia da folha de respostas" className="w-full rounded-md bg-white shadow-sm" /> : <Loading />}
+        </div>
       </div>
     </div>
   );

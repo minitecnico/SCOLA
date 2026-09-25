@@ -17,6 +17,7 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sem 0/O/1/I
 type ExamRow = {
   id: string; base_id: string; class_id: string; author_id: string | null; code: string; title: string; exam_date: string | null;
   questions: number; choices: number; answer_key: string; points: number; created_at: string; updated_at: string | null;
+  grade_year: number | null; grade_term: number | null; grade_key: string | null;
 };
 const mapExam = (e: ExamRow) => ({ ...e, answer_key: parse<string[]>(e.answer_key, []) });
 
@@ -93,6 +94,7 @@ function cleanKey(v: unknown, questions: number): string[] {
 
 export async function saveExam(ctx: Ctx, input: {
   id?: string; class_id: string; title: string; exam_date?: string | null; questions: number; choices: number; points: number; answer_key?: string[];
+  grade_year?: number | null; grade_term?: number | null; grade_key?: string | null;
 }) {
   const base = requireRole(ctx, ...PEDAGOGICO);
   const title = String(input.title || '').trim();
@@ -110,6 +112,17 @@ export async function saveExam(ctx: Ctx, input: {
   const allowed = new Set(['', 'X', ...'ABCDE'.slice(0, choices).split('')]);
   if (key.some((k) => !allowed.has(k))) fail('O gabarito usa uma alternativa que não existe nesta prova.');
 
+  // Destino no diário (opcional): precisa ser uma coluna que existe na tela de Notas.
+  const gTerm = Number(input.grade_term) || null;
+  const gYear = gTerm ? Math.floor(Number(input.grade_year)) || Number(now().slice(0, 4)) : null;
+  const gKey = gTerm ? String(input.grade_key || '') || null : null;
+  if (gTerm) {
+    if (!(gTerm >= 1 && gTerm <= 3)) fail('Trimestre inválido.');
+    if (!gKey || /["\\]/.test(gKey)) fail('Escolha a coluna de notas do diário.');
+    const cols = await targetsFor(ctx, base, input.class_id, gYear!, gTerm);
+    if (!cols.some((c) => c.key === gKey)) fail('Essa coluna não existe mais na tela de Notas. Escolha outra.');
+  }
+
   if (input.id) {
     const cur = await examInBase(ctx, base, input.id);
     const hasAnswers = await first(ctx.db, 'SELECT 1 FROM exam_answers WHERE exam_id = ? LIMIT 1', cur.id);
@@ -117,8 +130,14 @@ export async function saveExam(ctx: Ctx, input: {
       fail('Já existem folhas corrigidas: não dá para mudar turma, número de questões ou alternativas (as folhas impressas ficariam diferentes).');
     }
     await run(ctx.db,
-      'UPDATE exams SET class_id = ?, title = ?, exam_date = ?, questions = ?, choices = ?, points = ?, answer_key = ?, updated_at = ? WHERE id = ?',
-      input.class_id, title, date, questions, choices, points, json(key), now(), cur.id);
+      `UPDATE exams SET class_id = ?, title = ?, exam_date = ?, questions = ?, choices = ?, points = ?, answer_key = ?,
+              grade_year = ?, grade_term = ?, grade_key = ?, updated_at = ? WHERE id = ?`,
+      input.class_id, title, date, questions, choices, points, json(key), gYear, gTerm, gKey, now(), cur.id);
+    // Gabarito ou destino mudou: o diário acompanha (recalcula quem já foi corrigido).
+    if (hasAnswers && gTerm) {
+      const e = await examInBase(ctx, base, cur.id);
+      await autoGrades(ctx, base, e);
+    }
     return getExam(ctx, cur.id);
   }
 
@@ -127,9 +146,9 @@ export async function saveExam(ctx: Ctx, input: {
     const code = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
     try {
       await run(ctx.db,
-        `INSERT INTO exams (id, base_id, class_id, author_id, code, title, exam_date, questions, choices, answer_key, points, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        id, base, input.class_id, ctx.user.id, code, title, date, questions, choices, json(key), points, now());
+        `INSERT INTO exams (id, base_id, class_id, author_id, code, title, exam_date, questions, choices, answer_key, points, grade_year, grade_term, grade_key, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, base, input.class_id, ctx.user.id, code, title, date, questions, choices, json(key), points, gYear, gTerm, gKey, now());
       return getExam(ctx, id);
     } catch (err) {
       if (!String((err as Error)?.message).includes('UNIQUE')) throw err;
@@ -157,23 +176,42 @@ export async function saveExamAnswer(ctx: Ctx, examId: string, studentId: string
     `INSERT INTO exam_answers (exam_id, student_id, base_id, answers, source, checked_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (exam_id, student_id) DO UPDATE SET answers = excluded.answers, source = excluded.source, checked_by = excluded.checked_by, updated_at = excluded.updated_at`,
     e.id, studentId, base, json(clean), source === 'manual' ? 'manual' : 'camera', ctx.user.id, now());
-  return scoreAnswers(parse<string[]>(e.answer_key, []), clean, e.questions, e.points);
+  const result = scoreAnswers(parse<string[]>(e.answer_key, []), clean, e.questions, e.points);
+  // Lançamento automático: a nota já vai para o diário.
+  const grade = e.grade_term ? await autoGrades(ctx, base, e, studentId) : null;
+  return { ...result, grade };
 }
 
 export async function deleteExamAnswer(ctx: Ctx, examId: string, studentId: string) {
   const base = requireRole(ctx, ...PEDAGOGICO);
-  await examInBase(ctx, base, examId);
+  const e = await examInBase(ctx, base, examId);
   await run(ctx.db, 'DELETE FROM exam_answers WHERE exam_id = ? AND student_id = ?', examId, studentId);
+  // Correção apagada: tira também a nota que ela tinha lançado no diário.
+  if (e.grade_term && e.grade_key && !/["\\]/.test(e.grade_key)) {
+    await run(ctx.db, 'UPDATE term_grades SET scores = json_remove(scores, ?), updated_at = ? WHERE student_id = ? AND year = ? AND term = ?',
+      `$."${e.grade_key}"`, now(), studentId, e.grade_year, e.grade_term);
+  }
 }
 
 /** Colunas de Notas disponíveis para receber a prova (mesma composição da tela de Notas). */
 export async function examGradeTargets(ctx: Ctx, examId: string, year: number, term: number) {
   const base = requireRole(ctx, ...PEDAGOGICO);
   const e = await examInBase(ctx, base, examId);
+  return targetsFor(ctx, base, e.class_id, year, term);
+}
+
+/** Colunas de Notas de uma turma num trimestre (também para prova ainda não criada). */
+export async function classGradeTargets(ctx: Ctx, classId: string, year: number, term: number) {
+  const base = requireRole(ctx, ...PEDAGOGICO);
+  await assertClassInBase(ctx, base, classId);
+  return targetsFor(ctx, base, classId, year, term);
+}
+
+export async function targetsFor(ctx: Ctx, base: string, classId: string, year: number, term: number) {
   const [cfg, evalCfg, filled] = await Promise.all([
     first<{ activities: string }>(ctx.db, 'SELECT activities FROM grade_terms WHERE base_id = ? AND year = ? AND term = ?', base, year, term),
-    first<{ activities: string }>(ctx.db, 'SELECT activities FROM evaluation_terms WHERE class_id = ? AND year = ? AND term = ?', e.class_id, year, term),
-    all<{ scores: string }>(ctx.db, 'SELECT scores FROM term_grades WHERE class_id = ? AND year = ? AND term = ?', e.class_id, year, term),
+    first<{ activities: string }>(ctx.db, 'SELECT activities FROM evaluation_terms WHERE class_id = ? AND year = ? AND term = ?', classId, year, term),
+    all<{ scores: string }>(ctx.db, 'SELECT scores FROM term_grades WHERE class_id = ? AND year = ? AND term = ?', classId, year, term),
   ]);
   const acts = composeTermActs(cfg?.activities, evalCfg?.activities);
   const scores = filled.map((f) => parse<Record<string, number>>(f.scores, {}));
@@ -194,18 +232,38 @@ export async function sendExamToGrades(ctx: Ctx, examId: string, year: number, t
   const base = requireRole(ctx, ...PEDAGOGICO);
   const e = await examInBase(ctx, base, examId);
   if (!(term >= 1 && term <= 3)) fail('Trimestre inválido.');
-  const targets = await examGradeTargets(ctx, examId, year, term);
+  const targets = await targetsFor(ctx, base, e.class_id, year, term);
   const target = targets.find((t) => t.key === key);
   if (!target) fail('Coluna de notas não encontrada neste trimestre.');
+  const sent = await writeGrades(ctx, base, e, year, term, key, target!.max);
+  if (!sent.length) fail('Nenhuma folha corrigida ainda.');
+  return { sent: sent.length, column: target!.name, max: target!.max };
+}
+
+/** Lançamento automático (destino salvo na prova). Com `studentId`, só aquele aluno. */
+export async function autoGrades(ctx: Ctx, base: string, e: ExamRow, studentId?: string) {
+  if (!e.grade_term || !e.grade_key || !e.grade_year) return null;
+  const target = (await targetsFor(ctx, base, e.class_id, e.grade_year, e.grade_term)).find((t) => t.key === e.grade_key);
+  if (!target) return { column: null as string | null, value: null as number | null, error: 'A coluna escolhida para o diário não existe mais. Ajuste na aba Gabarito.' };
+  const rows = await writeGrades(ctx, base, e, e.grade_year, e.grade_term, e.grade_key, target.max, studentId);
+  return { column: target.name, term: e.grade_term, max: target.max, value: studentId ? rows[0]?.v ?? null : null, error: null };
+}
+
+/**
+ * Grava a nota de cada aluno corrigido numa coluna de Notas.
+ * Nota = acertos ÷ questões × valor da coluna (nunca passa do máximo dela).
+ * Só mexe nessa coluna; as demais notas do aluno ficam como estão.
+ */
+async function writeGrades(ctx: Ctx, base: string, e: ExamRow, year: number, term: number, key: string, max: number, studentId?: string) {
   if (/["\\]/.test(key)) fail('Coluna de notas com nome inválido.');
   const answers = await all<{ student_id: string; answers: string }>(ctx.db,
     `SELECT a.student_id, a.answers FROM exam_answers a JOIN students s ON s.id = a.student_id
-      WHERE a.exam_id = ? AND s.class_id = ?`, e.id, e.class_id);
-  if (!answers.length) fail('Nenhuma folha corrigida ainda.');
+      WHERE a.exam_id = ? AND s.class_id = ?${studentId ? ' AND a.student_id = ?' : ''}`, ...[e.id, e.class_id, ...(studentId ? [studentId] : [])]);
+  if (!answers.length) return [];
   const answerKey = parse<string[]>(e.answer_key, []);
   const rows = answers.map((a) => {
     const r = scoreAnswers(answerKey, parse<string[]>(a.answers, []), e.questions, e.points);
-    return { s: a.student_id, v: Math.round((r.correct / e.questions) * target!.max * 100) / 100 };
+    return { s: a.student_id, v: Math.round((r.correct / e.questions) * max * 100) / 100 };
   });
   const path = `$."${key}"`;
   await run(ctx.db,
@@ -215,5 +273,5 @@ export async function sendExamToGrades(ctx: Ctx, examId: string, year: number, t
      ON CONFLICT (student_id, year, term) DO UPDATE
        SET scores = json_set(term_grades.scores, ?, json_extract(excluded.scores, ?)), updated_at = excluded.updated_at`,
     base, e.class_id, year, term, key, now(), json(rows), path, path);
-  return { sent: rows.length, column: target!.name, max: target!.max };
+  return rows;
 }

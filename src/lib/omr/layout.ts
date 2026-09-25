@@ -85,3 +85,17 @@ export function parseQr(text: string): { code: string; student: string | null } 
 }
 
 export const studentShort = (id: string) => id.replace(/-/g, '').slice(0, 8).toUpperCase();
+
+/**
+ * QR do gabarito do professor: um link que abre a correção desta prova já com o
+ * gabarito. Qualquer câmera de celular abre o link; dentro do app, o leitor entende direto.
+ * Formato do trecho: K1:<código>:<alternativas>:<valor>:<gabarito, "-" = em branco>.
+ */
+export const keyPayload = (origin: string, code: string, choices: number, points: number, key: string[], questions: number) =>
+  `${origin}/corrigir#K1:${code.toUpperCase()}:${choices}:${points}:${Array.from({ length: questions }, (_, i) => key[i] || '-').join('')}`;
+
+export function parseKeyQr(text: string): { code: string; choices: number; points: number; key: string[] } | null {
+  const m = /K1:([A-Z0-9]{4,12}):([2-5]):([\d.]+):([A-EX-]{1,60})/i.exec(decodeURIComponent(String(text || '')));
+  if (!m) return null;
+  return { code: m[1].toUpperCase(), choices: Number(m[2]), points: Number(m[3]), key: m[4].toUpperCase().split('').map((c) => (c === '-' ? '' : c)) };
+}

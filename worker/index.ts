@@ -13,13 +13,14 @@ import * as comunicacao from './handlers/comunicacao';
 import * as contas from './handlers/contas';
 import * as logs from './handlers/logs';
 import * as notas from './handlers/notas';
+import * as painel from './handlers/painel';
 import * as provas from './handlers/provas';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
 const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs']);
 const handlers: Record<string, Handler> = {};
-for (const mod of [alertas, cadastros, chamadas, comunicacao, contas, logs, notas, provas]) {
+for (const mod of [alertas, cadastros, chamadas, comunicacao, contas, logs, notas, painel, provas]) {
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn === 'function' && !INTERNAL.has(name)) handlers[name] = fn as Handler;
   }

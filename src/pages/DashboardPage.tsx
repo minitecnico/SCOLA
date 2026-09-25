@@ -1,14 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Award, BarChart3, Bell, CalendarDays, ChevronDown, ClipboardCheck, GraduationCap, Megaphone, MoreHorizontal, RotateCcw, Trash2, Users } from 'lucide-react';
+import { Award, BarChart3, Bell, CalendarDays, ChevronDown, ClipboardCheck, GraduationCap, MoreHorizontal, RotateCcw, Trash2, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
-import { Button, Card, DropdownMenu, Loading, Modal, PageHeader, SectionTitle, StatCard } from '../components/ui';
+import { Button, Card, DropdownMenu, Loading, Modal, SectionTitle, StatCard } from '../components/ui';
 import { successToast, undoToast } from '../components/Feedback';
 import { SmartAlerts } from '../components/SmartAlerts';
 import { RecentNoticesPanel, UpcomingEventsPanel } from '../components/DashboardAgenda';
+import { AttendanceCalendarWidget, ClassFrequencyWidget, SchoolCalendarWidget } from '../components/DashboardWidgets';
 import { cn } from '../lib/cn';
 import { can } from '../lib/permissions';
 import {
@@ -67,52 +68,64 @@ export function DashboardPage() {
 
   const recentNotices = notices.slice(0, 4);
 
-  // Ações rápidas conforme o papel.
+  // Ações rápidas conforme o papel (a principal em destaque).
   const actions = [
-    can(role, 'chamadas') && { to: '/chamadas', icon: <ClipboardCheck size={22} />, label: 'Fazer chamada', color: '#0A0A0A', soft: '#FEF9C3' },
-    can(role, 'notas') && { to: '/notas', icon: <Award size={22} />, label: 'Lançar notas', color: '#0A0A0A', soft: '#FEF9C3' },
-    { to: '/avisos', icon: <Megaphone size={22} />, label: 'Avisos', color: '#0A0A0A', soft: '#FEF9C3', badge: unread },
-    { to: '/calendario', icon: <CalendarDays size={22} />, label: 'Calendário', color: '#0A0A0A', soft: '#FEF9C3' },
-    can(role, 'relatorios') && { to: '/relatorios', icon: <BarChart3 size={22} />, label: 'Relatórios', color: '#0A0A0A', soft: '#FEF9C3' },
-  ].filter(Boolean) as { to: string; icon: React.ReactNode; label: string; color: string; soft: string; badge?: number }[];
+    can(role, 'chamadas') && { to: '/chamadas', icon: <ClipboardCheck size={16} />, label: 'Fazer chamada', short: 'Chamada' },
+    can(role, 'notas') && { to: '/notas', icon: <Award size={16} />, label: 'Lançar notas', short: 'Notas' },
+    can(role, 'relatorios') && { to: '/relatorios', icon: <BarChart3 size={16} />, label: 'Relatórios', short: 'Relatórios' },
+  ].filter(Boolean) as { to: string; icon: React.ReactNode; label: string; short: string }[];
+  const seeFreq = can(role, 'chamadas') || can(role, 'relatorios');
 
   return (
     <>
-      <PageHeader title={`Olá, ${firstName}`} subtitle={format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })} />
-
-      {/* Ações rápidas */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {actions.map((a) => (
-          <Link
-            key={a.to}
-            to={a.to}
-            className="group relative flex flex-col items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
-          >
-            <span className="grid h-11 w-11 place-items-center rounded-xl" style={{ backgroundColor: a.soft, color: a.color }}>
+      {/* Saudação + atalhos */}
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">Olá, {firstName}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{cap(format(new Date(), "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR }))}</p>
+        </div>
+        <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto">
+          {actions.map((a, i) => (
+            <Link
+              key={a.to}
+              to={a.to}
+              className={cn(
+                'inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 text-sm font-semibold transition',
+                i === 0 ? 'bg-neutral-950 text-white hover:bg-black' : 'bg-card text-foreground ring-1 ring-inset ring-border hover:bg-muted',
+              )}
+            >
               {a.icon}
-            </span>
-            <span className="text-sm font-black text-foreground">{a.label}</span>
-            {a.badge ? (
-              <span className="absolute right-3 top-3 grid h-6 min-w-6 place-items-center rounded-full bg-emerald-500 px-1.5 text-xs font-black text-white">{a.badge}</span>
-            ) : null}
-          </Link>
-        ))}
+              <span className="sm:hidden">{a.short}</span>
+              <span className="hidden sm:inline">{a.label}</span>
+            </Link>
+          ))}
+        </div>
       </div>
 
-      {/* KPIs */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* Números */}
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard to="/turmas" icon={<GraduationCap size={18} />} value={counts?.classes ?? 0} label="Turmas" />
         <StatCard to="/alunos" icon={<Users size={18} />} value={counts?.students ?? 0} label="Alunos" />
         <StatCard to="/avisos" icon={<Bell size={18} />} value={unread} label="Avisos não lidos" highlight={unread > 0} />
         <StatCard to="/calendario" icon={<CalendarDays size={18} />} value={upcoming.length} label="Próximos eventos" />
       </div>
 
-      <SmartAlerts />
-
-      {/* Próximos eventos + Avisos recentes */}
-      <div className="mb-6 grid items-stretch gap-4 lg:grid-cols-2">
-        <UpcomingEventsPanel events={upcoming} />
-        <RecentNoticesPanel notices={recentNotices} unread={unread} />
+      {/* Painéis: calendários e gráfico à esquerda, alertas à direita */}
+      <div className="mb-6 grid items-start gap-5 lg:grid-cols-12">
+        <div className="min-w-0 space-y-5 lg:col-span-7 xl:col-span-8">
+          <div className="grid gap-5 md:grid-cols-2">
+            {seeFreq ? <AttendanceCalendarWidget /> : null}
+            <SchoolCalendarWidget />
+          </div>
+          {seeFreq ? <ClassFrequencyWidget /> : null}
+          <div className="grid items-stretch gap-5 md:grid-cols-2">
+            <UpcomingEventsPanel events={upcoming} />
+            <RecentNoticesPanel notices={recentNotices} unread={unread} />
+          </div>
+        </div>
+        <div className="order-first min-w-0 lg:sticky lg:top-[8.5rem] lg:order-none lg:col-span-5 xl:col-span-4">
+          <SmartAlerts side />
+        </div>
       </div>
 
       <SectionTitle

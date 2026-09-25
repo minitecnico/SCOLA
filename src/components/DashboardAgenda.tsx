@@ -43,9 +43,9 @@ function ago(iso: string) {
 function Panel({ icon, title, badge, to, linkLabel, children }: { icon: ReactNode; title: string; badge?: ReactNode; to: string; linkLabel: string; children: ReactNode }) {
   return (
     <section className="flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-soft">
-      <header className="flex items-center gap-2.5 border-b border-border px-4 py-3">
-        <span className="grid h-8 w-8 place-items-center rounded-lg bg-muted text-foreground">{icon}</span>
-        <h2 className="text-sm font-bold text-foreground">{title}</h2>
+      <header className="flex items-center gap-2.5 border-b border-border px-4 py-3.5">
+        <span className="text-muted-foreground">{icon}</span>
+        <h2 className="text-[13px] font-bold uppercase tracking-[0.04em] text-foreground">{title}</h2>
         {badge}
         <Link to={to} className="ml-auto inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground">
           {linkLabel} <ChevronRight size={14} />

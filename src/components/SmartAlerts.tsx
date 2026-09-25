@@ -52,7 +52,7 @@ function whatsappUrl(phone: string | null, text: string): string | null {
   return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }
 
-export function SmartAlerts() {
+export function SmartAlerts({ side = false }: { side?: boolean }) {
   const { role, activeBase } = useAuth();
   const navigate = useNavigate();
   const seeFreq = can(role, 'chamadas') || can(role, 'relatorios');
@@ -87,7 +87,15 @@ export function SmartAlerts() {
   const filtered = filter === 'all' ? pool : pool.filter((i) => i.severity === filter);
   const visible = expanded ? filtered : filtered.slice(0, PAGE);
 
-  if (!(seeFreq || seeGrades) || isLoading || !data) return null;
+  if (!(seeFreq || seeGrades)) return null;
+  if (isLoading || !data) {
+    return side ? (
+      <section className="rounded-xl border border-border bg-card p-4 shadow-soft">
+        <p className="text-[13px] font-bold uppercase tracking-[0.04em] text-foreground">Central de alertas</p>
+        <div className="mt-4 space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />)}</div>
+      </section>
+    ) : null;
+  }
 
   function toggleCiente(key: string) {
     const next = { ...ciente };
@@ -112,22 +120,19 @@ export function SmartAlerts() {
   const top = active.length ? worstOf(active) : null;
 
   return (
-    <section className="mb-6 overflow-hidden rounded-xl border border-border bg-card shadow-soft">
-      {/* Cabeçalho + filtro por gravidade */}
-      <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-xl', top ? TONE[SEV[top].tone].soft : TONE.ok.soft)}>
-            {top ? <ShieldAlert size={19} /> : <CheckCircle2 size={19} />}
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-sm font-extrabold text-foreground">Central de alertas</h2>
-            <p className="text-xs text-muted-foreground">
-              {active.length
-                ? `${active.length} ${active.length === 1 ? 'situação pede' : 'situações pedem'} ação · frequência mín. ${data.minPct}% · média ${data.media}`
-                : 'Nenhuma pendência. Frequência, notas e chamadas em dia.'}
-            </p>
-          </div>
-        </div>
+    <section className={cn("overflow-hidden rounded-xl border border-border bg-card shadow-soft", side ? "flex flex-col lg:max-h-[calc(100vh-9rem)]" : "mb-6")}>
+      {/* Cabeçalho no estilo painel + resumo e filtro por gravidade */}
+      <header className="flex items-center gap-2.5 border-b border-border px-4 py-3.5">
+        <span className={top ? TONE[SEV[top].tone].text : 'text-green-600'}>{top ? <ShieldAlert size={17} /> : <CheckCircle2 size={17} />}</span>
+        <h2 className="min-w-0 flex-1 truncate text-[13px] font-bold uppercase tracking-[0.04em] text-foreground">Central de alertas</h2>
+        {active.length ? <span className="rounded-full bg-neutral-950 px-2 py-0.5 text-[11px] font-bold tabular-nums text-brand">{active.length}</span> : null}
+      </header>
+      <div className={cn('flex gap-2.5 border-b border-border px-4 py-3', side ? 'flex-col' : 'flex-col sm:flex-row sm:items-center')}>
+        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+          {active.length
+            ? `${active.length} ${active.length === 1 ? 'situação pede' : 'situações pedem'} ação · frequência mín. ${data.minPct}% · média ${data.media}`
+            : 'Nenhuma pendência. Frequência, notas e chamadas em dia.'}
+        </p>
         {pool.length ? (
           <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
             <FilterChip active={filter === 'all'} onClick={() => setFilter('all')} label="Todos" count={pool.length} />
@@ -142,7 +147,7 @@ export function SmartAlerts() {
 
       {/* Lista priorizada */}
       {visible.length ? (
-        <ul className="divide-y divide-border">
+        <ul className={cn("divide-y divide-border", side && "min-h-0 flex-1 overflow-y-auto")}>
           {visible.map((item) => {
             const isCiente = !!ciente[item.key];
             const tone = SEV[item.severity].tone;
@@ -151,6 +156,7 @@ export function SmartAlerts() {
               const isCall = c.signal.kind === 'no_call';
               return (
                 <AlertRow
+                  side={side}
                   key={item.key}
                   tone={tone}
                   muted={isCiente}
@@ -177,6 +183,7 @@ export function SmartAlerts() {
             );
             return (
               <AlertRow
+                side={side}
                 key={item.key}
                 tone={tone}
                 muted={isCiente}
@@ -252,6 +259,7 @@ function FilterChip({ active, onClick, label, count, tone }: { active: boolean; 
 type Primary = { label: string; icon: React.ReactNode; onClick?: () => void; href?: string };
 
 function AlertRow({
+  side,
   tone,
   muted,
   title,
@@ -260,6 +268,7 @@ function AlertRow({
   primary,
   menu,
 }: {
+  side?: boolean;
   tone: Tone;
   muted: boolean;
   title: string;
@@ -272,7 +281,7 @@ function AlertRow({
   const btn =
     'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-card px-3 text-xs font-semibold text-foreground ring-1 ring-inset ring-border transition hover:bg-muted';
   return (
-    <li className={cn('relative flex flex-col gap-3 py-3 pl-5 pr-4 sm:flex-row sm:items-center', muted && 'opacity-55')}>
+    <li className={cn('relative flex flex-col gap-3 py-3 pl-5 pr-4', !side && 'sm:flex-row sm:items-center', muted && 'opacity-55')}>
       <span className={cn('absolute bottom-3 left-0 top-3 w-1 rounded-r-full', TONE[tone].bar)} aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-bold leading-snug text-foreground">
@@ -289,12 +298,12 @@ function AlertRow({
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         {primary.href ? (
-          <a href={primary.href} target="_blank" rel="noreferrer" className={cn(btn, 'flex-1 sm:flex-none')}>
+          <a href={primary.href} target="_blank" rel="noreferrer" className={cn(btn, 'flex-1', !side && 'sm:flex-none')}>
             {primary.icon}
             {primary.label}
           </a>
         ) : (
-          <button onClick={primary.onClick} className={cn(btn, 'flex-1 sm:flex-none')}>
+          <button onClick={primary.onClick} className={cn(btn, 'flex-1', !side && 'sm:flex-none')}>
             {primary.icon}
             {primary.label}
           </button>

@@ -487,3 +487,11 @@ export const examGradeTargets = (examId: string, year: number, term: number) =>
   rpc<{ key: string; name: string; max: number; filled: number }[]>('examGradeTargets', examId, year, term);
 export const sendExamToGrades = (examId: string, year: number, term: number, key: string) =>
   rpc<{ sent: number; column: string; max: number }>('sendExamToGrades', examId, year, term, key);
+
+/* ------------------------------ Painel do Início (mês) ------------------------------ */
+export interface DashboardMonth {
+  days: { date: string; sessions: number; present: number; total: number; pct: number | null }[];
+  events: { date: string; end: string | null; title: string; category: string; color: string }[];
+  classes: { id: string; name: string; sessions: number; pct: number }[];
+}
+export const dashboardMonth = (year: number, month: number) => rpc<DashboardMonth>('dashboardMonth', year, month);

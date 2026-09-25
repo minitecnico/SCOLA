@@ -1,7 +1,9 @@
-import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
+import { Dialog, DialogPanel, Menu as HMenu, MenuButton, MenuItem, MenuItems, Transition, TransitionChild } from '@headlessui/react';
 import {
   Award,
   BarChart3,
+  Bell,
+  ChevronDown,
   BookOpen,
   CalendarDays,
   ClipboardCheck,
@@ -215,6 +217,191 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
+/* ------------------------- Desktop: cabeçalho + barra de menu ------------------------- */
+function useCounts() {
+  const { user, activeBase } = useAuth();
+  const inBase = !!activeBase;
+  const { data: unread = 0 } = useQuery({ queryKey: ['notices-unread', user?.id], queryFn: () => unreadNoticeCount(), enabled: !!user && inBase, refetchInterval: 60_000 });
+  const { data: planMap = {} } = useQuery({ queryKey: ['plan-unread'], queryFn: planUnreadCounts, enabled: !!user && inBase, refetchInterval: 60_000, retry: false });
+  return { unread, planUnread: Object.values(planMap).reduce((a, b) => a + b, 0) };
+}
+
+function TopHeader() {
+  const { user, profile, role, activeBase, isSuperadmin, switchOrg, signOut } = useAuth();
+  const navigate = useNavigate();
+  const { unread } = useCounts();
+  const name = profile?.full_name || user?.email || 'Usuário';
+  const first = name.split(' ')[0];
+  return (
+    <div className="border-b border-border bg-card">
+      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-6">
+        <NavLink to={activeBase ? '/' : '/admin'} className="shrink-0" aria-label="Início">
+          <Logo compact height={30} />
+        </NavLink>
+        {activeBase ? (
+          <div className="flex min-w-0 items-center gap-2.5 border-l border-border pl-4">
+            {activeBase.logo_url ? <img src={activeBase.logo_url} alt="" className="h-8 w-8 shrink-0 rounded-md object-contain" /> : null}
+            <p className="truncate text-sm font-semibold text-foreground">{activeBase.name}</p>
+            {isSuperadmin ? (
+              <button
+                onClick={async () => {
+                  await switchOrg(null);
+                  navigate('/admin');
+                }}
+                className="shrink-0 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-bold text-neutral-950 hover:brightness-95"
+                title="Sair do modo suporte"
+              >
+                Modo suporte · sair
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        <div className="ml-auto flex items-center gap-2">
+          {!isSuperadmin ? <HeaderBaseSwitcher /> : null}
+          {activeBase ? (
+            <NavLink to="/avisos" className="relative grid h-10 w-10 place-items-center rounded-lg text-foreground hover:bg-muted" aria-label="Avisos">
+              <Bell size={19} />
+              {unread ? (
+                <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>
+              ) : null}
+            </NavLink>
+          ) : null}
+          <HMenu as="div" className="relative">
+            <MenuButton className="flex items-center gap-2.5 rounded-lg py-1 pl-2 pr-1 hover:bg-muted">
+              <span className="hidden text-right leading-tight xl:block">
+                <span className="block text-sm text-muted-foreground">
+                  Olá, <b className="font-semibold text-foreground">{first}</b>
+                </span>
+                <span className="block text-[11px] text-muted-foreground">{isSuperadmin ? 'Administrador' : role ? ROLE_LABEL[role] : ''}</span>
+              </span>
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="" className="h-9 w-9 rounded-lg object-cover" />
+              ) : (
+                <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand text-sm font-bold uppercase text-neutral-950">{first.slice(0, 1)}</span>
+              )}
+              <ChevronDown size={14} className="text-muted-foreground" />
+            </MenuButton>
+            <MenuItems anchor="bottom end" className="z-50 mt-1 w-56 rounded-xl border border-border bg-card p-1 text-sm shadow-lift focus:outline-none [--anchor-gap:6px]">
+              <div className="px-3 py-2">
+                <p className="truncate font-semibold text-foreground">{name}</p>
+                <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+              </div>
+              {activeBase ? (
+                <MenuItem>
+                  <NavLink to="/configuracoes" className="flex items-center gap-2.5 rounded-lg px-3 py-2 data-[focus]:bg-muted">
+                    <Settings size={15} /> Configurações
+                  </NavLink>
+                </MenuItem>
+              ) : null}
+              <MenuItem>
+                <button onClick={() => signOut()} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-red-600 data-[focus]:bg-red-50">
+                  <LogOut size={15} /> Sair
+                </button>
+              </MenuItem>
+            </MenuItems>
+          </HMenu>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HeaderBaseSwitcher() {
+  const { organizations, activeOrgId, switchOrg } = useAuth();
+  const options = organizations.filter((o) => o.active);
+  if (options.length <= 1) return null;
+  return (
+    <select
+      value={activeOrgId ?? ''}
+      onChange={(e) => switchOrg(e.target.value)}
+      className="h-9 max-w-[14rem] rounded-lg border border-input bg-card px-2.5 text-sm outline-none focus:border-neutral-900"
+      aria-label="Trocar de base"
+    >
+      {options.map((o) => (
+        <option key={o.id} value={o.id}>
+          {o.name}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+const topCls = (active: boolean) =>
+  cn(
+    'relative flex h-12 items-center gap-2 px-3.5 text-sm font-medium transition outline-none',
+    active ? 'text-brand after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand' : 'text-neutral-300 hover:text-white',
+  );
+
+function TopNav() {
+  const { role, activeBase, isSuperadmin } = useAuth();
+  const { pathname } = useLocation();
+  const { unread, planUnread } = useCounts();
+  const inBase = !!activeBase;
+  const badge = (to: string) => (to === '/avisos' ? unread : to === '/planejamento' ? planUnread : 0);
+  const visible = inBase
+    ? groups
+        .filter((g) => g.title !== 'Conta')
+        .map((g) => ({ ...g, items: g.items.filter((it) => can(role, it.module)) }))
+        .filter((g) => g.items.length > 0)
+    : [];
+  const isActive = (to: string) => (to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`));
+
+  return (
+    <nav className="bg-neutral-950">
+      <div className="mx-auto flex max-w-[1440px] items-center justify-center gap-1 px-6">
+        {isSuperadmin ? (
+          <>
+            <NavLink to="/admin" end className={({ isActive: a }) => topCls(a)}>
+              <LayoutGrid size={16} /> Administrador
+            </NavLink>
+            <NavLink to="/admin/logs" className={({ isActive: a }) => topCls(a)}>
+              <ScrollText size={16} /> Logs
+            </NavLink>
+            {inBase ? <span className="mx-2 h-5 w-px bg-white/15" /> : null}
+          </>
+        ) : null}
+        {visible.map((g) => {
+          if (!g.title || g.items.length === 1) {
+            return g.items.map((it) => (
+              <NavLink key={it.to} to={it.to} end={it.to === '/'} className={({ isActive: a }) => topCls(a)}>
+                {it.icon} {it.label}
+              </NavLink>
+            ));
+          }
+          const active = g.items.some((it) => isActive(it.to));
+          const count = g.items.reduce((n, it) => n + badge(it.to), 0);
+          return (
+            <HMenu as="div" key={g.title} className="relative">
+              <MenuButton className={cn(topCls(active), 'data-[open]:text-white')}>
+                {g.title}
+                {count ? <span className="grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[10px] font-bold text-neutral-950">{count > 9 ? '9+' : count}</span> : null}
+                <ChevronDown size={14} className="opacity-60" />
+              </MenuButton>
+              <MenuItems anchor="bottom start" className="z-50 w-64 rounded-xl border border-border bg-card p-1.5 text-sm shadow-lift focus:outline-none [--anchor-gap:4px]">
+                {g.items.map((it) => (
+                  <MenuItem key={it.to}>
+                    <NavLink
+                      to={it.to}
+                      className={cn(
+                        'flex items-center gap-3 rounded-lg px-3 py-2.5 data-[focus]:bg-muted',
+                        isActive(it.to) ? 'bg-muted font-semibold text-foreground' : 'text-foreground',
+                      )}
+                    >
+                      <span className="text-muted-foreground">{it.icon}</span>
+                      <span className="flex-1">{it.label}</span>
+                      {badge(it.to) ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1.5 text-[11px] font-bold text-neutral-950">{badge(it.to)}</span> : null}
+                    </NavLink>
+                  </MenuItem>
+                ))}
+              </MenuItems>
+            </HMenu>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const online = useOnlineStatus();
@@ -222,9 +409,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <aside className="fixed inset-y-0 left-0 hidden w-72 lg:block">
-        <SidebarContent />
-      </aside>
+      {/* Desktop: cabeçalho branco + barra de menu escura */}
+      <div className="sticky top-0 z-40 hidden shadow-sm lg:block">
+        <TopHeader />
+        <TopNav />
+      </div>
 
       <Transition show={open} as={Fragment}>
         <Dialog className="relative z-50 lg:hidden" onClose={() => setOpen(false)}>
@@ -256,7 +445,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Dialog>
       </Transition>
 
-      <div className="lg:pl-72">
+      <div>
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-white/10 bg-neutral-950 px-4 py-3 text-white lg:hidden">
           <button onClick={() => setOpen(true)} className="grid h-10 w-10 place-items-center rounded-lg bg-white/[0.06]" aria-label="Abrir menu">
             <Menu size={20} />
@@ -268,7 +457,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             Você está sem internet. As alterações só serão salvas quando a conexão voltar.
           </div>
         ) : null}
-        <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+        <main className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div key={pathname} className="animate-fade-up">
             {children}
           </div>

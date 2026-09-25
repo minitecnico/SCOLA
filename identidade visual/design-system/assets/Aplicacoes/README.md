@@ -1,0 +1,1 @@
+`og-image.png` (1200 × 630): prévia de link no WhatsApp e redes; fundo `preto`, logo compacta negativa, título em Inter ExtraBold `branco` com destaque em `amarelo` e texto `preto`, faixa `amarelo` no rodapé. Vai em `public/og-image.png`. `perfil-1080.png` (1080 × 1080): foto de perfil do WhatsApp Business e Instagram; S centralizado dentro do círculo seguro.

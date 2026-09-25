@@ -113,9 +113,12 @@ export function ReportView({ payload, compact = false }: { payload: ReportPayloa
 function ReportFooter({ generatedAt }: { generatedAt: string }) {
   return (
     <footer className="mt-10 break-inside-avoid">
-      <p className="border-t border-slate-200 pt-3 text-center text-[11px] text-slate-400">
-        Documento gerado eletronicamente por <span className="font-bold text-slate-500">SCOLA</span> — Gestão Escolar em {generatedAt}.
-      </p>
+      <div className="flex flex-col items-center gap-2 border-t border-slate-200 pt-3 text-center text-[11px] text-slate-400 sm:flex-row sm:justify-center">
+        <img src="/scola-mono-preta.svg" alt="SCOLA" className="h-4 w-auto opacity-70" />
+        <p>
+          Documento gerado eletronicamente por <span className="font-bold text-slate-500">SCOLA</span> — Gestão Escolar em {generatedAt}.
+        </p>
+      </div>
     </footer>
   );
 }

@@ -9,7 +9,7 @@ function GateFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-5 py-10">
       <div className="mb-8">
-        <Logo />
+        <Logo compact height={36} />
       </div>
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-7 shadow-card">{children}</div>
     </div>

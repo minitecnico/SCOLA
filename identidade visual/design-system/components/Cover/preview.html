@@ -1,0 +1,69 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>SCOLA</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;800&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; height:100%; }
+  body { background:var(--fundo); color:var(--preto); font-family:var(--font-sans); overflow:hidden; }
+  .cover { position:relative; height:288px; width:960px; overflow:hidden; }
+  .art { position:absolute; top:0; left:480px; width:480px; height:288px; overflow:hidden; }
+  .art svg { display:block; width:480px; height:288px; }
+  .brand { fill:var(--amarelo); }
+  .deep { fill:var(--preto); }
+  .blk { rx:var(--radius-lg); }
+  .chip { rx:var(--radius-sm); }
+  .mark { fill:var(--amarelo); rx:var(--radius-sm); }
+  .words { position:absolute; left:var(--space-8); bottom:var(--space-8); max-width:440px; }
+  .name { margin:0; font-size:104px; line-height:.9; font-weight:800; letter-spacing:.06em; color:var(--preto); }
+  .tag { margin:var(--space-2) 0 0 4px; font-size:14px; line-height:20px; color:var(--texto-secundario); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 480 288" width="480" height="288">
+<!--
+  blocks      amarelo 224x264 slab bled off the top (the identity colour, largest) · preto 240x200 bleeding off the right edge (the menu, the S) · preto chip 48x16 once under the slab — ~40% of 960x288
+  arrangement one tall amarelo slab with a dark satellite, bottoms on one line, space-4 gutter
+  pattern     roll-call marks, from "chamada em segundos / presença, marca/check": amarelo squares cut by radius-sm on the preto slab, a space-8 pitch grid of 6x5 with six absences
+  scales      sides in space-2 multiples; gutter space-4; pitch space-8; corners radius-lg (slabs), radius-sm (chip, marks)
+-->
+<rect class="brand blk" x="16" y="-16" width="224" height="264" rx="16"/>
+<rect class="deep chip" x="16" y="256" width="48" height="16" rx="6"/>
+<rect class="deep blk" x="256" y="48" width="240" height="200" rx="16"/>
+<rect class="mark" x="280" y="72" width="20" height="20" rx="6"/>
+<rect class="mark" x="344" y="72" width="20" height="20" rx="6"/>
+<rect class="mark" x="376" y="72" width="20" height="20" rx="6"/>
+<rect class="mark" x="408" y="72" width="20" height="20" rx="6"/>
+<rect class="mark" x="440" y="72" width="20" height="20" rx="6"/>
+<rect class="mark" x="280" y="104" width="20" height="20" rx="6"/>
+<rect class="mark" x="312" y="104" width="20" height="20" rx="6"/>
+<rect class="mark" x="344" y="104" width="20" height="20" rx="6"/>
+<rect class="mark" x="376" y="104" width="20" height="20" rx="6"/>
+<rect class="mark" x="440" y="104" width="20" height="20" rx="6"/>
+<rect class="mark" x="280" y="136" width="20" height="20" rx="6"/>
+<rect class="mark" x="312" y="136" width="20" height="20" rx="6"/>
+<rect class="mark" x="344" y="136" width="20" height="20" rx="6"/>
+<rect class="mark" x="376" y="136" width="20" height="20" rx="6"/>
+<rect class="mark" x="408" y="136" width="20" height="20" rx="6"/>
+<rect class="mark" x="280" y="168" width="20" height="20" rx="6"/>
+<rect class="mark" x="312" y="168" width="20" height="20" rx="6"/>
+<rect class="mark" x="376" y="168" width="20" height="20" rx="6"/>
+<rect class="mark" x="408" y="168" width="20" height="20" rx="6"/>
+<rect class="mark" x="440" y="168" width="20" height="20" rx="6"/>
+<rect class="mark" x="312" y="200" width="20" height="20" rx="6"/>
+<rect class="mark" x="344" y="200" width="20" height="20" rx="6"/>
+<rect class="mark" x="408" y="200" width="20" height="20" rx="6"/>
+<rect class="mark" x="440" y="200" width="20" height="20" rx="6"/>
+</svg>
+</div>
+<div class="words">
+  <h1 class="name">SCOLA</h1>
+  <p class="tag">Chamada, notas e boletins em segundos.</p>
+</div>
+</div>
+</body>
+</html>

@@ -130,7 +130,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col bg-neutral-950 text-white">
       <div className="px-5 pb-4 pt-5">
-        <Logo variant="dark" />
+        <Logo variant="dark" compact height={36} />
       </div>
 
       {isSuperadmin ? (

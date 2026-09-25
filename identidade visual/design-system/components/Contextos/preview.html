@@ -1,0 +1,74 @@
+<!-- @dsCard group="Marca" height=900 page subtitle="Os 7 contextos reais onde a marca precisa funcionar" -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Contextos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:var(--fundo);color:var(--preto);font-family:var(--font-sans);padding:var(--space-6)}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-6)}
+  .cap{font-size:12px;line-height:16px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--texto-secundario);margin:0 0 var(--space-2)}
+  .box{border:1px solid var(--borda);border-radius:var(--radius-md);overflow:hidden;background:var(--branco)}
+  /* 1 menu */
+  .app{display:flex;height:220px}
+  .side{width:200px;background:var(--preto);padding:var(--space-4);box-sizing:border-box}
+  .side img{height:36px;display:block;margin-bottom:var(--space-6)}
+  .item{color:var(--texto-secundario-escuro);font-size:14px;font-weight:500;padding:8px 12px;border-radius:var(--radius-md);margin-bottom:4px}
+  .item.on{background:var(--amarelo);color:var(--preto)}
+  .main{flex:1;background:var(--fundo);padding:var(--space-4)}
+  .main h3{margin:0 0 8px;font-size:20px;font-weight:600}
+  .main p{margin:0;font-size:14px;color:var(--texto-secundario)}
+  /* 2 login */
+  .login{display:flex;height:220px}
+  .lp{flex:1;background:var(--preto);position:relative;overflow:hidden;padding:var(--space-6)}
+  .lp .big{position:absolute;right:-60px;bottom:-60px;width:240px;opacity:.06}
+  .lp .lg{height:48px;position:relative}
+  .lp p{position:relative;color:var(--branco);font-weight:800;font-size:22px;line-height:26px;margin:var(--space-6) 0 0;max-width:200px}
+  .rp{flex:1;padding:var(--space-6);display:flex;flex-direction:column;gap:10px;justify-content:center}
+  .field{height:36px;border:1px solid var(--borda);border-radius:var(--radius-md)}
+  .btn{height:38px;background:var(--preto);color:var(--branco);border-radius:var(--radius-md);display:grid;place-items:center;font-size:14px;font-weight:500}
+  /* 3 mobile bar */
+  .phone{width:260px;margin:0 auto;border:1px solid var(--borda);border-radius:24px;overflow:hidden;background:var(--fundo)}
+  .bar{background:var(--preto);height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 var(--space-4)}
+  .bar img{height:32px}
+  .burger{width:20px;height:2px;background:var(--branco);box-shadow:0 6px 0 var(--branco),0 -6px 0 var(--branco)}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:10px var(--space-4);border-bottom:1px solid var(--borda);font-size:14px;background:var(--branco)}
+  .mk{display:flex;gap:6px}.mk span{width:28px;height:28px;border-radius:var(--radius-sm);display:grid;place-items:center;font-size:12px;font-weight:600;border:1px solid var(--borda)}
+  .mk .p{background:var(--ok);color:var(--branco);border-color:var(--ok)}
+  /* 4 tabs */
+  .tabs{background:#dee1e6;padding:8px 8px 0;display:flex;gap:2px}
+  .tab{display:flex;align-items:center;gap:8px;padding:8px 12px;font:12px system-ui,sans-serif;color:#3c4043;border-radius:8px 8px 0 0;width:150px;white-space:nowrap;overflow:hidden}
+  .tab.on{background:var(--branco)}
+  .tab img,.tab i{width:16px;height:16px;flex:none;border-radius:3px}
+  .url{background:var(--branco);padding:10px 12px;font:12px system-ui,sans-serif;color:#5f6368;border-bottom:1px solid var(--borda)}
+  /* 5 home */
+  .home{background:#1f2937;padding:var(--space-6);display:flex;gap:22px;justify-content:center;height:128px;box-sizing:border-box}
+  .ic{display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff;font:11px system-ui,sans-serif}
+  .ic img,.ic i{width:56px;height:56px;border-radius:14px;display:block}
+  /* 6 boletim */
+  .doc{padding:var(--space-4);font-size:12px;filter:grayscale(1)}
+  .doc table{width:100%;border-collapse:collapse}.doc td,.doc th{border:1px solid #bbb;padding:4px 6px;text-align:left}
+  .foot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--preto);margin-top:var(--space-4);padding-top:6px;font-size:10px}
+  .foot img{height:16px}
+  /* 7 whatsapp */
+  .wa{background:#efeae2;padding:var(--space-4);height:260px;box-sizing:border-box}
+  .bub{background:#d9fdd3;border-radius:8px;max-width:300px;margin-left:auto;padding:4px;font:13px system-ui,sans-serif}
+  .bub img{width:100%;display:block;border-radius:6px 6px 0 0}
+  .bub .m{background:#cbeec4;padding:6px 8px;border-radius:0 0 6px 6px}.bub b{display:block;font-size:13px}.bub small{color:#555}
+  .bub .t{padding:6px 6px 2px;color:#027eb5}
+</style>
+</head>
+<body>
+<div class="grid">
+  <div><p class="cap">1 · Menu lateral</p><div class="box app"><div class="side"><img src="/_blob/ce2d59dfa5610c8da83312287eb655b8" alt="SCOLA"><div class="item on">Chamada</div><div class="item">Notas</div><div class="item">Relatórios</div><div class="item">Avisos</div></div><div class="main"><h3>Chamada · 7º ano B</h3><p>Terça, 25 de setembro · 32 alunos</p></div></div></div>
+  <div><p class="cap">2 · Tela de login</p><div class="box login"><div class="lp"><img class="big" src="/_blob/a3bcd434db9005fdbd1ce46b5ffe3df9" alt=""><img class="lg" src="/_blob/09c0e29f3dda0743aa461250023fa4a7" alt="SCOLA"><p>Chamada, notas e boletins em segundos.</p></div><div class="rp"><div class="field"></div><div class="field"></div><div class="btn">Entrar</div></div></div></div>
+  <div><p class="cap">3 · Barra superior no celular</p><div class="phone"><div class="bar"><img src="/_blob/ce2d59dfa5610c8da83312287eb655b8" alt="SCOLA"><div class="burger"></div></div><div class="row">Ana Beatriz Souza<div class="mk"><span class="p">P</span><span>F</span></div></div><div class="row">Bruno Lima<div class="mk"><span class="p">P</span><span>F</span></div></div><div class="row">Carla Menezes<div class="mk"><span>P</span><span>F</span></div></div></div></div>
+  <div><p class="cap">4 · Aba do navegador (16px)</p><div class="box"><div class="tabs"><div class="tab"><i style="background:#1a73e8"></i>Caixa de entrada</div><div class="tab on"><img src="/_blob/7876b8aa37aa5d908ecc9b992a69a653" alt="">Chamada · SCOLA</div><div class="tab"><i style="background:#25d366"></i>WhatsApp</div></div><div class="url">exemplo.com.br/chamada</div></div>
+    <p class="cap" style="margin-top:var(--space-6)">5 · Tela inicial do celular</p><div class="box home"><div class="ic"><i style="background:#25d366"></i>WhatsApp</div><div class="ic"><img src="/_blob/64c9efe67bdb3ba031cf259a6d19012a" alt="">SCOLA</div><div class="ic"><i style="background:#e1306c"></i>Instagram</div><div class="ic"><i style="background:#4285f4"></i>Agenda</div></div></div>
+  <div><p class="cap">6 · Boletim impresso em P&amp;B</p><div class="box doc"><table><tr><th>Disciplina</th><th>1º tri</th><th>2º tri</th><th>Média</th></tr><tr><td>Português</td><td>8,5</td><td>7,0</td><td>7,8</td></tr><tr><td>Matemática</td><td>6,0</td><td>7,5</td><td>6,8</td></tr><tr><td>Ciências</td><td>9,0</td><td>8,5</td><td>8,8</td></tr></table><div class="foot"><span>Documento gerado por SCOLA · 25/09/2026</span><img src="/_blob/9e53f53c5d77deab97ed04e55a674667" alt="SCOLA"></div></div></div>
+  <div><p class="cap">7 · Prévia de link no WhatsApp</p><div class="wa"><div class="bub"><img src="/_blob/12d87046a621a5bf5359363ec040e09c" alt=""><div class="m"><b>Boletim · Ana Beatriz Souza</b><small>exemplo.com.br</small></div><div class="t">exemplo.com.br/b/7f3k2</div></div></div></div>
+</div>
+</body>
+</html>

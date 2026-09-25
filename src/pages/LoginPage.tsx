@@ -29,7 +29,7 @@ export function LoginPage() {
     <div className="grid min-h-screen bg-white lg:grid-cols-[1.1fr_1fr]">
       {/* Painel institucional */}
       <aside className="relative hidden overflow-hidden bg-neutral-950 p-12 text-white lg:flex lg:flex-col">
-        <Logo variant="dark" />
+        <Logo variant="dark" height={52} />
         <div className="my-auto max-w-md">
           <p className="mb-4 inline-block rounded-full border border-brand/40 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand">
             Plataforma de gestão escolar
@@ -49,7 +49,7 @@ export function LoginPage() {
       <main className="flex items-center justify-center px-5 py-10 sm:px-10">
         <div className="w-full max-w-sm">
           <div className="mb-10 lg:hidden">
-            <Logo />
+            <Logo compact height={36} />
           </div>
           <h2 className="text-2xl font-extrabold tracking-tight text-neutral-950">Entrar</h2>
           <p className="mt-1.5 text-sm text-neutral-500">Use o e-mail e a senha que você recebeu da sua escola.</p>

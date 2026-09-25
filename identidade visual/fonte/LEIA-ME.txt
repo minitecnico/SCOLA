@@ -1,0 +1,4 @@
+Arquivos-fonte da marca SCOLA.
+Os SVGs de logo/ são o vetor editável (abrem no Figma, Illustrator, Inkscape).
+build.py + glyph.py regeneram todos os SVGs a partir da fonte Inter ExtraBold/SemiBold (fontsource, OFL).
+og.html é o layout da imagem de compartilhamento.

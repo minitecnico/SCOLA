@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png', 'og-image.png', 'scola-mono-preta.svg'],
       manifest: {
         name: 'SCOLA — Gestão Escolar',
         short_name: 'SCOLA',

@@ -29,8 +29,11 @@ export function printDocument(title: string, bodyHtml: string, opts?: { autoPrin
   .ok { color: #15803d; font-weight: 700; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .foot { margin-top: 16px; font-size: 11px; color: #94a3b8; }
+  .brand { margin-top: 20px; padding-top: 8px; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 10px; color: #94a3b8; }
+  .brand img { height: 12px; }
   @media print { body { margin: 0; } @page { margin: 14mm; } }
 </style></head><body>${bodyHtml}
+<div class="brand"><img src="${window.location.origin}/scola-mono-preta.svg" alt="SCOLA" /><span>Documento gerado por SCOLA</span></div>
 ${autoPrint ? '<script>window.onload=function(){window.print();}</script>' : ''}
 </body></html>`);
   win.document.close();

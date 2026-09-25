@@ -1,0 +1,173 @@
+{
+ "v": 3,
+ "layout": "files",
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-09-25T14:18:39Z"
+ },
+ "title": "SCOLA",
+ "namespace": "Scola",
+ "libraries": [],
+ "sections": {},
+ "groups": [
+  "Logo",
+  "Icones",
+  "Aplicacoes"
+ ],
+ "assetGroups": {
+  "Logo": {
+   "name": "Logo",
+   "tile": "l",
+   "order": [
+    "scola-horizontal.svg",
+    "scola-horizontal-negativa.svg",
+    "scola-horizontal-compacta.svg",
+    "scola-horizontal-compacta-negativa.svg",
+    "scola-vertical.svg",
+    "scola-vertical-negativa.svg",
+    "scola-simbolo.svg",
+    "scola-mono-preta.svg",
+    "scola-mono-branca.svg",
+    "scola-simbolo-mono-preto.svg",
+    "scola-simbolo-mono-branco.svg"
+   ],
+   "files": {
+    "scola-horizontal.svg": {
+     "name": "scola-horizontal.svg",
+     "blob": "6c805a9852d7455c6d89677f135ec414",
+     "size": 9854,
+     "type": "image/svg+xml"
+    },
+    "scola-horizontal-negativa.svg": {
+     "name": "scola-horizontal-negativa.svg",
+     "blob": "09c0e29f3dda0743aa461250023fa4a7",
+     "size": 9854,
+     "type": "image/svg+xml"
+    },
+    "scola-horizontal-compacta.svg": {
+     "name": "scola-horizontal-compacta.svg",
+     "blob": "839c3321f35b12a0346b853921b552c1",
+     "size": 3663,
+     "type": "image/svg+xml"
+    },
+    "scola-horizontal-compacta-negativa.svg": {
+     "name": "scola-horizontal-compacta-negativa.svg",
+     "blob": "ce2d59dfa5610c8da83312287eb655b8",
+     "size": 3663,
+     "type": "image/svg+xml"
+    },
+    "scola-vertical.svg": {
+     "name": "scola-vertical.svg",
+     "blob": "580c943b061c9630fda7b51adafd0cef",
+     "size": 10016,
+     "type": "image/svg+xml"
+    },
+    "scola-vertical-negativa.svg": {
+     "name": "scola-vertical-negativa.svg",
+     "blob": "a2240a1ee6d707d99f5160b2a13ec918",
+     "size": 10016,
+     "type": "image/svg+xml"
+    },
+    "scola-simbolo.svg": {
+     "name": "scola-simbolo.svg",
+     "blob": "a3bcd434db9005fdbd1ce46b5ffe3df9",
+     "size": 1041,
+     "type": "image/svg+xml"
+    },
+    "scola-mono-preta.svg": {
+     "name": "scola-mono-preta.svg",
+     "blob": "9e53f53c5d77deab97ed04e55a674667",
+     "size": 9960,
+     "type": "image/svg+xml"
+    },
+    "scola-mono-branca.svg": {
+     "name": "scola-mono-branca.svg",
+     "blob": "2f84e5610b95e5255c5a3d7caaaf548f",
+     "size": 9960,
+     "type": "image/svg+xml"
+    },
+    "scola-simbolo-mono-preto.svg": {
+     "name": "scola-simbolo-mono-preto.svg",
+     "blob": "add95aa31948bd6d399c5c3521cd3fc5",
+     "size": 1147,
+     "type": "image/svg+xml"
+    },
+    "scola-simbolo-mono-branco.svg": {
+     "name": "scola-simbolo-mono-branco.svg",
+     "blob": "fa65151d4c2241cfee1f1a20f5eae94c",
+     "size": 1147,
+     "type": "image/svg+xml"
+    }
+   }
+  },
+  "Icones": {
+   "name": "Icones",
+   "tile": "m",
+   "order": [
+    "favicon.svg",
+    "icon-192.png",
+    "icon-512.png",
+    "apple-touch-icon.png"
+   ],
+   "files": {
+    "favicon.svg": {
+     "name": "favicon.svg",
+     "blob": "7876b8aa37aa5d908ecc9b992a69a653",
+     "size": 1016,
+     "type": "image/svg+xml"
+    },
+    "icon-192.png": {
+     "name": "icon-192.png",
+     "blob": "64c9efe67bdb3ba031cf259a6d19012a",
+     "size": 3070,
+     "type": "image/png"
+    },
+    "icon-512.png": {
+     "name": "icon-512.png",
+     "blob": "67b3996a44d11b4f5d85cc6a5da2cb87",
+     "size": 7977,
+     "type": "image/png"
+    },
+    "apple-touch-icon.png": {
+     "name": "apple-touch-icon.png",
+     "blob": "0dc11e509ec39ad5b567886fd6940c4f",
+     "size": 2802,
+     "type": "image/png"
+    }
+   }
+  },
+  "Aplicacoes": {
+   "name": "Aplicacoes",
+   "tile": "l",
+   "order": [
+    "og-image.png",
+    "perfil-1080.png"
+   ],
+   "files": {
+    "og-image.png": {
+     "name": "og-image.png",
+     "blob": "12d87046a621a5bf5359363ec040e09c",
+     "size": 41466,
+     "type": "image/png"
+    },
+    "perfil-1080.png": {
+     "name": "perfil-1080.png",
+     "blob": "df3372a105e26ab45c1860891ee15cd2",
+     "size": 18655,
+     "type": "image/png"
+    }
+   }
+  }
+ },
+ "blobs": {},
+ "docs": {
+  "readme": "project/README.md",
+  "sections": []
+ },
+ "lastChange": {
+  "by": "Infoco",
+  "at": "2026-09-25T14:18:39Z",
+  "via": "Claude (Cowork)",
+  "note": "Marca SCOLA: logo L1–L6, ícones do app, aplicações, tokens e brand book"
+ }
+}

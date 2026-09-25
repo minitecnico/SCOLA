@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
 import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
-import { BarChart3, Check, ChevronDown, Columns3, Download, Eye, FileDown, Printer, Send } from 'lucide-react';
+import { BarChart3, Check, ChevronDown, Columns3, Eye, FileDown, Printer, Send } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ReportView } from '../components/ReportView';
 import { ShareModal } from '../components/ShareModal';
-import { Button, DropdownMenu, EmptyState, FilterBar, FilterField, Loading, Modal, PageHeader, SegmentedField, fieldCls } from '../components/ui';
+import { Button, EmptyState, FilterBar, FilterField, Loading, Modal, PageHeader, SegmentedField, fieldCls } from '../components/ui';
 import { cn } from '../lib/cn';
 import { listNationalHolidays } from '../lib/holidays';
 import { downloadXlsx } from '../lib/importSheet';
@@ -368,8 +368,8 @@ export function ReportsPage() {
       <div className="no-print">
         <PageHeader title="Relatórios" subtitle="Frequência e notas prontas para imprimir, exportar ou enviar." />
 
-        <FilterBar className="lg:grid lg:grid-cols-6 lg:items-end">
-          <FilterField label="Relatório" wide className="lg:col-span-2">
+        <FilterBar className="lg:grid lg:grid-cols-4 lg:items-end xl:grid-cols-6">
+          <FilterField label="Relatório" wide className="lg:col-span-2 lg:min-w-0">
             <SegmentedField<Tipo>
               value={tipo}
               onChange={setTipo}
@@ -379,7 +379,7 @@ export function ReportsPage() {
               ]}
             />
           </FilterField>
-          <FilterField label="Turma" className="lg:col-span-2">
+          <FilterField label="Turma" className="lg:col-span-2 lg:min-w-0">
             <select value={classId} onChange={(e) => setClassId(e.target.value)} className={fieldCls}>
               <option value="">Selecione…</option>
               {classes.map((c) => (
@@ -387,7 +387,7 @@ export function ReportsPage() {
               ))}
             </select>
           </FilterField>
-          <FilterField label="Aluno" className="lg:col-span-2">
+          <FilterField label="Aluno" wide className="lg:col-span-2 lg:min-w-0">
             <select value={studentId} onChange={(e) => setStudentId(e.target.value)} disabled={!classId} className={fieldCls}>
               <option value="all">Todos</option>
               {students.map((s) => (
@@ -398,7 +398,7 @@ export function ReportsPage() {
 
           {tipo === 'freq' ? (
             <>
-              <FilterField label="Período" wide className="lg:col-span-2">
+              <FilterField label="Período" wide className="lg:col-span-2 lg:min-w-0">
                 <select value={activePreset} onChange={(e) => preset(e.target.value)} className={fieldCls}>
                   <option value="mes">Este mês</option>
                   <option value="mesPassado">Mês passado</option>
@@ -409,20 +409,20 @@ export function ReportsPage() {
                   <option value="custom">Personalizado…</option>
                 </select>
               </FilterField>
-              <FilterField label="De">
+              <FilterField label="De" className="lg:min-w-0">
                 <DateInput value={from} max={to} onChange={(v) => { setFrom(v); setActivePreset('custom'); }} />
               </FilterField>
-              <FilterField label="Até">
+              <FilterField label="Até" className="lg:min-w-0">
                 <DateInput value={to} min={from} max={iso(today)} onChange={(v) => { setTo(v); setActivePreset('custom'); }} />
               </FilterField>
-              <FilterField label="Frequência mínima">
+              <FilterField label="Frequência mínima" className="lg:col-span-2 lg:min-w-0 xl:col-span-1">
                 <select value={minPct} onChange={(e) => setMinPct(Number(e.target.value))} className={fieldCls}>
                   {[60, 70, 75, 80, 90].map((p) => (
                     <option key={p} value={p}>{p}%</option>
                   ))}
                 </select>
               </FilterField>
-              <FilterField label="Mostrar">
+              <FilterField label="Mostrar" className="lg:col-span-2 lg:min-w-0 xl:col-span-1">
                 <select value={onlyBelow ? 'below' : 'all'} onChange={(e) => setOnlyBelow(e.target.value === 'below')} className={fieldCls}>
                   <option value="all">Todos os alunos</option>
                   <option value="below">Só abaixo do mínimo</option>
@@ -431,14 +431,14 @@ export function ReportsPage() {
             </>
           ) : (
             <>
-              <FilterField label="Ano" className="lg:col-span-2">
+              <FilterField label="Ano" className="lg:col-span-2 lg:min-w-0">
                 <select value={year} onChange={(e) => setYear(Number(e.target.value))} className={fieldCls}>
                   {years.map((y) => (
                     <option key={y} value={y}>{y}</option>
                   ))}
                 </select>
               </FilterField>
-              <FilterField label="Trimestre" wide className="lg:col-span-4">
+              <FilterField label="Trimestre" wide className="lg:col-span-2 lg:min-w-0 xl:col-span-4">
                 <SegmentedField<number>
                   value={notaTerm}
                   onChange={setNotaTerm}
@@ -454,52 +454,55 @@ export function ReportsPage() {
           )}
         </FilterBar>
 
-        {/* Barra do relatório: formato à esquerda, ações à direita */}
+        {/* Barra do relatório: formato e colunas à esquerda, ações visíveis à direita */}
         {classId ? (
-          <div className="mb-5 flex flex-wrap items-center gap-2">
-            <p className="mr-auto hidden min-w-0 truncate text-sm font-semibold text-foreground md:block">{summary}</p>
-            {tipo === 'freq' ? (
-              <div className="w-full sm:w-64">
-                <SegmentedField<'list' | 'grid'>
-                  value={freqLayout}
-                  onChange={setFreqLayout}
-                  options={[
-                    { value: 'grid', label: 'Mapa' },
-                    { value: 'list', label: 'Lista' },
-                  ]}
+          <div className="mb-5 rounded-xl border border-border bg-card p-3 shadow-soft">
+            <p className="mb-3 truncate px-1 text-sm font-semibold text-foreground">{summary}</p>
+            <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center">
+              <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+                {tipo === 'freq' ? (
+                  <div className="w-full sm:w-56">
+                    <SegmentedField<'list' | 'grid'>
+                      value={freqLayout}
+                      onChange={setFreqLayout}
+                      options={[
+                        { value: 'grid', label: 'Mapa' },
+                        { value: 'list', label: 'Lista' },
+                      ]}
+                    />
+                  </div>
+                ) : null}
+                <ColumnsMenu
+                  count={activeCount}
+                  total={totalCount}
+                  fields={fieldOptions.map((f) => ({ ...f, on: !!showFields[f.key], toggle: () => toggleField(f.key) }))}
+                  activities={
+                    showActivities
+                      ? termDisplayActs.map((a) => {
+                          const k = a.id ?? a.name;
+                          return { key: k, label: a.name, on: selectedActivities.includes(k), toggle: () => setSelectedActivities((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k])) };
+                        })
+                      : []
+                  }
+                  compact={compact}
+                  onCompact={() => setCompact((c) => !c)}
+                  onAll={selectAllFields}
+                  onNone={clearAllFields}
                 />
               </div>
-            ) : null}
-            <ColumnsMenu
-              count={activeCount}
-              total={totalCount}
-              fields={fieldOptions.map((f) => ({ ...f, on: !!showFields[f.key], toggle: () => toggleField(f.key) }))}
-              activities={
-                showActivities
-                  ? termDisplayActs.map((a) => {
-                      const k = a.id ?? a.name;
-                      return { key: k, label: a.name, on: selectedActivities.includes(k), toggle: () => setSelectedActivities((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k])) };
-                    })
-                  : []
-              }
-              compact={compact}
-              onCompact={() => setCompact((c) => !c)}
-              onAll={selectAllFields}
-              onNone={clearAllFields}
-            />
-            <Button variant="ghost" onClick={() => setPreview(true)} disabled={!payload} className="min-h-10 py-2">
-              <Eye size={16} /> <span className="hidden sm:inline">Visualizar</span>
-            </Button>
-            <DropdownMenu
-              label="Exportar"
-              variant="primary"
-              icon={<Download size={16} />}
-              items={[
-                { label: 'PDF / Imprimir', hint: 'Abre a impressão do navegador', icon: <Printer size={16} />, onClick: printPdf },
-                { label: 'Planilha Excel', hint: 'Arquivo .xlsx', icon: <FileDown size={16} />, onClick: exportExcel },
-                { label: 'Enviar por link', hint: 'WhatsApp ou e-mail, sem login', icon: <Send size={16} />, onClick: () => setShare(true), hidden: !payload },
-              ]}
-            />
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 2xl:ml-auto 2xl:flex 2xl:items-center">
+                <ActionBtn icon={<Eye size={16} />} label="Visualizar" short="Prévia" onClick={() => setPreview(true)} disabled={!payload} />
+                <ActionBtn icon={<FileDown size={16} />} label="Excel" onClick={exportExcel} disabled={!payload} />
+                <ActionBtn icon={<Send size={16} />} label="Enviar link" short="Enviar" onClick={() => setShare(true)} disabled={!payload} />
+                <button
+                  onClick={printPdf}
+                  disabled={!payload}
+                  className="col-span-3 inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-neutral-950 px-4 sm:col-span-1 text-sm font-semibold text-white transition hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40"
+                >
+                  <Printer size={16} /> Imprimir / PDF
+                </button>
+              </div>
+            </div>
           </div>
         ) : null}
       </div>
@@ -524,6 +527,20 @@ export function ReportsPage() {
 }
 
 type Toggle = { key: string; label: string; on: boolean; toggle: () => void };
+
+function ActionBtn({ icon, label, short, onClick, disabled }: { icon: ReactNode; label: string; short?: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-card px-3 text-sm font-semibold text-foreground ring-1 ring-inset ring-border transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40"
+    >
+      {icon}
+      <span className="sm:hidden">{short ?? label}</span>
+      <span className="hidden sm:inline">{label}</span>
+    </button>
+  );
+}
 
 /** Menu "Colunas": escolhe o que entra no relatório (substitui a fileira de chips). */
 function ColumnsMenu({
@@ -552,7 +569,7 @@ function ColumnsMenu({
         <span className="rounded bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">{count}/{total}</span>
         <ChevronDown size={15} className="opacity-60" />
       </PopoverButton>
-      <PopoverPanel anchor="bottom end" className="z-50 w-72 rounded-xl border border-border bg-card p-3 shadow-lift [--anchor-gap:4px]">
+      <PopoverPanel anchor="bottom start" className="z-50 w-72 rounded-xl border border-border bg-card p-3 shadow-lift [--anchor-gap:4px]">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Campos</p>
           <div className="flex gap-3 text-xs font-semibold">

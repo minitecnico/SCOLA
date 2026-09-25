@@ -241,7 +241,7 @@ function TopHeader({ onMenu }: { onMenu: () => void }) {
       <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-2 px-3 sm:gap-4 sm:px-6">
         <button
           onClick={onMenu}
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          className="grid lg:hidden h-10 w-10 shrink-0 place-items-center rounded-lg text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           aria-label="Abrir menu"
           title="Menu"
         >

@@ -256,7 +256,7 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
       </section>
 
       {/* Barra de salvar fixa */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 px-4 py-3 backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 px-4 py-3 backdrop-blur lg:left-[var(--nav-w,0px)]">
         <div className="mx-auto flex max-w-5xl items-center gap-3">
           <span className={cn('mr-auto text-xs', save.isError ? 'font-semibold text-red-600' : 'text-muted-foreground')}>
             {save.isError ? (save.error as Error).message : dirty ? 'Alterações não salvas' : filled < n ? `Faltam ${n - filled} questão(ões) no gabarito` : 'Gabarito completo'}

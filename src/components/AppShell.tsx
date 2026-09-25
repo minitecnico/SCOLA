@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { cn } from '../lib/cn';
@@ -102,7 +102,7 @@ function BaseSwitcher() {
   );
 }
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({ onNavigate, docked = false }: { onNavigate?: () => void; docked?: boolean }) {
   const { user, profile, role, activeBase, isSuperadmin, switchOrg, signOut } = useAuth();
   const navigate = useNavigate();
   const name = profile?.full_name || user?.email || 'Usuário';
@@ -136,9 +136,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col bg-neutral-950 text-white">
-      <div className="px-5 pb-4 pt-5">
-        <Logo variant="dark" compact height={36} />
-      </div>
+      {docked ? <div className="h-3" /> : (
+        <div className="px-5 pb-4 pt-5">
+          <Logo variant="dark" compact height={36} />
+        </div>
+      )}
 
       {isSuperadmin ? (
         <div className="px-3 pb-3">
@@ -350,99 +352,52 @@ function HeaderBaseSwitcher() {
   );
 }
 
-const topCls = (active: boolean) =>
-  cn(
-    'relative flex h-12 items-center gap-2 px-3.5 text-sm font-medium transition outline-none',
-    active ? 'text-brand after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand' : 'text-neutral-300 hover:text-white',
-  );
-
-function TopNav() {
-  const { role, activeBase, isSuperadmin } = useAuth();
-  const { pathname } = useLocation();
-  const { unread, planUnread } = useCounts();
-  const inBase = !!activeBase;
-  const badge = (to: string) => (to === '/avisos' ? unread : to === '/planejamento' ? planUnread : 0);
-  const visible = inBase
-    ? groups
-        .filter((g) => g.title !== 'Conta')
-        .map((g) => ({ ...g, items: g.items.filter((it) => can(role, it.module)) }))
-        .filter((g) => g.items.length > 0)
-    : [];
-  const isActive = (to: string) => (to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`));
-
-  return (
-    <nav className="bg-neutral-950">
-      <div className="mx-auto flex max-w-[1440px] items-center justify-center gap-1 px-6">
-        {isSuperadmin ? (
-          <>
-            <NavLink to="/admin" end className={({ isActive: a }) => topCls(a)}>
-              <LayoutGrid size={16} /> Administrador
-            </NavLink>
-            <NavLink to="/admin/logs" className={({ isActive: a }) => topCls(a)}>
-              <ScrollText size={16} /> Logs
-            </NavLink>
-            {inBase ? <span className="mx-2 h-5 w-px bg-white/15" /> : null}
-          </>
-        ) : null}
-        {visible.map((g) => {
-          if (!g.title || g.items.length === 1) {
-            return g.items.map((it) => (
-              <NavLink key={it.to} to={it.to} end={it.to === '/'} className={({ isActive: a }) => topCls(a)}>
-                {it.icon} {it.label}
-              </NavLink>
-            ));
-          }
-          const active = g.items.some((it) => isActive(it.to));
-          const count = g.items.reduce((n, it) => n + badge(it.to), 0);
-          return (
-            <HMenu as="div" key={g.title} className="relative">
-              <MenuButton className={cn(topCls(active), 'data-[open]:text-white')}>
-                {g.title}
-                {count ? <span className="grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[10px] font-bold text-neutral-950">{count > 9 ? '9+' : count}</span> : null}
-                <ChevronDown size={14} className="opacity-60" />
-              </MenuButton>
-              <MenuItems anchor="bottom start" className="z-50 w-64 rounded-xl border border-border bg-card p-1.5 text-sm shadow-lift focus:outline-none [--anchor-gap:4px]">
-                {g.items.map((it) => (
-                  <MenuItem key={it.to}>
-                    <NavLink
-                      to={it.to}
-                      className={cn(
-                        'flex items-center gap-3 rounded-lg px-3 py-2.5 data-[focus]:bg-muted',
-                        isActive(it.to) ? 'bg-muted font-semibold text-foreground' : 'text-foreground',
-                      )}
-                    >
-                      <span className="text-muted-foreground">{it.icon}</span>
-                      <span className="flex-1">{it.label}</span>
-                      {badge(it.to) ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1.5 text-[11px] font-bold text-neutral-950">{badge(it.to)}</span> : null}
-                    </NavLink>
-                  </MenuItem>
-                ))}
-              </MenuItems>
-            </HMenu>
-          );
-        })}
-      </div>
-    </nav>
-  );
-}
+const DOCK_KEY = 'scola:menu:aberto';
+const isDesktop = () => window.matchMedia('(min-width: 1024px)').matches;
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const online = useOnlineStatus();
   const [open, setOpen] = useState(false);
+  // Computador: o ☰ abre/recolhe o menu lateral fixo (lembra a escolha). Celular: gaveta.
+  const [docked, setDocked] = useState(() => {
+    try {
+      return localStorage.getItem(DOCK_KEY) !== '0';
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(DOCK_KEY, docked ? '1' : '0');
+    } catch {
+      /* segue sem lembrar */
+    }
+    // Barras fixas (salvar, seleção) acompanham a largura do menu.
+    document.documentElement.style.setProperty('--nav-w', docked ? '16rem' : '0px');
+  }, [docked]);
+  const toggleMenu = () => (isDesktop() ? setDocked((d) => !d) : setOpen(true));
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Cabeçalho branco com menu sanduíche (todas as telas) + barra de menu escura (desktop) */}
+      {/* Cabeçalho branco com menu sanduíche */}
       <div className="sticky top-0 z-40 bg-card pt-[env(safe-area-inset-top)] shadow-sm">
-        <TopHeader onMenu={() => setOpen(true)} />
-        <div className="hidden lg:block">
-          <TopNav />
-        </div>
+        <TopHeader onMenu={toggleMenu} />
       </div>
 
+      {/* Computador: menu lateral fixo, aberto/recolhido pelo ☰ */}
+      <aside
+        className={cn(
+          'fixed bottom-0 left-0 top-[calc(4rem+env(safe-area-inset-top))] z-30 hidden w-64 transition-transform duration-200 lg:block',
+          docked ? 'translate-x-0' : '-translate-x-full',
+        )}
+        aria-hidden={!docked}
+      >
+        <SidebarContent docked />
+      </aside>
+
       <Transition show={open} as={Fragment}>
-        <Dialog className="relative z-50" onClose={() => setOpen(false)}>
+        <Dialog className="relative z-50 lg:hidden" onClose={() => setOpen(false)}>
           <TransitionChild as={Fragment} enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0">
             <div className="fixed inset-0 bg-black/60" />
           </TransitionChild>
@@ -471,7 +426,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Dialog>
       </Transition>
 
-      <div>
+      <div className={cn('transition-[padding] duration-200', docked && 'lg:pl-64')}>
         {!online ? (
           <div className="no-print bg-brand px-4 py-2 text-center text-sm font-semibold text-neutral-950">
             Você está sem internet. As alterações só serão salvas quando a conexão voltar.

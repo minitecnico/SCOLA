@@ -279,7 +279,7 @@ export function SelectionBar({
 }) {
   if (!active) return null;
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 p-3 shadow-[0_-8px_30px_rgba(15,23,42,.10)] backdrop-blur lg:pl-72">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 p-3 shadow-[0_-8px_30px_rgba(15,23,42,.10)] backdrop-blur lg:left-[var(--nav-w,0px)]">
       <div className="mx-auto flex max-w-5xl items-center gap-3 px-1">
         <button onClick={onToggleAll} className="flex shrink-0 items-center gap-2 text-sm font-bold text-muted-foreground">
           <span className={cn('grid h-5 w-5 place-items-center rounded border', allSelected ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-border')}>
@@ -594,7 +594,7 @@ export function DropdownMenu({
 /** Rodapé fixo de salvar (chamada, notas, avaliações): status à esquerda, ações à direita. */
 export function ActionFooter({ title, detail, children, error }: { title: ReactNode; detail?: ReactNode; children: ReactNode; error?: string | null }) {
   return (
-    <footer className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 px-4 py-3 backdrop-blur lg:pl-72">
+    <footer className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 px-4 py-3 backdrop-blur lg:left-[var(--nav-w,0px)]">
       <div className="mx-auto flex max-w-6xl items-center gap-2 sm:gap-3 lg:px-6">
         <div className="hidden min-w-0 flex-1 sm:block">
           <p className="truncate text-sm font-semibold text-foreground">{title}</p>

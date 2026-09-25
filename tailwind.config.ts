@@ -66,7 +66,7 @@ export default {
       },
       animation: {
         'fade-in': 'fade-in .3s ease-out both',
-        'fade-up': 'fade-up .35s cubic-bezier(.21,1.02,.73,1) both',
+        'fade-up': 'fade-up .35s cubic-bezier(.21,1.02,.73,1) backwards', // backwards: sem transform depois (não quebra barras fixas)
         'scale-in': 'scale-in .25s ease-out both',
       },
     },

@@ -11,10 +11,10 @@
   },
   // IDs preenchidos pelo comando `npm run cf:setup` (uma vez só).
   "d1_databases": [
-    { "binding": "DB", "database_name": "scola", "database_id": "PREENCHER_COM_npm_run_cf_setup", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "scola", "database_id": "2fea73fe-74a0-4c6a-8ea2-07163069f530", "migrations_dir": "migrations" }
   ],
   "kv_namespaces": [
-    { "binding": "FILES", "id": "PREENCHER_COM_npm_run_cf_setup" }
+    { "binding": "FILES", "id": "776f355daf0e4595b43ceb3bb85f444d" }
   ],
   // Limpeza diária dos anexos excluídos (03:00 UTC).
   "triggers": { "crons": ["0 3 * * *"] },

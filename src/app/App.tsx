@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
 import { AppShell } from '../components/AppShell';
 import { FeedbackHost } from '../components/Feedback';
+import { PwaPrompts } from '../components/PwaPrompts';
 import { Loading } from '../components/ui';
 import { can, type ModuleKey } from '../lib/permissions';
 import { BlockedGate, ChangePasswordGate } from '../pages/AccountGates';
@@ -113,6 +114,7 @@ export default function App() {
           <Root />
         </BrowserRouter>
         <FeedbackHost />
+        <PwaPrompts />
       </AuthProvider>
     </QueryClientProvider>
   );

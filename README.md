@@ -84,6 +84,14 @@ Menu **Provas e correção** (gestão e professores):
 Tudo roda no aparelho (sem custo de servidor). A câmera ao vivo exige HTTPS; no computador de desenvolvimento acessado pelo IP da rede, use "Usar foto".
 Código: `src/lib/omr/` (geometria da folha, leitura e nota), `src/components/ExamScanner.tsx`, `worker/handlers/provas.ts`.
 
+## App no celular (PWA)
+
+O SCOLA instala como aplicativo, sem loja:
+- **Android/Chrome:** aparece o convite "Instale o SCOLA no celular" (ou menu do usuário → Instalar app).
+- **iPhone/iPad (Safari):** Compartilhar → Adicionar à Tela de Início (o app mostra o passo a passo).
+
+Abre em tela cheia, funciona com internet fraca (a interface fica guardada no aparelho) e tem atalhos ao segurar o ícone: Fazer chamada, Lançar notas e Corrigir provas. Quando sai versão nova, o app **pergunta** antes de atualizar, para não interromper uma chamada. Excel, PDF e ZIP não entram no download inicial (baixam só quando usados). Configuração em `vite.config.ts` e `public/_headers`; avisos em `src/components/PwaPrompts.tsx`.
+
 ## Rodar no computador (desenvolvimento)
 
 ```bash

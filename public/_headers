@@ -1,0 +1,11 @@
+# O service worker e o manifesto nunca ficam em cache: a versão nova chega na hora.
+/sw.js
+  Cache-Control: no-cache
+/registerSW.js
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Content-Type: application/manifest+json
+  Cache-Control: no-cache
+# Arquivos com hash no nome podem ficar em cache "para sempre".
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

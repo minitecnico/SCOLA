@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardCheck, FileText, Plus, Printer, ScanLine } from 'lucide-react';
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { DateInput } from '../components/DateInput';
 import { ExamScanner } from '../components/ExamScanner';
 import { Button, EmptyState, Field, Input, Loading, Modal, PageHeader, SegmentedField, StatusBadge, fieldCls } from '../components/ui';
@@ -23,6 +23,14 @@ export function ProvasPage() {
   const { data: exams = [], isLoading } = useQuery({ queryKey: ['exams'], queryFn: listExams });
   const [creating, setCreating] = useState(false);
   const [scanning, setScanning] = useState(false);
+  // Atalho do app instalado ("Corrigir provas"): abre a câmera direto.
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    if (params.get('corrigir') === '1' && exams.length) {
+      setScanning(true);
+      setParams({}, { replace: true });
+    }
+  }, [params, exams.length, setParams]);
 
   return (
     <>

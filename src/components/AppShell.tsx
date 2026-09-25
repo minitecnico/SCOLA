@@ -4,6 +4,7 @@ import {
   BarChart3,
   Bell,
   ChevronDown,
+  Download,
   BookOpen,
   CalendarDays,
   ClipboardCheck,
@@ -32,6 +33,7 @@ import { planUnreadCounts, unreadNoticeCount } from '../lib/queries';
 import { ROLE_LABEL } from '../lib/types';
 import { useOnlineStatus } from '../lib/useOnlineStatus';
 import { Logo } from './Logo';
+import { IosInstallHelp, useInstall } from './PwaPrompts';
 
 type NavItem = { label: string; to: string; icon: ReactNode; module: ModuleKey };
 
@@ -230,6 +232,8 @@ function TopHeader({ onMenu }: { onMenu: () => void }) {
   const { user, profile, role, activeBase, isSuperadmin, switchOrg, signOut } = useAuth();
   const navigate = useNavigate();
   const { unread } = useCounts();
+  const { canPrompt, ios, install } = useInstall();
+  const [iosHelp, setIosHelp] = useState(false);
   const name = profile?.full_name || user?.email || 'Usuário';
   const first = name.split(' ')[0];
   return (
@@ -305,6 +309,13 @@ function TopHeader({ onMenu }: { onMenu: () => void }) {
                   </NavLink>
                 </MenuItem>
               ) : null}
+              {canPrompt || ios ? (
+                <MenuItem>
+                  <button onClick={() => (canPrompt ? void install() : setIosHelp(true))} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left data-[focus]:bg-muted">
+                    <Download size={15} /> Instalar app
+                  </button>
+                </MenuItem>
+              ) : null}
               <MenuItem>
                 <button onClick={() => signOut()} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-red-600 data-[focus]:bg-red-50">
                   <LogOut size={15} /> Sair
@@ -314,6 +325,7 @@ function TopHeader({ onMenu }: { onMenu: () => void }) {
           </HMenu>
         </div>
       </div>
+      {iosHelp ? <IosInstallHelp onClose={() => setIosHelp(false)} /> : null}
     </div>
   );
 }
@@ -422,7 +434,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Cabeçalho branco com menu sanduíche (todas as telas) + barra de menu escura (desktop) */}
-      <div className="sticky top-0 z-40 shadow-sm">
+      <div className="sticky top-0 z-40 bg-card pt-[env(safe-area-inset-top)] shadow-sm">
         <TopHeader onMenu={() => setOpen(true)} />
         <div className="hidden lg:block">
           <TopNav />

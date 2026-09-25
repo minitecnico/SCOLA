@@ -536,7 +536,7 @@ export function DropdownMenu({
   label: string;
   icon?: ReactNode;
   items: MenuAction[];
-  variant?: 'ghost' | 'primary';
+  variant?: 'ghost' | 'primary' | 'plain';
   align?: 'start' | 'end';
   iconOnly?: boolean;
 }) {
@@ -550,7 +550,11 @@ export function DropdownMenu({
         className={cn(
           'inline-flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
           iconOnly ? 'w-10' : 'px-3.5',
-          variant === 'primary' ? 'bg-neutral-900 text-white hover:bg-black' : 'bg-card text-foreground ring-1 ring-inset ring-border hover:bg-muted',
+          variant === 'primary'
+            ? 'bg-neutral-900 text-white hover:bg-black'
+            : variant === 'plain'
+            ? 'text-muted-foreground hover:bg-muted hover:text-foreground data-[open]:bg-muted data-[open]:text-foreground'
+            : 'bg-card text-foreground ring-1 ring-inset ring-border hover:bg-muted',
         )}
       >
         {icon}

@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Award, BarChart3, Bell, CalendarDays, ChevronDown, ClipboardCheck, GraduationCap, Megaphone, RotateCcw, Trash2, Users } from 'lucide-react';
+import { Award, BarChart3, Bell, CalendarDays, ChevronDown, ClipboardCheck, GraduationCap, Megaphone, MoreHorizontal, RotateCcw, Trash2, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
-import { Button, Card, Loading, Modal, PageHeader, SectionTitle, StatCard } from '../components/ui';
-import { successToast } from '../components/Feedback';
+import { Button, Card, DropdownMenu, Loading, Modal, PageHeader, SectionTitle, StatCard } from '../components/ui';
+import { successToast, undoToast } from '../components/Feedback';
 import { SmartAlerts } from '../components/SmartAlerts';
 import { cn } from '../lib/cn';
 import { can } from '../lib/permissions';
@@ -24,8 +24,11 @@ import {
   type RecentSession,
 } from '../lib/queries';
 
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
 export function DashboardPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { user, profile, role } = useAuth();
   const uid = user?.id;
   const firstName = (profile?.full_name || user?.email || 'Bem-vindo(a)').split(' ')[0];
@@ -42,10 +45,12 @@ export function DashboardPage() {
   const className = (id: string) => classes.find((c) => c.id === id)?.name ?? 'Turma';
 
   const delSession = useMutation({
-    mutationFn: deleteAttendanceSession,
-    onSuccess: () => {
+    mutationFn: (s: RecentSession) => deleteAttendanceSession(s.id),
+    onSuccess: (_r, s) => {
       qc.invalidateQueries({ queryKey: ['recent-sessions'] });
-      successToast('Chamada excluída com sucesso');
+      undoToast(`Chamada de ${format(parseISO(s.session_date), 'dd/MM')} movida para a lixeira.`, () =>
+        restoreAttendanceSession(s.id).then(() => qc.invalidateQueries({ queryKey: ['recent-sessions'] })),
+      );
     },
   });
 
@@ -209,22 +214,36 @@ export function DashboardPage() {
 
                 {isOpen ? (
                   <div className="divide-y divide-border border-t border-border">
-                    {sessions.map((s) => (
-                      <div key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-                        <p className="min-w-0 flex-1 text-sm font-bold text-foreground">
-                          {format(parseISO(s.session_date), "EEE, d 'de' MMM", { locale: ptBR })}
-                        </p>
-                        <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700">{s.present} pres.</span>
-                        <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">{s.absent} falt.</span>
-                        <button
-                          onClick={() => confirm(`Excluir a chamada de ${format(parseISO(s.session_date), 'dd/MM/yyyy')}?`) && delSession.mutate(s.id)}
-                          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground ring-1 ring-inset ring-border hover:bg-red-50 hover:text-red-600"
-                          aria-label="Excluir chamada"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    ))}
+                    {sessions.map((s) => {
+                      const openIt = () => navigate('/chamadas', { state: { classId, date: s.session_date } });
+                      return (
+                        <div key={s.id} className="group flex items-center gap-2 pr-2 transition hover:bg-muted/50">
+                          <button onClick={openIt} className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5 py-3 pl-4 text-left" title="Abrir chamada">
+                            <span className="min-w-0 flex-1 text-sm font-bold text-foreground">
+                              {cap(format(parseISO(s.session_date), "EEE, d 'de' MMM", { locale: ptBR }))}
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold tabular-nums text-green-700">{s.present} pres.</span>
+                              <span className={cn('rounded-full px-2.5 py-1 text-xs font-bold tabular-nums', s.absent ? 'bg-red-50 text-red-700' : 'bg-muted text-muted-foreground')}>
+                                {s.absent} falt.
+                              </span>
+                            </span>
+                          </button>
+                          <div className="transition sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover:opacity-100">
+                            <DropdownMenu
+                              label="Ações da chamada"
+                              variant="plain"
+                              iconOnly
+                              icon={<MoreHorizontal size={16} />}
+                              items={[
+                                { label: 'Abrir chamada', hint: 'Ver ou corrigir presenças.', icon: <ClipboardCheck size={15} />, onClick: openIt },
+                                { label: 'Mover para a lixeira', hint: 'Dá para restaurar depois.', icon: <Trash2 size={15} />, danger: true, onClick: () => delSession.mutate(s) },
+                              ]}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                     <Link
                       to="/relatorios"
                       state={{ classId }}

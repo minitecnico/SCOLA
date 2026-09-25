@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Check, CheckCheck, ClipboardCheck, Layers, Pencil, Save, Search, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { ActionFooter, EmptyState, FilterBar, FilterField, FooterButton, Loading, Notice, PageHeader, Segmented, StatGrid, StatTile, fieldCls } from '../components/ui';
 import { freqTone } from '../lib/tone';
@@ -24,6 +25,13 @@ export function AttendancePage() {
   const [classId, setClassId] = usePersistentState('scola:attendance:classId', '');
   // Sempre inicia no dia de HOJE (não persiste) — evita o professor lançar chamada em data antiga por engano.
   const [date, setDate] = useState(today);
+  // Exceção: veio do painel pedindo uma chamada específica (turma + data).
+  const location = useLocation();
+  useEffect(() => {
+    const st = location.state as { classId?: string; date?: string } | null;
+    if (st?.classId) setClassId(st.classId);
+    if (st?.date && /^\d{4}-\d{2}-\d{2}$/.test(st.date)) setDate(st.date);
+  }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
   const [q, setQ] = useState('');
   const [records, setRecords] = useState<Record<string, AttendanceStatus>>({});
   const [saved, setSaved] = useState(false);

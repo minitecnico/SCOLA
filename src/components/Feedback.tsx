@@ -10,6 +10,46 @@ import { Button } from './ui';
 type Listener = (msg: string) => void;
 let listener: Listener | null = null;
 
+type Undo = { message: string; onUndo: () => void };
+let undoListener: ((u: Undo) => void) | null = null;
+
+/** Aviso discreto no rodapé com "Desfazer" (ex.: item movido para a lixeira). */
+export function undoToast(message: string, onUndo: () => void) {
+  undoListener?.({ message, onUndo });
+}
+
+function UndoHost() {
+  const [u, setU] = useState<Undo | null>(null);
+  useEffect(() => {
+    undoListener = (next) => setU(next);
+    return () => {
+      undoListener = null;
+    };
+  }, []);
+  useEffect(() => {
+    if (!u) return;
+    const t = setTimeout(() => setU(null), 6000);
+    return () => clearTimeout(t);
+  }, [u]);
+  if (!u) return null;
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[70] flex justify-center px-4 pb-[env(safe-area-inset-bottom)]">
+      <div role="status" className="pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-xl bg-neutral-950 py-2.5 pl-4 pr-2 text-sm text-white shadow-lift">
+        <span className="min-w-0 flex-1">{u.message}</span>
+        <button
+          onClick={() => {
+            u.onUndo();
+            setU(null);
+          }}
+          className="shrink-0 rounded-lg px-3 py-1.5 font-semibold text-brand transition hover:bg-white/10"
+        >
+          Desfazer
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function successToast(message = 'Operação realizada com sucesso') {
   listener?.(message);
 }
@@ -58,9 +98,11 @@ export function FeedbackHost() {
     return () => clearTimeout(t);
   }, [msg]);
 
-  if (msg == null) return null;
+  if (msg == null) return <UndoHost />;
 
   return (
+    <>
+    <UndoHost />
     <div
       className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/40 p-4 backdrop-blur-sm"
       onClick={() => setMsg(null)}
@@ -77,5 +119,6 @@ export function FeedbackHost() {
         </Button>
       </div>
     </div>
+    </>
   );
 }

@@ -13,6 +13,7 @@ import { downloadXlsx } from '../lib/importSheet';
 import { groupByMonth, schoolDaysBetween, weekdayLetter } from '../lib/schooldays';
 import { listClasses, listSchools, listStudentsByClass, reportAttendance, reportTerms, reportTermDetails } from '../lib/queries';
 import { CREDITO_OVERRIDE_KEY, MONTHS, SCHOOL_YEAR_MONTHS, SUBJECT, SUBJECT_SHORT, TERM_MONTHS, collapseCreditoColumns, creditoSumFrom, isCreditoActivity, type ReportPayload } from '../lib/types';
+import { DateInput } from '../components/DateInput';
 
 type Tipo = 'freq' | 'notas';
 const today = new Date();
@@ -409,10 +410,10 @@ export function ReportsPage() {
                 </select>
               </FilterField>
               <FilterField label="De">
-                <input type="date" value={from} max={to} onChange={(e) => { setFrom(e.target.value); setActivePreset('custom'); }} className={fieldCls} />
+                <DateInput value={from} max={to} onChange={(v) => { setFrom(v); setActivePreset('custom'); }} />
               </FilterField>
               <FilterField label="Até">
-                <input type="date" value={to} min={from} max={iso(today)} onChange={(e) => { setTo(e.target.value); setActivePreset('custom'); }} className={fieldCls} />
+                <DateInput value={to} min={from} max={iso(today)} onChange={(v) => { setTo(v); setActivePreset('custom'); }} />
               </FilterField>
               <FilterField label="Frequência mínima">
                 <select value={minPct} onChange={(e) => setMinPct(Number(e.target.value))} className={fieldCls}>

@@ -9,6 +9,7 @@ import {
   GraduationCap,
   Home,
   LayoutGrid,
+  ScrollText,
   LogOut,
   Megaphone,
   Menu,
@@ -138,6 +139,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <NavLink to="/admin" end onClick={onNavigate} className={linkCls}>
             <LayoutGrid size={18} />
             <span>Painel do administrador</span>
+          </NavLink>
+          <NavLink to="/admin/logs" onClick={onNavigate} className={linkCls}>
+            <ScrollText size={18} />
+            <span>Central de logs</span>
           </NavLink>
           {inBase ? (
             <div className="mt-3 rounded-lg border border-brand/40 bg-brand/10 p-3">

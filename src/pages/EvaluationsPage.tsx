@@ -22,6 +22,7 @@ import {
 import { actKey, CREDITO_ACTIVITIES, sanitizeGrade, TERMS, TERM_LABEL, type GradeActivity } from '../lib/types';
 import { useOnlineStatus } from '../lib/useOnlineStatus';
 import { usePersistentState } from '../lib/usePersistentState';
+import { DateInput } from '../components/DateInput';
 
 type CellState = { done: boolean; score: string };
 
@@ -588,12 +589,7 @@ function ComposicaoAvaliacoesModal({
                 </label>
                 <label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
                   Prazo / entrega
-                  <Input
-                    type="date"
-                    value={a.date ?? ''}
-                    onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, date: e.target.value || undefined } : x)))}
-                    className="h-9 w-auto py-1"
-                  />
+                  <DateInput value={a.date ?? ''} onChange={(v) => setItems((p) => p.map((x, j) => (j === i ? { ...x, date: v || undefined } : x)))} className="h-9 w-40" />
                 </label>
               </div>
             </div>

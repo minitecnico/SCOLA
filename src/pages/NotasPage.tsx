@@ -33,6 +33,7 @@ import {
   type TermsReportRow,
 } from '../lib/queries';
 import { CREDITO_OVERRIDE_KEY, DEFAULT_ACTIVITIES, MEDIA_APROVACAO, RECOVERY_ACTIVITY_NAME, SUBJECT, SUBJECT_SHORT, TERMS, TERM_LABEL, actKey, calcMedia, collapseCreditoColumns, creditoSumFrom, isRecoveryActivity, orderGradeActivities, sanitizeGrade, type GradeActivity, type ReportPayload, type School } from '../lib/types';
+import { DateInput } from '../components/DateInput';
 
 /** Cabeçalho profissional para impressão (logo, escola, contato) — usado no boletim e no relatório.
  *  compact: versão reduzida p/ empilhar 3 boletins por folha. subject: matéria (aparece no cabeçalho). */
@@ -1199,12 +1200,7 @@ function ComposicaoModal({
               {!isRecoveryActivity(a.name) ? (
                 <label className="mt-2 flex items-center gap-2 px-1 text-xs font-bold text-muted-foreground">
                   Prazo / entrega
-                  <Input
-                    type="date"
-                    value={a.date ?? ''}
-                    onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, date: e.target.value || undefined } : x)))}
-                    className="h-9 w-auto py-1"
-                  />
+                  <DateInput value={a.date ?? ''} onChange={(v) => setItems((p) => p.map((x, j) => (j === i ? { ...x, date: v || undefined } : x)))} className="h-9 w-40" />
                 </label>
               ) : null}
             </div>

@@ -60,8 +60,9 @@ export function ImportModal({
     setFileName(file.name);
     try {
       setParsed(await parseSheet(file, columns));
-    } catch {
-      setError('Não consegui ler o arquivo. Use o modelo (.xlsx ou .csv).');
+    } catch (err) {
+      setParsed(null);
+      setError((err as Error)?.message?.startsWith('Planilha') || (err as Error)?.message?.startsWith('Arquivo') ? (err as Error).message : 'Não consegui ler o arquivo. Use o modelo (.xlsx ou .csv).');
     }
   }
 
@@ -123,7 +124,7 @@ export function ImportModal({
         <div className="space-y-4">
           <div className="rounded-xl bg-muted p-4">
             <p className="text-sm font-medium text-muted-foreground">
-              1. Baixe a planilha modelo, preencha uma linha por aluno (a linha de exemplo é ignorada) e suba o arquivo.
+              Baixe o modelo, preencha uma linha por aluno a partir da linha 3 (a linha 2 é só exemplo e é ignorada) e envie o arquivo.
             </p>
             <Button variant="ghost" className="mt-3" onClick={() => downloadTemplate(templateFileName, columns)}>
               <Download size={18} /> Baixar planilha modelo
@@ -155,20 +156,7 @@ export function ImportModal({
             </label>
           )}
 
-          {parsed ? (
-            <div className="rounded-xl border border-border p-4">
-              <p className="flex items-center gap-2 text-sm font-bold text-foreground">
-                <FileSpreadsheet size={16} /> {parsed.rows.length} linha(s) válida(s)
-              </p>
-              {parsed.errors.length ? (
-                <div className="mt-2 max-h-28 overflow-y-auto text-xs text-red-600">
-                  {parsed.errors.map((e, i) => (
-                    <p key={i}>{e}</p>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+          {parsed ? <ParsedSummary parsed={parsed} columns={columns} /> : null}
 
           {error ? <p className="text-sm font-semibold text-red-600">{error}</p> : null}
 
@@ -183,5 +171,71 @@ export function ImportModal({
         </div>
       )}
     </Modal>
+  );
+}
+
+function ParsedSummary({ parsed, columns }: { parsed: ParseResult; columns: ColumnDef[] }) {
+  const { rows, errors, onlyExample, unknownHeaders = [] } = parsed;
+  const shown = columns.filter((c) => rows.some((r) => r[c.key]));
+  if (onlyExample) {
+    return (
+      <div className="rounded-xl bg-orange-50 p-4 text-sm text-orange-900 ring-1 ring-inset ring-orange-200">
+        <p className="flex items-center gap-2 font-bold">
+          <AlertTriangle size={16} /> A planilha só tem a linha de exemplo
+        </p>
+        <p className="mt-1">
+          A linha "{columns.map((c) => c.example).filter(Boolean).slice(0, 2).join(' · ')}" é do modelo e não é importada. Preencha seus alunos nas linhas de baixo (ou
+          substitua o exemplo) e envie de novo.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-border">
+      <p className="flex items-center gap-2 border-b border-border px-4 py-3 text-sm font-bold text-foreground">
+        <FileSpreadsheet size={16} />
+        {rows.length ? `${rows.length} linha(s) prontas para importar` : 'Nenhuma linha válida encontrada'}
+      </p>
+      {rows.length ? (
+        <div className="max-h-48 overflow-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="sticky top-0 bg-muted text-muted-foreground">
+              <tr>
+                {shown.map((c) => (
+                  <th key={c.key} className="whitespace-nowrap px-3 py-2 font-semibold">
+                    {c.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {rows.slice(0, 8).map((r, i) => (
+                <tr key={i}>
+                  {shown.map((c) => (
+                    <td key={c.key} className="whitespace-nowrap px-3 py-1.5 text-foreground">
+                      {r[c.key] || <span className="text-muted-foreground">—</span>}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {rows.length > 8 ? <p className="px-3 py-2 text-xs text-muted-foreground">+ {rows.length - 8} linha(s)</p> : null}
+        </div>
+      ) : null}
+      {errors.length || (!rows.length && unknownHeaders.length) ? (
+        <div className="space-y-1 border-t border-border px-4 py-3 text-xs text-red-700">
+          {errors.slice(0, 20).map((e, i) => (
+            <p key={i}>{e}</p>
+          ))}
+          {errors.length > 20 ? <p>+ {errors.length - 20} erro(s)</p> : null}
+          {!rows.length && unknownHeaders.length ? (
+            <p>
+              Colunas não reconhecidas: {unknownHeaders.join(', ')}. Use os cabeçalhos do modelo: {columns.map((c) => c.label).join(', ')}.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }

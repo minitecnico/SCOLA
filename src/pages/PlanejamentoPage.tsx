@@ -33,6 +33,7 @@ import {
   type PlanWithMeta,
 } from '../lib/queries';
 import { PLAN_STATUS } from '../lib/types';
+import { DateInput } from '../components/DateInput';
 
 // Traduz erros técnicos (ex.: módulo ainda não ativado no banco) para algo amigável.
 function friendly(e: unknown): string {
@@ -608,7 +609,7 @@ function ComposeModal({ plan, onClose }: { plan: PlanWithMeta | null; onClose: (
             </Select>
           </Field>
           <Field label="Semana (opcional)">
-            <Input type="date" value={week} onChange={(e) => setWeek(e.target.value)} />
+            <DateInput value={week} onChange={setWeek} />
           </Field>
         </div>
         {mode === 'semanal' ? (

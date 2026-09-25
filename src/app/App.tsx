@@ -27,6 +27,7 @@ const SettingsPage = lazyPage(() => import('../pages/SettingsPage'), 'SettingsPa
 const DownloadPlanPage = lazyPage(() => import('../pages/DownloadPlanPage'), 'DownloadPlanPage');
 const SharedReportPage = lazyPage(() => import('../pages/SharedReportPage'), 'SharedReportPage');
 const AdminPage = lazyPage(() => import('../pages/admin/AdminPage'), 'AdminPage');
+const LogsPage = lazyPage(() => import('../pages/admin/LogsPage'), 'LogsPage');
 
 const qc = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, staleTime: 30_000, retry: 1 } },
@@ -62,6 +63,7 @@ function Protected() {
       <Suspense fallback={<Loading />}>
         <Routes>
           {isSuperadmin ? <Route path="/admin" element={<AdminPage />} /> : null}
+          {isSuperadmin ? <Route path="/admin/logs" element={<LogsPage />} /> : null}
           {adminHome ? (
             <Route path="*" element={<Navigate to="/admin" replace />} />
           ) : (

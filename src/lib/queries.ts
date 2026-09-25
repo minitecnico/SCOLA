@@ -399,3 +399,42 @@ export const deletePlanDoc = (doc: { id: string; path: string }) => rpc<void>('d
 
 /* ----------------------------------- Início ------------------------------------- */
 export const dashboardCounts = () => rpc<{ schools: number; classes: number; students: number }>('dashboardCounts');
+
+/* ------------------------------ Central de logs (admin) ------------------------------ */
+export type LogStatus = 'ok' | 'erro' | 'negado';
+export interface LogRow {
+  id: number;
+  at: string;
+  base_id: string | null;
+  base_name: string | null;
+  user_email: string | null;
+  role: string | null;
+  action: string;
+  category: string;
+  summary: string;
+  target: string | null;
+  status: LogStatus;
+  detail: string | null;
+  ip: string | null;
+  device: string | null;
+}
+export interface LogFilters {
+  period?: '24h' | '7d' | '30d' | '90d' | 'all';
+  baseId?: string | null;
+  category?: string | null;
+  status?: LogStatus | 'problemas' | null;
+  q?: string | null;
+  before?: number | null;
+}
+export const listLogs = (f: LogFilters, limit = 60) => rpc<{ rows: LogRow[]; next: number | null }>('listLogs', f, limit);
+export interface LogOverview {
+  logins24h: number;
+  failed24h: number;
+  errors24h: number;
+  denied24h: number;
+  actions24h: number;
+  users7d: number;
+  suspicious: { user_email: string; n: number; ips: string | null; last: string; exists_user: boolean }[];
+  bases: { id: string; name: string; active: boolean; last: string | null; actions7d: number }[];
+}
+export const logOverview = () => rpc<LogOverview>('logOverview');

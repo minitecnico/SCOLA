@@ -4,19 +4,21 @@ import {
   assertNotLocked, buildCtx, clearFailures, createSession, destroySession, hashPassword, iterationsFor, needsRehash,
   recordFailure, requireBase, requireRole, SESSION_COOKIE, userFromToken, verifyPassword, type Ctx, type UserRow,
 } from './auth';
+import { ACTIONS, deviceOf, insertLog, labelOf, type LogEntry, type Refs } from './audit';
 import { all, fail, first, HttpError, parse, run, uid, type Env } from './db';
 import * as alertas from './handlers/alertas';
 import * as cadastros from './handlers/cadastros';
 import * as chamadas from './handlers/chamadas';
 import * as comunicacao from './handlers/comunicacao';
 import * as contas from './handlers/contas';
+import * as logs from './handlers/logs';
 import * as notas from './handlers/notas';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
 const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs']);
 const handlers: Record<string, Handler> = {};
-for (const mod of [alertas, cadastros, chamadas, comunicacao, contas, notas]) {
+for (const mod of [alertas, cadastros, chamadas, comunicacao, contas, logs, notas]) {
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn === 'function' && !INTERNAL.has(name)) handlers[name] = fn as Handler;
   }
@@ -28,6 +30,24 @@ const MAX_FILE = 20 * 1024 * 1024; // KV aceita até 25 MB por valor
 const BLOCKED_EXT = /\.(exe|msi|bat|cmd|com|scr|pif|cpl|jar|js|jse|vbs|vbe|ps1|psm1|sh|app|apk|dll|sys|reg|lnk|hta|wsf|wsh|gadget)$/i;
 
 const app = new Hono<{ Bindings: Env; Variables: { user: UserRow } }>();
+
+/* ------------------------------------- Logs --------------------------------------- */
+type C = Context<{ Bindings: Env; Variables: { user: UserRow } }>;
+const origin = (c: C) => ({
+  ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
+  device: deviceOf(c.req.header('user-agent')),
+});
+/** Grava o log sem atrasar a resposta; falha de log nunca derruba a operação. */
+function bg(c: C, p: Promise<unknown>) {
+  const safe = p.catch((e) => console.error('audit', e));
+  try {
+    c.executionCtx.waitUntil(safe);
+  } catch {
+    /* fora do Worker (testes) */
+  }
+}
+const logAs = (c: C, user: Pick<UserRow, 'id' | 'email'> | null, e: Omit<LogEntry, 'userId' | 'email' | 'ip' | 'device'>) =>
+  bg(c, insertLog(c.env.DB, { ...e, userId: user?.id ?? null, email: user?.email ?? null, ...origin(c) }));
 
 /* -------------------------------- Erros e proteção -------------------------------- */
 app.onError((err, c) => {
@@ -60,7 +80,12 @@ app.post('/api/auth/login', async (c) => {
   const password = String(body.password || '');
   if (!email || !password) fail('Informe e-mail e senha.');
   const db = c.env.DB;
-  await assertNotLocked(db, email);
+  try {
+    await assertNotLocked(db, email);
+  } catch (err) {
+    bg(c, insertLog(db, { email, action: 'login_bloqueado', category: 'acesso', summary: 'Login bloqueado por excesso de tentativas', status: 'negado', ...origin(c) }));
+    throw err;
+  }
   const user = await first<UserRow>(db, 'SELECT * FROM users WHERE email = ?', email);
   // Senha copiada do WhatsApp/e-mail costuma vir com espaço no fim: tenta também sem os espaços das pontas.
   let matched: string | null = null;
@@ -70,6 +95,11 @@ app.post('/api/auth/login', async (c) => {
   }
   if (!matched) {
     await recordFailure(db, email);
+    bg(c, insertLog(db, {
+      email, userId: user?.id ?? null, action: 'login_falhou', category: 'acesso', summary: 'Tentativa de login falhou', status: 'negado',
+      detail: user ? 'Senha incorreta' : 'E-mail não cadastrado',
+      baseId: user?.active_base_id ?? null, ...origin(c),
+    }));
     fail('E-mail ou senha incorretos.', 401);
   }
   await clearFailures(db, email);
@@ -82,12 +112,23 @@ app.post('/api/auth/login', async (c) => {
   setCookie(c, SESSION_COOKIE, token, {
     httpOnly: true, secure: new URL(c.req.url).protocol === 'https:', sameSite: 'Lax', path: '/', maxAge,
   });
+  bg(c, (async () => {
+    const m = await first<{ base_id: string; role: string }>(db, 'SELECT base_id, role FROM memberships WHERE user_id = ? LIMIT 1', user!.id);
+    await insertLog(db, {
+      userId: user!.id, email: user!.email, role: user!.is_admin ? 'admin' : m?.role ?? null, baseId: user!.is_admin ? user!.active_base_id : m?.base_id ?? null,
+      action: 'login', category: 'acesso', summary: user!.must_change_pw ? 'Entrou com senha provisória' : 'Entrou no sistema', ...origin(c),
+    });
+  })());
   return c.json({ ok: true });
 });
 
 app.post('/api/auth/logout', async (c) => {
   const token = getCookie(c, SESSION_COOKIE);
-  if (token) await destroySession(c.env.DB, token);
+  if (token) {
+    const u = await userFromToken(c.env.DB, token);
+    if (u) logAs(c, u, { action: 'logout', category: 'acesso', summary: 'Saiu do sistema', baseId: u.active_base_id });
+    await destroySession(c.env.DB, token);
+  }
   deleteCookie(c, SESSION_COOKIE, { path: '/' });
   return c.json({ ok: true });
 });
@@ -128,8 +169,33 @@ app.post('/api/rpc/:name', async (c) => {
   const ctx = await buildCtx(c.env, user!);
   const body = await c.req.json<{ args?: unknown[] }>().catch(() => ({ args: [] as unknown[] }));
   const args = Array.isArray(body.args) ? body.args : [];
-  const result = await fn!(ctx, ...args);
-  return c.json({ data: result ?? null });
+
+  // Log: escritas sempre; leituras só quando falham (erro interno ou acesso negado).
+  const spec = ACTIONS[name];
+  let refs: Refs = {};
+  try {
+    refs = spec?.refs?.(args, ctx) ?? {};
+  } catch {
+    /* argumentos inesperados: registra sem alvo */
+  }
+  const entry: LogEntry = {
+    userId: user!.id, email: user!.email, role: ctx.isAdmin ? 'admin' : ctx.role, ...origin(c),
+    action: name, category: spec?.cat ?? 'sistema', summary: spec ? labelOf(spec, args) : `Falha ao consultar (${name})`,
+    refs, baseId: refs.baseId ?? ctx.baseId,
+  };
+  const preId = spec?.pre ? (await insertLog(ctx.db, entry)).meta.last_row_id : null;
+  try {
+    const result = await fn!(ctx, ...args);
+    if (spec && !spec.pre) bg(c, insertLog(ctx.db, { ...entry, detail: spec.result?.(result) ?? null }));
+    return c.json({ data: result ?? null });
+  } catch (err) {
+    const code = err instanceof HttpError ? err.status : 500;
+    const status = code === 403 ? 'negado' : 'erro';
+    const detail = err instanceof HttpError ? err.message : String((err as Error)?.message || 'Erro interno').slice(0, 300);
+    if (preId) bg(c, run(ctx.db, 'UPDATE audit_log SET status = ?, detail = ? WHERE id = ?', status, detail, preId));
+    else if (spec || code === 403 || code >= 500) bg(c, insertLog(ctx.db, { ...entry, status, detail }));
+    throw err;
+  }
 });
 
 /* ------------------------------------ Arquivos ------------------------------------ */
@@ -165,6 +231,10 @@ app.post('/api/files', async (c) => {
   await putFile(c.env, id, file);
   await run(ctx.db, 'INSERT INTO files (id, base_id, owner_type, owner_id, name, mime, size) VALUES (?, ?, ?, ?, ?, ?, ?)',
     id, base, ownerType, ownerId, file.name, file.type || null, file.size);
+  logAs(c, ctx.user, {
+    role: ctx.isAdmin ? 'admin' : ctx.role, baseId: base, action: 'uploadFile', category: 'comunicacao',
+    summary: ownerType === 'notice' ? 'Anexou arquivo a aviso' : 'Anexou arquivo a planejamento', refs: { text: file.name },
+  });
   return c.json({ data: { id } });
 });
 
@@ -182,6 +252,10 @@ app.post('/api/plandocs', async (c) => {
     'INSERT INTO plan_docs (id, base_id, author_id, segment, term, class_id, turma_label, name, mime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     id, base, ctx.user.id, String(form.get('segment') || 'geral'), term ? Number(term) : null,
     classId, (form.get('turma_label') as string) || null, file.name, file.type || null);
+  logAs(c, ctx.user, {
+    role: ctx.isAdmin ? 'admin' : ctx.role, baseId: base, action: 'uploadPlanDoc', category: 'comunicacao',
+    summary: 'Enviou documento de planejamento', refs: { classId, text: file.name },
+  });
   return c.json({ data: { id } });
 });
 
@@ -220,6 +294,8 @@ export default {
   fetch: app.fetch,
   /** Rotina diária: apaga do KV os anexos de itens/bases excluídos (poucos por vez, limite do plano grátis). */
   async scheduled(_controller: ScheduledController, env: Env) {
+    // Logs: guarda 180 dias (cabe folgado no plano gratuito do D1).
+    await run(env.DB, 'DELETE FROM audit_log WHERE at < ?', new Date(Date.now() - 180 * 86400_000).toISOString());
     const rows = await all<{ id: string }>(env.DB, 'SELECT id FROM kv_trash LIMIT 40');
     if (!rows.length) return;
     await Promise.all(rows.map((r) => env.FILES.delete(`f:${r.id}`)));

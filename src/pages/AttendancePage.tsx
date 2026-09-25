@@ -11,6 +11,7 @@ import { getRecords, getSession, listClasses, listStudentsByClass, saveAttendanc
 import { useOnlineStatus } from '../lib/useOnlineStatus';
 import { usePersistentState } from '../lib/usePersistentState';
 import type { AttendanceStatus, ClassRoom } from '../lib/types';
+import { DateInput } from '../components/DateInput';
 
 export function AttendancePage() {
   const qc = useQueryClient();
@@ -168,7 +169,7 @@ export function AttendancePage() {
           </select>
         </FilterField>
         <FilterField label="Data">
-          <input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} className={fieldCls} />
+          <DateInput value={date} max={today} onChange={(v) => v && setDate(v)} />
         </FilterField>
         <FilterField label="Buscar aluno" wide grow>
           <SearchField value={q} onChange={setQ} />
@@ -407,7 +408,7 @@ function ExamRoll({
       <div className="mb-4 rounded-xl border border-border bg-card p-3 shadow-soft sm:p-4">
         <div className="mb-3 grid grid-cols-2 gap-3 lg:flex lg:items-end">
           <FilterField label="Data">
-            <input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} className={fieldCls} />
+            <DateInput value={date} max={today} onChange={(v) => v && setDate(v)} />
           </FilterField>
           <FilterField label="Buscar aluno" grow>
             <SearchField value={q} onChange={setQ} />

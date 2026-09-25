@@ -26,6 +26,7 @@ import type {
   CalendarBuilderData as CalendarData,
   CalPeriod as Period,
 } from "../lib/types";
+import { DateInput } from '../components/DateInput';
 
 /* ============================================================================
    Construtor de Calendário Escolar — React + TypeScript
@@ -728,14 +729,8 @@ function CalendarBuilder({
                     <select className="cb-input" value={ev.categoryId} onChange={(e) => updateEvent(ev.id, { categoryId: e.target.value })}>
                       {data.categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
                     </select>
-                    <input className="cb-input" type="date" value={ev.start} onChange={(e) => updateEvent(ev.id, { start: e.target.value })} />
-                    <input
-                      className="cb-input"
-                      type="date"
-                      value={ev.end ?? ""}
-                      placeholder="fim (opcional)"
-                      onChange={(e) => updateEvent(ev.id, { end: e.target.value || undefined })}
-                    />
+                    <DateInput value={ev.start} onChange={(v) => v && updateEvent(ev.id, { start: v })} />
+                    <DateInput value={ev.end ?? ""} min={ev.start} placeholder="fim (opcional)" onChange={(v) => updateEvent(ev.id, { end: v || undefined })} />
                     <button className="cb-del" onClick={() => removeEvent(ev.id)} aria-label="Remover">× remover</button>
                   </div>
                 </div>

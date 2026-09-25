@@ -146,6 +146,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <LayoutGrid size={18} />
             <span>Painel do administrador</span>
           </NavLink>
+          <NavLink to="/admin/usuarios" onClick={onNavigate} className={linkCls}>
+            <UserCog size={18} />
+            <span>Usuários</span>
+          </NavLink>
           <NavLink to="/admin/logs" onClick={onNavigate} className={linkCls}>
             <ScrollText size={18} />
             <span>Central de logs</span>
@@ -377,6 +381,9 @@ function TopNav() {
           <>
             <NavLink to="/admin" end className={({ isActive: a }) => topCls(a)}>
               <LayoutGrid size={16} /> Administrador
+            </NavLink>
+            <NavLink to="/admin/usuarios" className={({ isActive: a }) => topCls(a)}>
+              <UserCog size={16} /> Usuários
             </NavLink>
             <NavLink to="/admin/logs" className={({ isActive: a }) => topCls(a)}>
               <ScrollText size={16} /> Logs

@@ -14,6 +14,7 @@ export interface UserRow {
   is_admin: number;
   must_change_pw: number;
   active_base_id: string | null;
+  disabled?: number;
 }
 
 /** Contexto de cada chamada autenticada. baseId/role se referem à base ativa. */
@@ -107,7 +108,7 @@ export async function userFromToken(db: D1Database, token: string | undefined): 
   if (!token) return null;
   return first<UserRow>(
     db,
-    `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ? AND s.expires_at > ?`,
+    `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ? AND s.expires_at > ? AND u.disabled = 0`,
     await sha256(token),
     now(),
   );

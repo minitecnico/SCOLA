@@ -265,6 +265,31 @@ export interface HqStats {
   sessions_30d: number;
 }
 export const listOrgAdmin = () => rpc<OrgAdmin[]>('listOrgAdmin');
+
+/* ------------------------- Usuários (só o administrador) ------------------------- */
+export interface AdminUser {
+  id: string;
+  email: string;
+  full_name: string | null;
+  phone: string | null;
+  is_admin: boolean;
+  disabled: boolean;
+  must_change_pw: boolean;
+  created_at: string;
+  last_login_at: string | null;
+  sessions: number;
+  bases: { base_id: string; base_name: string; role: AppRole; active: number }[];
+}
+export const listUsersAdmin = () => rpc<AdminUser[]>('listUsersAdmin');
+export const updateUserAdmin = (userId: string, input: { full_name: string; email: string; phone: string | null }) =>
+  rpc<{ id: string; email: string; full_name: string }>('updateUserAdmin', userId, input);
+/** Sem senha = gera provisória (devolvida uma vez). */
+export const setUserPasswordAdmin = (userId: string, password: string | null, mustChange: boolean) =>
+  rpc<{ password: string | null; email: string; name: string | null }>('setUserPasswordAdmin', userId, password, mustChange);
+export const setUserDisabled = (userId: string, disabled: boolean) => rpc<void>('setUserDisabled', userId, disabled);
+export const endUserSessions = (userId: string) => rpc<{ ended: number }>('endUserSessions', userId);
+export const setUserBase = (userId: string, baseId: string, role: AppRole | null) => rpc<void>('setUserBase', userId, baseId, role);
+export const deleteUserAdmin = (userId: string) => rpc<void>('deleteUserAdmin', userId);
 export const hqStats = () => rpc<HqStats>('hqStats');
 export const createBase = (input: { name: string; city?: string; plan?: string; max_students?: number | null; subject?: string; manager_name: string; manager_email: string }) =>
   rpc<{ id: string; userId: string; email: string; password: string | null }>('createBase', input);

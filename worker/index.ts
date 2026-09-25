@@ -15,12 +15,13 @@ import * as logs from './handlers/logs';
 import * as notas from './handlers/notas';
 import * as painel from './handlers/painel';
 import * as provas from './handlers/provas';
+import * as usuarios from './handlers/usuarios';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
 const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades']);
 const handlers: Record<string, Handler> = {};
-for (const mod of [alertas, cadastros, chamadas, comunicacao, contas, logs, notas, painel, provas]) {
+for (const mod of [alertas, cadastros, chamadas, comunicacao, contas, logs, notas, painel, provas, usuarios]) {
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn === 'function' && !INTERNAL.has(name)) handlers[name] = fn as Handler;
   }
@@ -105,6 +106,14 @@ app.post('/api/auth/login', async (c) => {
     fail('E-mail ou senha incorretos.', 401);
   }
   await clearFailures(db, email);
+  // Conta bloqueada pelo administrador: a senha está certa, mas não entra.
+  if (user!.disabled) {
+    bg(c, insertLog(db, {
+      email, userId: user!.id, action: 'login_falhou', category: 'acesso', summary: 'Tentativa de login de conta bloqueada', status: 'negado',
+      detail: 'Conta bloqueada pelo administrador', baseId: user!.active_base_id, ...origin(c),
+    }));
+    fail('Seu acesso está bloqueado. Fale com o administrador do SCOLA.', 403);
+  }
   // Contas migradas (bcrypt) ou com custo antigo ganham hash novo, de forma transparente.
   const it = iterationsFor(c.env);
   if (needsRehash(user!.password_hash, it)) {

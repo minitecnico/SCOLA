@@ -29,6 +29,7 @@ const DownloadPlanPage = lazyPage(() => import('../pages/DownloadPlanPage'), 'Do
 const SharedReportPage = lazyPage(() => import('../pages/SharedReportPage'), 'SharedReportPage');
 const AdminPage = lazyPage(() => import('../pages/admin/AdminPage'), 'AdminPage');
 const LogsPage = lazyPage(() => import('../pages/admin/LogsPage'), 'LogsPage');
+const UsersPage = lazyPage(() => import('../pages/admin/UsersPage'), 'UsersPage');
 const ProvasPage = lazyPage(() => import('../pages/ProvasPage'), 'ProvasPage');
 const ProvaDetailPage = lazyPage(() => import('../pages/ProvaDetailPage'), 'ProvaDetailPage');
 
@@ -67,6 +68,7 @@ function Protected() {
         <Routes>
           {isSuperadmin ? <Route path="/admin" element={<AdminPage />} /> : null}
           {isSuperadmin ? <Route path="/admin/logs" element={<LogsPage />} /> : null}
+          {isSuperadmin ? <Route path="/admin/usuarios" element={<UsersPage />} /> : null}
           {adminHome ? (
             <Route path="*" element={<Navigate to="/admin" replace />} />
           ) : (

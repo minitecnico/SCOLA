@@ -169,6 +169,12 @@ export const ACTIONS: Record<string, Spec> = {
   updateOrganization: { cat: 'admin', label: 'Editou base', refs: (a) => ({ baseId: a[0] }) },
   setOrgActive: { cat: 'admin', label: (a) => (a[1] ? 'Reativou base' : 'Suspendeu base'), refs: (a) => ({ baseId: a[0] }) },
   deleteOrganization: { cat: 'admin', label: 'Excluiu base', refs: (a) => ({ baseId: a[0] }), pre: true },
+  updateUserAdmin: { cat: 'admin', label: 'Editou dados de usuário', refs: (a) => ({ userId: a[0], text: s(a[1]?.email) }) },
+  setUserPasswordAdmin: { cat: 'admin', label: (a) => (a[1] ? 'Definiu a senha de usuário' : 'Gerou senha provisória de usuário'), refs: (a) => ({ userId: a[0] }) },
+  setUserDisabled: { cat: 'admin', label: (a) => (a[1] ? 'Bloqueou usuário' : 'Desbloqueou usuário'), refs: (a) => ({ userId: a[0] }) },
+  endUserSessions: { cat: 'admin', label: 'Desconectou usuário de todos os aparelhos', refs: (a) => ({ userId: a[0] }) },
+  setUserBase: { cat: 'admin', label: (a) => (a[2] ? 'Vinculou usuário a base' : 'Desvinculou usuário de base'), refs: (a) => ({ baseId: a[1], userId: a[0], text: a[2] ? ROLE_PT[a[2]] ?? s(a[2]) : null }) },
+  deleteUserAdmin: { cat: 'admin', label: 'Excluiu usuário', refs: (a) => ({ userId: a[0] }), pre: true },
 };
 
 export const labelOf = (spec: Spec, args: unknown[]) => (typeof spec.label === 'function' ? spec.label(args) : spec.label);

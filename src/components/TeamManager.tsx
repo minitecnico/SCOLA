@@ -14,7 +14,7 @@ export interface Credentials {
 }
 
 /** Mostra a senha provisória UMA vez, com mensagem pronta para enviar por WhatsApp/e-mail. */
-export function CredentialsModal({ creds, onClose }: { creds: Credentials | null; onClose: () => void }) {
+export function CredentialsModal({ creds, onClose, title = 'Acesso criado' }: { creds: Credentials | null; onClose: () => void; title?: string }) {
   const [copied, setCopied] = useState(false);
   if (!creds) return null;
   const message =
@@ -27,7 +27,7 @@ export function CredentialsModal({ creds, onClose }: { creds: Credentials | null
     setTimeout(() => setCopied(false), 2000);
   }
   return (
-    <Modal open onClose={onClose} title="Acesso criado">
+    <Modal open onClose={onClose} title={title}>
       <p className="text-sm text-muted-foreground">Anote ou envie agora — a senha provisória não será exibida de novo.</p>
       <div className="mt-4 space-y-2 rounded-lg bg-neutral-950 p-4 font-mono text-sm text-white">
         <p><span className="text-neutral-500">E-mail </span>{creds.email}</p>

@@ -3,6 +3,7 @@ export type AttendanceStatus = 'present' | 'absent' | 'late' | 'justified';
 export interface School {
   id: string;
   name: string;
+  cnpj?: string | null;
   city: string | null;
   logo_url: string | null;
   director: string | null;

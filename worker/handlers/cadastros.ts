@@ -4,7 +4,7 @@ import { all, bools, fail, first, inList, json, run, stmt, uid } from '../db';
 /* A base É a escola: o frontend continua enxergando uma "escola" (id = base.id)
    para cabeçalhos de relatório, boletim etc. — sem cadastro duplicado. */
 type BaseRow = {
-  id: string; name: string; city: string | null; logo_url: string | null; director: string | null;
+  id: string; name: string; cnpj: string | null; city: string | null; logo_url: string | null; director: string | null;
   address: string | null; phone: string | null; inep: string | null; subject: string | null; active: number; created_at: string;
   max_students: number | null;
 };
@@ -19,8 +19,10 @@ export async function listSchools(ctx: Ctx) {
   const base = requireBase(ctx);
   const b = await first<BaseRow>(ctx.db, 'SELECT * FROM bases WHERE id = ?', base);
   if (!b) return [];
-  return [{ id: b.id, name: b.name, city: b.city, logo_url: b.logo_url, director: b.director, address: b.address, phone: b.phone, inep: b.inep, subject: b.subject, active: !!b.active, created_at: b.created_at }];
+  return [{ id: b.id, name: b.name, cnpj: b.cnpj, city: b.city, logo_url: b.logo_url, director: b.director, address: b.address, phone: b.phone, inep: b.inep, subject: b.subject, active: !!b.active, created_at: b.created_at }];
 }
+
+const clean = (v: unknown) => (v == null ? null : String(v).trim() || null);
 
 export async function saveSchool(ctx: Ctx, input: Record<string, string | null>) {
   const base = requireRole(ctx, ...CADASTRO);
@@ -28,9 +30,9 @@ export async function saveSchool(ctx: Ctx, input: Record<string, string | null>)
   if (!name) fail('Informe o nome da escola.');
   await run(
     ctx.db,
-    'UPDATE bases SET name = ?, city = ?, logo_url = ?, director = ?, address = ?, phone = ?, inep = ?, subject = ? WHERE id = ?',
-    name, input.city ?? null, input.logo_url ?? null, input.director ?? null, input.address ?? null, input.phone ?? null, input.inep ?? null,
-    (input.subject ?? '').trim() || null, base,
+    'UPDATE bases SET name = ?, cnpj = ?, city = ?, logo_url = ?, director = ?, address = ?, phone = ?, inep = ?, subject = ? WHERE id = ?',
+    name, clean(input.cnpj), clean(input.city), input.logo_url ?? null, clean(input.director), clean(input.address), clean(input.phone), clean(input.inep),
+    clean(input.subject), base,
   );
   return (await listSchools(ctx))[0];
 }

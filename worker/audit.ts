@@ -136,6 +136,12 @@ export const ACTIONS: Record<string, Spec> = {
   bulkDeleteEvalGrades: { cat: 'notas', label: 'Apagou avaliações', refs: (a) => ({ classId: a[0], text: `${term(a[2], a[1])} · ${n(a[3])} aluno(s)` }) },
   applyCreditoToGrades: { cat: 'notas', label: 'Aplicou o crédito variável nas notas', refs: (a) => ({ classId: a[0], text: term(a[2], a[1]) }) },
   createSharedReport: { cat: 'notas', label: 'Gerou link público de relatório' },
+  // Provas (gabarito e correção pela câmera)
+  saveExam: { cat: 'notas', label: (a) => ((a[0] as { id?: string })?.id ? 'Editou prova/gabarito' : 'Criou prova'), refs: (a) => ({ classId: a[0]?.class_id, text: s(a[0]?.title) }) },
+  deleteExam: { cat: 'notas', label: 'Excluiu prova', pre: true },
+  saveExamAnswer: { cat: 'notas', label: (a) => (a[3] === 'manual' ? 'Corrigiu prova (ajuste manual)' : 'Corrigiu prova pela câmera'), refs: (a) => ({ studentId: a[1] }), result: (r) => (r ? `${r.correct}/${r.total} acertos · nota ${r.score}` : null) },
+  deleteExamAnswer: { cat: 'notas', label: 'Apagou correção de prova', refs: (a) => ({ studentId: a[1] }) },
+  sendExamToGrades: { cat: 'notas', label: 'Lançou notas da prova no diário', refs: (a) => ({ text: term(a[2], a[1]) }), result: (r) => (r ? `${r.sent} aluno(s) na coluna ${r.column}` : null) },
   // Comunicação e planejamento
   sendNotice: { cat: 'comunicacao', label: 'Enviou aviso', refs: (a) => ({ text: s(a[0]?.title) }) },
   deleteNotice: { cat: 'comunicacao', label: 'Excluiu aviso' },

@@ -28,6 +28,8 @@ const DownloadPlanPage = lazyPage(() => import('../pages/DownloadPlanPage'), 'Do
 const SharedReportPage = lazyPage(() => import('../pages/SharedReportPage'), 'SharedReportPage');
 const AdminPage = lazyPage(() => import('../pages/admin/AdminPage'), 'AdminPage');
 const LogsPage = lazyPage(() => import('../pages/admin/LogsPage'), 'LogsPage');
+const ProvasPage = lazyPage(() => import('../pages/ProvasPage'), 'ProvasPage');
+const ProvaDetailPage = lazyPage(() => import('../pages/ProvaDetailPage'), 'ProvaDetailPage');
 
 const qc = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, staleTime: 30_000, retry: 1 } },
@@ -72,6 +74,8 @@ function Protected() {
               <Route path="/chamadas" element={<Gate module="chamadas"><AttendancePage /></Gate>} />
               <Route path="/notas" element={<Gate module="notas"><NotasPage /></Gate>} />
               <Route path="/avaliacoes" element={<Gate module="notas"><EvaluationsPage /></Gate>} />
+              <Route path="/provas" element={<Gate module="notas"><ProvasPage /></Gate>} />
+              <Route path="/provas/:id" element={<Gate module="notas"><ProvaDetailPage /></Gate>} />
               <Route path="/planejamento" element={<Gate module="planejamentos"><PlanejamentoPage /></Gate>} />
               <Route path="/relatorios" element={<Gate module="relatorios"><ReportsPage /></Gate>} />
               <Route path="/avisos" element={<Gate module="avisos"><AvisosPage /></Gate>} />

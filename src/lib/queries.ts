@@ -438,3 +438,52 @@ export interface LogOverview {
   bases: { id: string; name: string; active: boolean; last: string | null; actions7d: number }[];
 }
 export const logOverview = () => rpc<LogOverview>('logOverview');
+
+/* ------------------------- Provas (gabarito e correção pela câmera) ------------------------- */
+export interface Exam {
+  id: string;
+  class_id: string;
+  class_name?: string;
+  code: string;
+  title: string;
+  exam_date: string | null;
+  questions: number;
+  choices: number;
+  answer_key: string[];
+  points: number;
+  created_at: string;
+  updated_at: string | null;
+}
+export interface ExamListItem extends Exam {
+  class_name: string;
+  students: number;
+  corrected: number;
+  average: number | null;
+}
+export interface ExamDetail {
+  exam: Exam & { class_name: string };
+  students: { id: string; name: string; short: string }[];
+  answers: { student_id: string; answers: string[]; source: string; updated_at: string }[];
+}
+export type ExamInput = {
+  id?: string;
+  class_id: string;
+  title: string;
+  exam_date?: string | null;
+  questions: number;
+  choices: number;
+  points: number;
+  answer_key?: string[];
+};
+export const listExams = () => rpc<ExamListItem[]>('listExams');
+export const getExam = (id: string) => rpc<ExamDetail>('getExam', id);
+export const getExamByCode = (code: string) => rpc<ExamDetail>('getExamByCode', code);
+export const saveExam = (input: ExamInput) => rpc<ExamDetail>('saveExam', input);
+export const deleteExam = (id: string) => rpc<void>('deleteExam', id);
+export const saveExamAnswer = (examId: string, studentId: string, answers: string[], source: 'camera' | 'manual') =>
+  rpc<{ correct: number; total: number; score: number }>('saveExamAnswer', examId, studentId, answers, source);
+export const deleteExamAnswer = (examId: string, studentId: string) => rpc<void>('deleteExamAnswer', examId, studentId);
+export const examGradeTargets = (examId: string, year: number, term: number) =>
+  rpc<{ key: string; name: string; max: number; filled: number }[]>('examGradeTargets', examId, year, term);
+export const sendExamToGrades = (examId: string, year: number, term: number, key: string) =>
+  rpc<{ sent: number; column: string; max: number }>('sendExamToGrades', examId, year, term, key);

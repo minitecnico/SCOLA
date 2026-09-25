@@ -72,6 +72,18 @@ npm run migrar -- --aplicar    # grava no Cloudflare
 - A pasta `migracao/` gerada contém dados pessoais: não a envie ao GitHub (já está no `.gitignore`).
 - Quem entrava só pelo Google não tinha senha: o script avisa, e você gera a senha em **Equipe**.
 
+## Provas e correção pela câmera
+
+Menu **Provas e correção** (gestão e professores):
+
+1. **Gabarito:** cria a prova (turma, nº de questões até 60, alternativas A–D ou A–E, valor) e marca a resposta certa. "Anular" conta a questão como certa para todos.
+2. **Folhas:** imprime uma folha de respostas por aluno, com o nome e um QR code (`S1:<código da prova>:<aluno>`). Também há folhas avulsas.
+3. **Corrigir:** a câmera do celular lê o QR (identifica prova e aluno), acha as 4 marcas dos cantos, corrige a perspectiva e lê as bolinhas. O professor confere e salva.
+4. **Resultados:** notas, acerto por questão (com aviso de possível erro no gabarito), Excel e **Lançar no diário**, que grava a nota proporcional ao valor da coluna escolhida em Notas, sem mexer nas outras colunas.
+
+Tudo roda no aparelho (sem custo de servidor). A câmera ao vivo exige HTTPS; no computador de desenvolvimento acessado pelo IP da rede, use "Usar foto".
+Código: `src/lib/omr/` (geometria da folha, leitura e nota), `src/components/ExamScanner.tsx`, `worker/handlers/provas.ts`.
+
 ## Rodar no computador (desenvolvimento)
 
 ```bash

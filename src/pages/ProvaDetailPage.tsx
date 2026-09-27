@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookCheck, BookOpenCheck, Download, FileSpreadsheet, KeyRound, MoreHorizontal, Pencil, Printer, ScanLine, Trash2, Users } from 'lucide-react';
+import { BookCheck, BookOpenCheck, Copy, Link2, Tag, Download, FileSpreadsheet, KeyRound, MoreHorizontal, Pencil, Printer, ScanLine, Trash2, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
@@ -9,9 +9,9 @@ import { successToast } from '../components/Feedback';
 import { Button, DropdownMenu, EmptyState, Field, Input, Loading, Modal, PageHeader, SegmentedField, StatTile, StatusBadge, fieldCls } from '../components/ui';
 import { cn } from '../lib/cn';
 import { downloadXlsx } from '../lib/importSheet';
-import { keyPayload, LETTERS } from '../lib/omr/layout';
+import { examLink, keyPayload, LETTERS } from '../lib/omr/layout';
 import { keyComplete, scoreAnswers } from '../lib/omr/score';
-import { printKeyCard, printSheets, qrDataUrl, sheetSvg } from '../lib/omr/sheet';
+import { examQrPng, printKeyCard, printLabels, printSheets, qrDataUrl, sheetSvg } from '../lib/omr/sheet';
 import {
   classGradeTargets, deleteExam, deleteExamAnswer, examGradeTargets, getExam, listClasses, listSchools, saveExam, saveExamAnswer, sendExamToGrades, type ExamDetail,
 } from '../lib/queries';
@@ -84,14 +84,14 @@ export function ProvaDetailPage() {
           onChange={setTab}
           options={[
             { value: 'gabarito', label: '1. Gabarito' },
-            { value: 'folhas', label: '2. QR e folhas' },
+            { value: 'folhas', label: exam.sheet === 'propria' ? '2. QR codes' : '2. QR e folhas' },
             { value: 'resultados', label: `3. Resultados${data.answers.length ? ` (${data.answers.length})` : ''}` },
           ]}
         />
       </div>
 
       {tab === 'gabarito' ? <KeyTab data={data} onSaved={() => setTab('folhas')} /> : null}
-      {tab === 'folhas' ? <SheetsTab data={data} /> : null}
+      {tab === 'folhas' ? exam.sheet === 'propria' ? <PropriaQrTab data={data} onScan={() => setScanning(true)} /> : <SheetsTab data={data} /> : null}
       {tab === 'resultados' ? <ResultsTab data={data} onScan={() => setScanning(true)} /> : null}
 
       <ExamScanner open={scanning} onClose={() => setScanning(false)} initial={data} />
@@ -116,6 +116,7 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
       key: Array.from({ length: exam.questions }, (_, i) => exam.answer_key[i] ?? ''),
       grade_term: exam.grade_term ?? 0,
       grade_key: exam.grade_key ?? '',
+      sheet: exam.sheet,
     }),
     [exam],
   );
@@ -153,6 +154,7 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
         grade_year: gradeYear,
         grade_term: form.grade_term || null,
         grade_key: form.grade_term ? form.grade_key : null,
+        sheet: form.sheet,
       }),
     onSuccess: (d) => {
       qc.setQueryData(['exam', exam.id], d);
@@ -225,6 +227,24 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
           </Field>
         </div>
         {locked ? <p className="mt-3 text-xs text-muted-foreground">Turma, questões e alternativas ficam travadas depois da primeira correção (as folhas já impressas dependem disso).</p> : null}
+
+        <div className="mt-5 border-t border-border pt-4">
+          <Field label="Como os alunos respondem">
+            <SegmentedField
+              value={form.sheet}
+              onChange={(v) => setForm((f) => ({ ...f, sheet: v as 'propria' | 'scola' }))}
+              options={[
+                { value: 'propria', label: 'Prova da escola (QR)' },
+                { value: 'scola', label: 'Folha SCOLA (leitura automática)' },
+              ]}
+            />
+          </Field>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {form.sheet === 'propria'
+              ? 'A escola usa a própria prova. O SCOLA gera o QR (para o modelo ou em etiquetas) e, ao escanear, você só toca nas questões erradas.'
+              : 'Os alunos respondem na folha de bolinhas do SCOLA e a câmera lê as marcações sozinha.'}
+          </p>
+        </div>
 
         {/* Lançamento automático no diário */}
         <div className="mt-5 border-t border-border pt-4">
@@ -537,7 +557,7 @@ function ResultsTab({ data, onScan }: { data: ExamDetail; onScan: () => void }) 
       <EmptyState
         icon={<ScanLine size={26} />}
         title="Nenhuma folha corrigida ainda"
-        hint="Depois de aplicar a prova, toque em Corrigir e aponte a câmera para cada folha."
+        hint={exam.sheet === 'propria' ? 'Depois de aplicar a prova, escaneie o QR de cada prova (ou toque em Corrigir) e marque só as questões erradas.' : 'Depois de aplicar a prova, toque em Corrigir e aponte a câmera para cada folha.'}
         action={
           <Button onClick={onScan}>
             <ScanLine size={16} /> Corrigir agora
@@ -593,10 +613,16 @@ function ResultsTab({ data, onScan }: { data: ExamDetail; onScan: () => void }) 
                   icon={<MoreHorizontal size={16} />}
                   items={[
                     {
-                      label: x.r ? 'Ajustar respostas' : 'Lançar respostas à mão',
-                      hint: x.r ? undefined : 'Para folha rasgada ou perdida.',
+                      label: x.r ? 'Ajustar respostas' : exam.sheet === 'propria' ? 'Corrigir agora' : 'Lançar respostas à mão',
+                      hint: x.r ? undefined : exam.sheet === 'propria' ? 'Sem escanear: marque as erradas.' : 'Para folha rasgada ou perdida.',
                       icon: <Pencil size={15} />,
-                      onClick: () => setEditing({ id: x.id, name: x.name, answers: x.a?.answers ?? Array(exam.questions).fill('') }),
+                      onClick: () =>
+                        setEditing({
+                          id: x.id,
+                          name: x.name,
+                          // Prova da escola: começa pelo gabarito (tudo certo) e o professor marca as erradas.
+                          answers: x.a?.answers ?? (exam.sheet === 'propria' ? exam.answer_key.map((k) => (k === 'X' ? '' : k)) : Array(exam.questions).fill('')),
+                        }),
                     },
                     { label: 'Apagar correção', icon: <Trash2 size={15} />, danger: true, hidden: !x.r, onClick: () => confirm(`Apagar a correção de ${x.name}?`) && delAnswer.mutate(x.id) },
                   ]}
@@ -770,5 +796,135 @@ function SendToGradesModal({ open, onClose, data, count }: { open: boolean; onCl
         </div>
       </div>
     </Modal>
+  );
+}
+
+/* ------------------------- Prova da escola: QR codes ------------------------- */
+function PropriaQrTab({ data, onScan }: { data: ExamDetail; onScan: () => void }) {
+  const { exam, students } = data;
+  const ready = keyComplete(exam.answer_key, exam.questions);
+  const link = examLink(window.location.origin, exam.code, null);
+  const [png, setPng] = useState('');
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void examQrPng(exam.code).then((u) => alive && setPng(u));
+    return () => {
+      alive = false;
+    };
+  }, [exam.code]);
+  const info = { title: exam.title, className: exam.class_name, examCode: exam.code };
+
+  return (
+    <div className="space-y-5">
+      {!ready ? (
+        <p className="rounded-lg bg-orange-50 px-3 py-2 text-sm text-orange-900 ring-1 ring-inset ring-orange-200">
+          Complete o gabarito (aba 1) para corrigir. O QR já pode ser impresso.
+        </p>
+      ) : null}
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        {/* QR único da prova */}
+        <section className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-soft sm:p-5">
+          <div className="mb-4 flex items-start gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-neutral-950 text-brand">
+              <Link2 size={16} />
+            </span>
+            <div>
+              <h2 className="text-sm font-bold text-foreground">QR da prova</h2>
+              <p className="text-xs text-muted-foreground">Um só QR para todas as cópias. Cole no modelo da prova da escola (Word, Docs…) antes de imprimir.</p>
+            </div>
+          </div>
+          <div className="flex flex-1 flex-col items-center gap-4 sm:flex-row sm:items-start">
+            <div className="w-40 shrink-0 rounded-xl bg-white p-2 ring-1 ring-border">{png ? <img src={png} alt="QR da prova" className="aspect-square w-full" /> : <div className="aspect-square" />}</div>
+            <div className="min-w-0 space-y-2 text-xs text-muted-foreground">
+              <p>
+                <b className="text-foreground">Ao escanear:</b> abre a correção desta prova e você escolhe o aluno (os pendentes aparecem primeiro).
+              </p>
+              <p>O QR não contém as respostas: é seguro deixar na prova do aluno.</p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <a
+                  href={png || undefined}
+                  download={`QR - ${exam.title} - ${exam.class_name}.png`.replace(/[\\/:*?"<>|]/g, '-')}
+                  className={cn('inline-flex min-h-10 items-center gap-2 rounded-lg bg-neutral-950 px-3.5 text-sm font-semibold text-white hover:bg-black', !png && 'pointer-events-none opacity-40')}
+                >
+                  <Download size={15} /> Baixar imagem
+                </a>
+                <button
+                  onClick={() => void navigator.clipboard.writeText(link).then(() => successToast('Link copiado'))}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3.5 text-sm font-semibold text-foreground ring-1 ring-inset ring-border hover:bg-muted"
+                >
+                  <Copy size={15} /> Copiar link
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Etiquetas por aluno */}
+        <section className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-soft sm:p-5">
+          <div className="mb-4 flex items-start gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-neutral-950 text-brand">
+              <Tag size={16} />
+            </span>
+            <div>
+              <h2 className="text-sm font-bold text-foreground">Etiquetas com o nome do aluno</h2>
+              <p className="text-xs text-muted-foreground">Uma etiqueta por aluno, com QR próprio. Recorte e cole (ou grampeie) na prova.</p>
+            </div>
+          </div>
+          <div className="flex flex-1 flex-col gap-4 sm:flex-row sm:items-start">
+            <div className="flex w-full shrink-0 items-center gap-3 rounded-lg border border-dashed border-neutral-300 bg-white p-3 sm:w-56">
+              {png ? <img src={png} alt="" className="h-16 w-16" /> : <div className="h-16 w-16" />}
+              <div className="min-w-0 text-[11px] leading-tight text-neutral-800">
+                <p className="truncate text-xs font-extrabold">{students[0]?.name ?? 'Nome do aluno'}</p>
+                <p className="truncate">{exam.class_name}</p>
+                <p className="truncate">{exam.title}</p>
+              </div>
+            </div>
+            <div className="min-w-0 space-y-2 text-xs text-muted-foreground">
+              <p>
+                <b className="text-foreground">Ao escanear:</b> o aluno já vem selecionado. É o jeito mais rápido de corrigir.
+              </p>
+              <p>A4, 3 × 8 etiquetas (70 × 35 mm). Serve papel comum ou folha de etiquetas.</p>
+              <Button
+                onClick={async () => {
+                  setPrinting(true);
+                  try {
+                    await printLabels(info, students);
+                  } finally {
+                    setPrinting(false);
+                  }
+                }}
+                disabled={!students.length || printing}
+              >
+                <Printer size={16} /> {printing ? 'Preparando…' : `Imprimir etiquetas (${students.length})`}
+              </Button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section className="rounded-xl border border-border bg-card p-4 shadow-soft sm:p-5">
+        <h2 className="mb-3 text-sm font-bold text-foreground">Como corrigir</h2>
+        <ol className="grid gap-3 sm:grid-cols-3">
+          {[
+            ['Escaneie', 'Com a câmera do celular (ou o botão Corrigir), aponte para o QR da prova.'],
+            ['Toque nas erradas', 'O gabarito já vem marcado. Toque só na letra que o aluno marcou quando ele errou.'],
+            ['Salve', `A nota sai na hora${exam.grade_term ? ' e vai para o diário' : ''}. Escaneie a próxima.`],
+          ].map(([t, d], i) => (
+            <li key={t} className="flex gap-3">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-neutral-950 text-xs font-bold text-brand">{i + 1}</span>
+              <span>
+                <span className="block text-sm font-semibold text-foreground">{t}</span>
+                <span className="block text-xs text-muted-foreground">{d}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+        <Button className="mt-4" onClick={onScan} disabled={!ready}>
+          <ScanLine size={16} /> Corrigir agora
+        </Button>
+      </section>
+    </div>
   );
 }

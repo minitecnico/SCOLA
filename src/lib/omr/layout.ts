@@ -79,10 +79,21 @@ export const qrPayload = (examCode: string, studentId: string | null) =>
   `S1:${examCode.toUpperCase()}:${studentId ? studentId.replace(/-/g, '').slice(0, 8).toUpperCase() : '0'}`;
 
 export function parseQr(text: string): { code: string; student: string | null } | null {
-  const m = /^S1:([A-Z0-9]{4,12}):([A-Z0-9]{1,12})$/.exec(String(text || '').trim().toUpperCase());
-  if (!m) return null;
-  return { code: m[1], student: m[2] === '0' ? null : m[2] };
+  const t = String(text || '').trim();
+  const m = /^S1:([A-Z0-9]{4,12}):([A-Z0-9]{1,12})$/.exec(t.toUpperCase());
+  if (m) return { code: m[1], student: m[2] === '0' ? null : m[2] };
+  // QR "inteligente" da prova da escola: link …/p/<código>[/<aluno>]
+  const u = /\/p\/([A-Z0-9]{4,12})(?:\/([A-Z0-9]{1,12}))?\/?(?:[?#]|$)/i.exec(t);
+  if (u) return { code: u[1].toUpperCase(), student: u[2] ? u[2].toUpperCase() : null };
+  return null;
 }
+
+/**
+ * QR da prova da escola: um LINK. A câmera de qualquer celular abre a correção
+ * (do aluno, na etiqueta; ou da prova, com escolha do aluno). Não contém respostas.
+ */
+export const examLink = (origin: string, code: string, studentId: string | null) =>
+  `${origin}/p/${code.toUpperCase()}${studentId ? `/${studentShort(studentId)}` : ''}`;
 
 export const studentShort = (id: string) => id.replace(/-/g, '').slice(0, 8).toUpperCase();
 

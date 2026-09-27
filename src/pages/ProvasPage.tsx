@@ -68,9 +68,9 @@ export function ProvasPage() {
       {/* Como funciona: aparece enquanto há poucas provas */}
       <ol className={cn('mb-6 grid gap-2 sm:grid-cols-3', exams.length >= 2 && 'hidden')}>
         {[
-          { icon: <FileText size={16} />, t: 'Crie a prova e o gabarito', d: 'Gera 2 QR codes: o seu (com as respostas) e o da folha de cada aluno.' },
-          { icon: <Printer size={16} />, t: 'Imprima as folhas', d: 'Uma por aluno, já com o nome e um QR code que identifica a prova.' },
-          { icon: <ScanLine size={16} />, t: 'Corrija em massa', d: 'Leia o seu QR e passe as folhas: as notas saem na hora e vão para o diário.' },
+          { icon: <FileText size={16} />, t: 'Preencha o gabarito', d: 'As respostas certas da prova de vocês, em sequência (ABDCE…).' },
+          { icon: <Printer size={16} />, t: 'Gere o QR', d: 'Cole o QR no modelo da prova ou imprima etiquetas com o nome de cada aluno.' },
+          { icon: <ScanLine size={16} />, t: 'Escaneie e corrija', d: 'O gabarito vem marcado: toque só nas erradas. A nota sai na hora.' },
         ].map((s, i) => (
           <li key={s.t} className="flex gap-3 rounded-xl border border-border bg-card p-3">
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-neutral-950 text-sm font-bold text-brand">{i + 1}</span>
@@ -144,9 +144,13 @@ export function ProvasPage() {
 export function NewExamModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
   const qc = useQueryClient();
   const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: listClasses, enabled: open });
-  const [form, setForm] = useState({ title: '', class_id: '', exam_date: localToday(), questions: '10', choices: 5, points: '10' });
+  const [form, setForm] = useState({ title: '', class_id: '', exam_date: localToday(), questions: '10', choices: 5, points: '10', sheet: 'propria' as 'propria' | 'scola', key: '' });
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
   const classId = form.class_id || classes[0]?.id || '';
+  // Gabarito digitado em sequência ("ABDCE ACBDA…"); X = anulada.
+  const nQ = Math.max(1, Math.min(MAX_QUESTIONS, Number(form.questions) || 1));
+  const validLetters = 'ABCDE'.slice(0, form.choices) + 'X';
+  const keySeq = form.key.toUpperCase().split('').filter((c) => validLetters.includes(c));
 
   const create = useMutation({
     mutationFn: () =>
@@ -157,6 +161,8 @@ export function NewExamModal({ open, onClose, onCreated }: { open: boolean; onCl
         questions: Number(form.questions),
         choices: form.choices,
         points: Number(String(form.points).replace(',', '.')),
+        sheet: form.sheet,
+        answer_key: keySeq.slice(0, nQ),
       }),
     onSuccess: (d) => {
       qc.invalidateQueries({ queryKey: ['exams'] });
@@ -213,13 +219,41 @@ export function NewExamModal({ open, onClose, onCreated }: { open: boolean; onCl
             ]}
           />
         </Field>
+        <Field label="Gabarito (respostas certas, em sequência)">
+          <input
+            value={form.key}
+            onChange={(e) => set('key', e.target.value.toUpperCase().replace(new RegExp(`[^${validLetters} ]`, 'g'), ''))}
+            placeholder={form.choices === 4 ? 'Ex.: ABDC ACBD DA…' : 'Ex.: ABDCE ACBDA…'}
+            className={cn(fieldCls, 'font-mono uppercase tracking-widest')}
+            autoCapitalize="characters"
+            autoComplete="off"
+          />
+          <p className={cn('mt-1 text-xs', keySeq.length > nQ ? 'text-red-600' : 'text-muted-foreground')}>
+            {keySeq.length} de {nQ} preenchidas{keySeq.length > nQ ? ' (sobrou resposta)' : ''} · X = questão anulada · dá para completar depois.
+          </p>
+        </Field>
+        <Field label="Como os alunos respondem">
+          <SegmentedField
+            value={form.sheet}
+            onChange={(v) => set('sheet', v as 'propria' | 'scola')}
+            options={[
+              { value: 'propria', label: 'Prova da escola' },
+              { value: 'scola', label: 'Folha SCOLA' },
+            ]}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            {form.sheet === 'propria'
+              ? 'Use a prova de vocês: o SCOLA gera o QR (no modelo ou em etiquetas) e você corrige tocando nas erradas.'
+              : 'Folha de bolinhas do SCOLA, lida automaticamente pela câmera.'}
+          </p>
+        </Field>
         {create.isError ? <p className="text-sm font-semibold text-red-600">{(create.error as Error).message}</p> : null}
         <div className="flex justify-end gap-2 border-t border-border pt-4">
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancelar
           </Button>
           <Button type="submit" disabled={create.isPending || !classId}>
-            {create.isPending ? 'Criando…' : 'Criar e preencher gabarito'}
+            {create.isPending ? 'Criando…' : keySeq.length >= nQ ? 'Criar e gerar QR' : 'Criar prova'}
           </Button>
         </div>
       </form>

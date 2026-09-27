@@ -74,7 +74,18 @@ npm run migrar -- --aplicar    # grava no Cloudflare
 
 ## Provas e correção pela câmera
 
-Menu **Provas e correção** (gestão e professores):
+Menu **Provas e correção** (gestão e professores). Dois tipos de prova:
+
+**Prova da escola (padrão).** A escola usa a própria prova:
+1. **Gabarito:** na criação da prova, digite as respostas certas em sequência (`ABDCE…`, `X` = anulada).
+2. **QR:** o QR é um link (`…/p/<código>` ou `…/p/<código>/<aluno>`) e **não contém as respostas**.
+   - **QR da prova:** baixe a imagem e cole no modelo da prova (Word, Docs). Ao escanear, o professor escolhe o aluno.
+   - **Etiquetas por aluno:** A4, 3 × 8 etiquetas (70 × 35 mm), com nome e QR. Ao escanear, o aluno já vem selecionado.
+3. **Corrigir:** a câmera do celular (até a nativa, pelo link) abre a correção com o gabarito já marcado. O professor toca só nas questões erradas, na letra que o aluno marcou, e salva. A nota sai na hora (e vai para o diário, se configurado).
+
+Se o professor não estiver logado ao escanear, depois do login o sistema volta para a prova escaneada.
+
+**Folha SCOLA (leitura automática).** Os alunos respondem na folha de bolinhas do SCOLA:
 
 1. **Gabarito:** cria a prova (turma, nº de questões até 60, alternativas A–D ou A–E, valor) e marca a resposta certa. "Anular" conta a questão como certa para todos. Opcional: **lançar notas no diário automaticamente** (trimestre + coluna de Notas).
 2. **QR e folhas:** a prova gera 2 QR codes:

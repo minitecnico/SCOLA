@@ -504,6 +504,8 @@ export interface Exam {
   grade_year: number | null;
   grade_term: number | null;
   grade_key: string | null;
+  /** 'propria' = prova da escola (QR + correção tocando) · 'scola' = folha SCOLA lida pela câmera. */
+  sheet: 'propria' | 'scola';
 }
 export interface ExamListItem extends Exam {
   class_name: string;
@@ -528,6 +530,7 @@ export type ExamInput = {
   grade_year?: number | null;
   grade_term?: number | null;
   grade_key?: string | null;
+  sheet?: 'propria' | 'scola';
 };
 export type GradeTarget = { key: string; name: string; max: number; filled: number };
 export type AutoGrade = { column: string | null; term?: number; max?: number; value: number | null; error: string | null } | null;

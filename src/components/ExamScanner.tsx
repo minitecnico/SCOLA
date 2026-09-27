@@ -10,6 +10,7 @@ import { findSheet, locateCorners, project, readAt, type Img, type Pt, type Scan
 import { scoreAnswers } from '../lib/omr/score';
 import { getExamByCode, type AutoGrade, type ExamDetail } from '../lib/queries';
 import { gradeTone, TONE } from '../lib/tone';
+import { QuickGrade, type QuickResult } from './QuickGrade';
 
 /**
  * Correção pela câmera.
@@ -92,7 +93,9 @@ export function ExamScanner({ open, onClose, initial, keyText }: { open: boolean
       /* ok */
     }
   };
-  const [phase, setPhase] = useState<'starting' | 'scanning' | 'review' | 'nocamera'>('starting');
+  const [phase, setPhase] = useState<'starting' | 'scanning' | 'review' | 'quick' | 'nocamera'>('starting');
+  const [quick, setQuick] = useState<{ detail: ExamDetail; studentId: string | null } | null>(null);
+  const lastQuick = useRef<string | null>(null); // QR recém-corrigido: só reabre depois de sair da câmera
   const [hint, setHint] = useState('Aponte para o QR do gabarito do professor ou direto para a folha do aluno.');
   const [active, setActive] = useState<ExamDetail | null>(null);
   const [captured, setCaptured] = useState<Captured | null>(null);
@@ -230,6 +233,7 @@ export function ExamScanner({ open, onClose, initial, keyText }: { open: boolean
       await loadKey(found.text);
       return 'none';
     }
+    if (found.text !== lastQuick.current) lastQuick.current = null;
     if (!found.text) {
       setHint('Aproxime a câmera: a folha está longe e o QR code ficou pequeno.');
       drawOverlay(found.corners, img);
@@ -246,6 +250,19 @@ export function ExamScanner({ open, onClose, initial, keyText }: { open: boolean
       return 'none';
     }
     if (active?.exam.code !== d.exam.code) setActive(d);
+    // Prova da escola: o QR identifica prova (e aluno); a correção é tocando nas erradas.
+    if (d.exam.sheet === 'propria') {
+      if (lastQuick.current === found.text) {
+        setHint('Prova corrigida. Aponte para a próxima.');
+        return 'none';
+      }
+      lastQuick.current = found.text;
+      const st = parsed.student ? d.students.find((x) => x.short === parsed.student) ?? null : null;
+      signal(true);
+      setQuick({ detail: d, studentId: st?.id ?? null });
+      setPhase('quick');
+      return 'review';
+    }
     const corners = found.corners ?? locateCorners(img, null);
     const scan = corners ? readAt(img, d.exam.questions, d.exam.choices, corners) : null;
     drawOverlay(scan?.corners ?? null, img);
@@ -343,6 +360,27 @@ export function ExamScanner({ open, onClose, initial, keyText }: { open: boolean
       tone: g?.error ? 'warn' : 'ok',
     });
     if (g?.error) setFlash({ text: g.error, tone: 'warn' });
+  }
+
+  /** Correção rápida salva: atualiza cache e lista da sessão e volta para a câmera. */
+  function quickSaved(q: QuickResult) {
+    const d = quick!.detail;
+    const answers = { student_id: q.studentId, answers: q.answers, source: 'manual', updated_at: new Date().toISOString() };
+    const next = { ...d, answers: [...d.answers.filter((a) => a.student_id !== q.studentId), answers] };
+    cache.current.set(d.exam.code, next);
+    rememberExam(next);
+    setActive(next);
+    if (!q.queued) {
+      qc.invalidateQueries({ queryKey: ['exams'] });
+      qc.invalidateQueries({ queryKey: ['exam', d.exam.id] });
+    } else refreshPending();
+    setDone((l) => [
+      { key: `${d.exam.id}:${q.studentId}`, name: q.name, exam: d.exam.title, correct: q.correct, total: q.total, score: q.score, points: d.exam.points, grade: q.grade, queued: q.queued, replaced: q.replaced },
+      ...l.filter((x) => x.key !== `${d.exam.id}:${q.studentId}`),
+    ]);
+    setFlash({ text: `${q.name.split(' ')[0]}: ${q.correct}/${q.total} · nota ${fmt(q.score)}${q.grade?.column && q.grade.value != null ? ' · diário ✓' : ''}${q.queued ? ' · envia quando a internet voltar' : ''}`, tone: q.grade?.error ? 'warn' : 'ok' });
+    setQuick(null);
+    backToCamera();
   }
 
   function drawOverlay(corners: Pt[] | null, img: Img) {
@@ -479,7 +517,7 @@ export function ExamScanner({ open, onClose, initial, keyText }: { open: boolean
       </div>
 
       {/* Modo */}
-      {phase !== 'review' ? (
+      {phase !== 'review' && phase !== 'quick' && active?.exam.sheet !== 'propria' ? (
         <div className="flex justify-center px-4 pb-2">
           <div className="inline-flex rounded-lg bg-white/10 p-1 text-xs font-semibold">
             {(
@@ -501,7 +539,7 @@ export function ExamScanner({ open, onClose, initial, keyText }: { open: boolean
       ) : null}
 
       {/* Câmera */}
-      <div className={cn('relative flex-1 overflow-hidden', phase === 'review' && 'hidden')}>
+      <div className={cn('relative flex-1 overflow-hidden', (phase === 'review' || phase === 'quick') && 'hidden')}>
         <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full object-cover" />
         <canvas ref={overlayRef} className="pointer-events-none absolute inset-0 h-full w-full" />
         {/* Guia de enquadramento A4 (pisca verde ao ler, laranja ao separar) */}
@@ -528,7 +566,7 @@ export function ExamScanner({ open, onClose, initial, keyText }: { open: boolean
               <KeyRound size={13} /> O QR do professor fica no gabarito impresso (ou na tela da prova).
             </p>
           ) : null}
-          {mode === 'massa' && (done.length || toCheck.length || pending) ? (
+          {(mode === 'massa' || active?.exam.sheet === 'propria') && (done.length || toCheck.length || pending) ? (
             <div className="flex flex-wrap justify-center gap-2">
               {done.length ? (
                 <button onClick={() => setShowList(true)} className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-4 text-sm font-bold text-neutral-950">
@@ -549,6 +587,20 @@ export function ExamScanner({ open, onClose, initial, keyText }: { open: boolean
           ) : null}
         </div>
       </div>
+
+      {phase === 'quick' && quick ? (
+        <QuickGrade
+          detail={quick.detail}
+          studentId={quick.studentId}
+          onSaved={quickSaved}
+          onCancel={() => {
+            setQuick(null);
+            backToCamera();
+          }}
+          cancelLabel="Voltar à câmera"
+          className="flex-1"
+        />
+      ) : null}
 
       {phase === 'review' && captured ? (
         <Review

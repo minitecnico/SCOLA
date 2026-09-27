@@ -2,7 +2,7 @@
  * Folha de respostas para impressão (SVG em milímetros, A4).
  * Tudo vem de layout.ts — a mesma geometria que a câmera usa para ler.
  */
-import { LETTERS, MARKER, MARKERS, PAGE, QR, keyPayload, qrPayload, sheetLayout } from './layout';
+import { LETTERS, MARKER, MARKERS, PAGE, QR, examLink, keyPayload, qrPayload, sheetLayout } from './layout';
 
 export interface SheetInfo {
   school: string;
@@ -211,7 +211,7 @@ export async function printSheets(info: SheetInfo, students: { id: string; name:
 }
 
 /** Páginas A4 (SVG) num contêiner que só aparece na impressão. */
-async function printPages(pages: string[], title: string) {
+export async function printPages(pages: string[], title: string) {
   if (!pages.length) return;
   document.getElementById('scola-print')?.remove();
   document.getElementById('scola-print-style')?.remove();
@@ -248,4 +248,70 @@ async function printPages(pages: string[], title: string) {
   // Dá tempo de o navegador montar as imagens (logo) antes de abrir a impressão.
   await new Promise((r) => setTimeout(r, 150));
   window.print();
+}
+
+/* ---------------------- Prova da escola: QR da prova e etiquetas ---------------------- */
+
+/** QR da prova (sem aluno) em PNG, para colar no modelo da prova da escola (Word, Docs…). */
+export async function examQrPng(code: string, origin = window.location.origin): Promise<string> {
+  const QRCode = await import('qrcode');
+  return QRCode.toDataURL(examLink(origin, code, null), { margin: 2, width: 900, errorCorrectionLevel: 'M' });
+}
+
+/** Quebra o nome em até `max` linhas de ~`width` caracteres. */
+function wrap(text: string, width: number, max: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    if ((cur + ' ' + w).trim().length > width && cur) {
+      lines.push(cur);
+      cur = w;
+    } else cur = (cur + ' ' + w).trim();
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > max) {
+    lines.length = max;
+    lines[max - 1] = lines[max - 1].slice(0, width - 1) + '…';
+  }
+  return lines;
+}
+
+/**
+ * Etiquetas A4 (3 × 8, 70 × 35 mm) com o QR de cada aluno — recorte e cole/grampeie
+ * na prova da escola. O QR é um link: ao escanear, abre a correção daquele aluno.
+ */
+export async function labelsSvg(info: Pick<SheetInfo, 'title' | 'className' | 'examCode'>, students: { id: string; name: string }[], origin = window.location.origin) {
+  const COLS = 3;
+  const ROWS = 8;
+  const W = 70;
+  const H = 35;
+  const top = (PAGE.h - ROWS * H) / 2;
+  const pages: string[] = [];
+  for (let p = 0; p < students.length; p += COLS * ROWS) {
+    const parts: string[] = [];
+    const chunk = students.slice(p, p + COLS * ROWS);
+    for (const [i, st] of chunk.entries()) {
+      const x = (i % COLS) * W;
+      const y = top + Math.floor(i / COLS) * H;
+      parts.push(`<rect x="${x + 0.3}" y="${y + 0.3}" width="${W - 0.6}" height="${H - 0.6}" fill="none" stroke="#bbb" stroke-width="0.2" stroke-dasharray="1.2 1.2"/>`);
+      parts.push(await qrSvg(examLink(origin, info.examCode, st.id), { x: x + 4, y: y + 4.5, size: 26 }, 'M'));
+      const tx = x + 33;
+      const lines = wrap(st.name, 17, 3);
+      lines.forEach((l, k) => parts.push(`<text x="${tx}" y="${y + 9 + k * 4.3}" font-size="3.6" font-weight="800">${esc(l)}</text>`));
+      const ny = y + 9 + lines.length * 4.3 + 1.5;
+      parts.push(`<text x="${tx}" y="${ny}" font-size="2.6" fill="#333">${esc(info.className.slice(0, 22))}</text>`);
+      parts.push(`<text x="${tx}" y="${ny + 3.4}" font-size="2.6" fill="#333">${esc(info.title.slice(0, 22))}</text>`);
+      parts.push(`<text x="${tx}" y="${y + H - 3.5}" font-size="2.2" fill="#888">SCOLA · ${esc(info.examCode)}</text>`);
+    }
+    pages.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PAGE.w} ${PAGE.h}" width="${PAGE.w}mm" height="${PAGE.h}mm" font-family="Inter, Arial, sans-serif">
+<rect width="${PAGE.w}" height="${PAGE.h}" fill="#fff"/>
+${parts.join('\n')}
+</svg>`);
+  }
+  return pages;
+}
+
+export async function printLabels(info: Pick<SheetInfo, 'title' | 'className' | 'examCode'>, students: { id: string; name: string }[]) {
+  await printPages(await labelsSvg(info, students), `Etiquetas QR - ${info.title} - ${info.className}`);
 }

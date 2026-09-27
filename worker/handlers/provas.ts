@@ -17,7 +17,7 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sem 0/O/1/I
 type ExamRow = {
   id: string; base_id: string; class_id: string; author_id: string | null; code: string; title: string; exam_date: string | null;
   questions: number; choices: number; answer_key: string; points: number; created_at: string; updated_at: string | null;
-  grade_year: number | null; grade_term: number | null; grade_key: string | null;
+  grade_year: number | null; grade_term: number | null; grade_key: string | null; sheet: string;
 };
 const mapExam = (e: ExamRow) => ({ ...e, answer_key: parse<string[]>(e.answer_key, []) });
 
@@ -95,7 +95,7 @@ function cleanKey(v: unknown, questions: number): string[] {
 
 export async function saveExam(ctx: Ctx, input: {
   id?: string; class_id: string; title: string; exam_date?: string | null; questions: number; choices: number; points: number; answer_key?: string[];
-  grade_year?: number | null; grade_term?: number | null; grade_key?: string | null;
+  grade_year?: number | null; grade_term?: number | null; grade_key?: string | null; sheet?: 'propria' | 'scola';
 }) {
   const base = requireRole(ctx, ...PEDAGOGICO);
   const title = String(input.title || '').trim();
@@ -107,6 +107,7 @@ export async function saveExam(ctx: Ctx, input: {
   if (!(choices >= 2 && choices <= 5)) fail('Use de 2 a 5 alternativas (A a E).');
   if (!(points > 0 && points <= 1000)) fail('Informe o valor da prova.');
   const date = input.exam_date && /^\d{4}-\d{2}-\d{2}$/.test(input.exam_date) ? input.exam_date : null;
+  const sheet = input.sheet === 'propria' || input.sheet === 'scola' ? input.sheet : null; // null = mantém
   await assertClassInBase(ctx, base, input.class_id);
   const key = cleanKey(input.answer_key, questions);
   // Alternativa do gabarito precisa existir na folha (ex.: "E" numa prova de 4 alternativas).
@@ -132,8 +133,8 @@ export async function saveExam(ctx: Ctx, input: {
     }
     await run(ctx.db,
       `UPDATE exams SET class_id = ?, title = ?, exam_date = ?, questions = ?, choices = ?, points = ?, answer_key = ?,
-              grade_year = ?, grade_term = ?, grade_key = ?, updated_at = ? WHERE id = ?`,
-      input.class_id, title, date, questions, choices, points, json(key), gYear, gTerm, gKey, now(), cur.id);
+              grade_year = ?, grade_term = ?, grade_key = ?, sheet = ?, updated_at = ? WHERE id = ?`,
+      input.class_id, title, date, questions, choices, points, json(key), gYear, gTerm, gKey, sheet ?? cur.sheet, now(), cur.id);
     // Gabarito ou destino mudou: o diário acompanha (recalcula quem já foi corrigido).
     if (hasAnswers && gTerm) {
       const e = await examInBase(ctx, base, cur.id);
@@ -147,9 +148,9 @@ export async function saveExam(ctx: Ctx, input: {
     const code = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
     try {
       await run(ctx.db,
-        `INSERT INTO exams (id, base_id, class_id, author_id, code, title, exam_date, questions, choices, answer_key, points, grade_year, grade_term, grade_key, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        id, base, input.class_id, ctx.user.id, code, title, date, questions, choices, json(key), points, gYear, gTerm, gKey, now());
+        `INSERT INTO exams (id, base_id, class_id, author_id, code, title, exam_date, questions, choices, answer_key, points, grade_year, grade_term, grade_key, sheet, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, base, input.class_id, ctx.user.id, code, title, date, questions, choices, json(key), points, gYear, gTerm, gKey, sheet ?? 'propria', now());
       return getExam(ctx, id);
     } catch (err) {
       if (!String((err as Error)?.message).includes('UNIQUE')) throw err;

@@ -377,7 +377,7 @@ export interface QrHit {
 }
 
 /** QR de folha do aluno ("S1:…") ou do gabarito do professor ("K1:…", também dentro de um link). */
-const isSheetQr = (t: string) => t.startsWith('S1:');
+const isSheetQr = (t: string) => t.startsWith('S1:') || /\/p\/[A-Z0-9]{4,12}(\/|$|[?#])/i.test(t);
 const isKeyQr = (t: string) => t.includes('K1:');
 
 /** Lê o QR da imagem (ZXing; jsQR de reserva). Prefere o da folha do aluno. */

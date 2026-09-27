@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { lazy, Suspense, type ReactNode } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
 import { AppShell } from '../components/AppShell';
 import { FeedbackHost } from '../components/Feedback';
@@ -28,6 +28,7 @@ const SettingsPage = lazyPage(() => import('../pages/SettingsPage'), 'SettingsPa
 const DownloadPlanPage = lazyPage(() => import('../pages/DownloadPlanPage'), 'DownloadPlanPage');
 const SharedReportPage = lazyPage(() => import('../pages/SharedReportPage'), 'SharedReportPage');
 const AdminPage = lazyPage(() => import('../pages/admin/AdminPage'), 'AdminPage');
+const CorrigirLinkPage = lazyPage(() => import('../pages/CorrigirLinkPage'), 'CorrigirLinkPage');
 const AnoLetivoPage = lazyPage(() => import('../pages/AnoLetivoPage'), 'AnoLetivoPage');
 const LogsPage = lazyPage(() => import('../pages/admin/LogsPage'), 'LogsPage');
 const UsersPage = lazyPage(() => import('../pages/admin/UsersPage'), 'UsersPage');
@@ -46,6 +47,12 @@ function Spinner() {
   );
 }
 
+/** Depois do login, volta para onde a pessoa ia (ex.: link do QR de uma prova). */
+function AfterLogin() {
+  const from = (useLocation().state as { from?: string } | null)?.from;
+  return <Navigate to={from && from.startsWith('/') && !from.startsWith('/login') ? from : '/'} replace />;
+}
+
 function Gate({ module, children }: { module: ModuleKey; children: ReactNode }) {
   const { role } = useAuth();
   if (!can(role, module)) return <Navigate to="/" replace />;
@@ -53,10 +60,11 @@ function Gate({ module, children }: { module: ModuleKey; children: ReactNode }) 
 }
 
 function Protected() {
+  const location = useLocation();
   const { session, loading, isSuperadmin, activeOrgId, mustChangePassword, suspended } = useAuth();
 
   if (loading) return <Spinner />;
-  if (!session) return <Navigate to="/login" replace />;
+  if (!session) return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}${location.hash}` }} />;
   if (mustChangePassword) return <ChangePasswordGate />;
   if (!isSuperadmin && !activeOrgId) return <BlockedGate suspended={suspended} />;
 
@@ -80,6 +88,8 @@ function Protected() {
               <Route path="/avaliacoes" element={<Gate module="notas"><EvaluationsPage /></Gate>} />
               <Route path="/provas" element={<Gate module="notas"><ProvasPage /></Gate>} />
               <Route path="/corrigir" element={<Gate module="notas"><ProvasPage /></Gate>} />
+              <Route path="/p/:code" element={<Gate module="notas"><CorrigirLinkPage /></Gate>} />
+              <Route path="/p/:code/:student" element={<Gate module="notas"><CorrigirLinkPage /></Gate>} />
               <Route path="/provas/:id" element={<Gate module="notas"><ProvaDetailPage /></Gate>} />
               <Route path="/planejamento" element={<Gate module="planejamentos"><PlanejamentoPage /></Gate>} />
               <Route path="/relatorios" element={<Gate module="relatorios"><ReportsPage /></Gate>} />
@@ -105,7 +115,7 @@ function Root() {
   return (
     <Routes>
       <Route path="/r/:id" element={<Suspense fallback={<Spinner />}><SharedReportPage /></Suspense>} />
-      <Route path="/login" element={loading ? <Spinner /> : session ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/login" element={loading ? <Spinner /> : session ? <AfterLogin /> : <LoginPage />} />
       <Route path="/*" element={<Protected />} />
     </Routes>
   );

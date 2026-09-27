@@ -179,7 +179,7 @@ export function ReportsPage() {
   const freqRows = useMemo(() => {
     let r = freq.data?.rows ?? [];
     if (studentId !== 'all') r = r.filter((x) => x.student_id === studentId);
-    if (onlyBelow) r = r.filter((x) => x.pct < minPct);
+    if (onlyBelow) r = r.filter((x) => x.total > 0 && x.pct < minPct);
     return r;
   }, [freq.data, studentId, onlyBelow, minPct]);
 

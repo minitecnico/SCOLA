@@ -157,9 +157,12 @@ function ReportSummary({ payload, minPct, compact }: { payload: ReportPayload; m
   if (payload.kind === 'freq') {
     const rows = payload.freqRows ?? [];
     if (!rows.length) return null;
-    const presMed = Math.round((rows.reduce((a, r) => a + r.pct, 0) / rows.length) * 10) / 10;
     const faltas = rows.reduce((a, r) => a + r.absent, 0);
     const presencas = rows.reduce((a, r) => a + r.present, 0);
+    // Presenças ÷ marcações registradas. Aluno sem nenhuma chamada no período (ex.: entrou
+    // depois) não puxa a média para baixo como se tivesse 0%.
+    const marcadas = rows.reduce((a, r) => a + r.total, 0);
+    const presMed = marcadas ? Math.round((presencas / marcadas) * 1000) / 10 : 0;
     return (
       <SummaryGrid
         compact={compact}
@@ -232,7 +235,7 @@ function FreqBody({ payload, compact, minPct }: { payload: ReportPayload; compac
           {rows.map((r, i) => {
             const presentDates = dates.filter((d) => r.days?.[d] === true);
             const absentDates = dates.filter((d) => r.days?.[d] === false);
-            const tone = freqTone(r.pct, minPct);
+            const tone = r.total ? freqTone(r.pct, minPct) : 'none';
             return (
               <tr key={r.name} className="border-t border-slate-100 align-top even:bg-slate-50/50">
                 <td className="p-3 font-bold text-slate-800">
@@ -256,7 +259,7 @@ function FreqBody({ payload, compact, minPct }: { payload: ReportPayload; compac
                 {show.pct ?? true ? (
                   <td className="p-3">
                   <div className="flex flex-col items-center gap-1.5">
-                    <span className={cn('text-base font-black tabular-nums', TONE[tone].text)}>{r.pct}%</span>
+                    <span className={cn('text-base font-black tabular-nums', r.total ? TONE[tone].text : 'text-slate-400')}>{r.total ? `${r.pct}%` : 'sem chamada'}</span>
                     <div className="h-1.5 w-14 overflow-hidden rounded-full bg-slate-100">
                       <div
                         className={cn('h-full rounded-full', TONE[tone].bar)}

@@ -74,7 +74,11 @@ npm run migrar -- --aplicar    # grava no Cloudflare
 
 ## Importar chamadas já feitas
 
-Em **Chamadas → Importar**, envie a planilha de outro sistema (.xlsx, .xls ou .csv). Dois formatos são reconhecidos sozinhos:
+Em **Chamadas → Importar**, envie o arquivo do outro sistema **em qualquer formato**: Excel (.xlsx, .xls), ODS, CSV, TSV, TXT, JSON, HTML, Word (.docx), LibreOffice (.odt), **PDF** (com texto ou escaneado) e **foto** (JPG, PNG, WEBP…).
+
+PDF e Word têm as tabelas reconstruídas pela posição do texto. Foto e PDF escaneado passam por OCR (tesseract.js), feito no próprio aparelho. Antes da leitura, a imagem é endireitada, passa por preto e branco adaptativo (resiste a sombra e fundo) e perde as linhas da tabela. Os nomes são reconhecidos mesmo com espaço faltando ou letra trocada. Uma linha com nome ilegível não é descartada: o professor diz quem é. Código: `src/lib/anyToGrid.ts`.
+
+Dois formatos de chamada são reconhecidos sozinhos:
 - **Mapa:** uma linha por aluno e uma coluna por data. Vale data completa no cabeçalho ou só o dia, com o mês no título ("Julho/2026"). Linhas e colunas de total são ignoradas.
 - **Lista:** colunas Data, Aluno e Situação, com Turma opcional (uma turma por linha).
 

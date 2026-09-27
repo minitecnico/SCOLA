@@ -1,5 +1,6 @@
 /**
- * Importação de chamadas já feitas (planilha de outro sistema).
+ * Importação de chamadas já feitas (de outro sistema), em qualquer formato:
+ * Excel, CSV, ODS, TXT, JSON, Word, PDF (inclusive escaneado) ou foto.
  * Entende dois formatos, detectados sozinhos:
  *   - "Mapa": uma linha por aluno e uma coluna por data (P, F, •, 1, 0…).
  *   - "Lista": uma linha por marcação, com colunas Data, Aluno e Situação (Turma opcional).
@@ -7,7 +8,8 @@
  * professor confirmar o significado (ex.: "X" é presença ou falta?).
  */
 import type { AttendanceStatus } from './types';
-import { assertImportRowLimit, assertSpreadsheetFile } from './fileSecurity';
+import { fileToGrids, type Progress } from './anyToGrid';
+import { assertImportRowLimit } from './fileSecurity';
 
 export type Mapped = AttendanceStatus | 'ignore';
 export interface RawEntry {
@@ -77,7 +79,8 @@ export function parseDateCell(v: unknown, yearHint: number): string | null {
 
 /** Sugestão de significado para cada valor da planilha. `undefined` = o professor decide. */
 export function suggestStatus(value: string): Mapped | undefined {
-  const v = normName(value).replace(/\s/g, '');
+  let v = normName(value).replace(/\s/g, '');
+  if (/^([a-z])\1{1,2}$/.test(v)) v = v[0]; // "Pp", "PP" (leitura de foto)
   const raw = value.trim();
   if (!raw) return 'ignore';
   if (['•', '·', '.', '✓', '✔', '☑'].includes(raw)) return 'present';
@@ -105,26 +108,12 @@ const TURMA_HEADERS = ['turma', 'classe', 'serie', 'sala'];
 
 const cellText = (v: unknown) => (v instanceof Date ? '' : String(v ?? '').replace(/\s+/g, ' ').trim());
 
-export async function parseAttendanceFile(file: File, yearHint = new Date().getFullYear()): Promise<ParsedAttendance> {
-  assertSpreadsheetFile(file);
-  const XLSX = await import('xlsx');
-  const buffer = await file.arrayBuffer();
-  let wb;
-  if (/\.csv$/i.test(file.name)) {
-    let text: string;
-    try {
-      text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
-    } catch {
-      text = new TextDecoder('windows-1252').decode(buffer);
-    }
-    wb = XLSX.read(text.replace(/^﻿/, ''), { type: 'string', raw: true });
-  } else {
-    wb = XLSX.read(buffer, { type: 'array', cellDates: true });
-  }
-
-  // Todas as abas (muitos sistemas exportam um mês por aba).
-  const sheets: unknown[][][] = wb.SheetNames.map((n) => XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[n], { header: 1, defval: '', raw: true, blankrows: true }));
+export async function parseAttendanceFile(file: File, yearHint = new Date().getFullYear(), progress?: Progress): Promise<ParsedAttendance> {
+  // Qualquer formato vira tabela: planilha, texto, JSON, Word, PDF, foto…
+  const parts = await fileToGrids(file, progress);
+  const sheets: unknown[][][] = parts.map((p) => p.grid);
   assertImportRowLimit(sheets.reduce((a, g) => a + g.length, 0));
+  const wb = { SheetNames: parts.map((p) => p.name) };
 
   const entries: RawEntry[] = [];
   const warnings: string[] = [];
@@ -205,15 +194,21 @@ export async function parseAttendanceFile(file: File, yearHint = new Date().getF
     }
     if (nameCol < 0) continue;
     grid.slice(hdr + 1).forEach((r, i) => {
-      const name = cellText(r[nameCol]);
-      if (!name || /^(total|presen|falt|legenda|obs)/i.test(normName(name))) return;
+      let name = cellText(r[nameCol]);
+      if (name && /^(total|presen|falt|legenda|obs)/i.test(normName(name))) return;
+      // Nome ilegível (foto/PDF), mas com marcações: não perde a linha — o professor diz quem é.
+      if (!name) {
+        const marks = dateCols.filter(({ col }) => /^[A-Za-z•·.✓✔01]{1,3}$/.test(cellText(r[col]))).length;
+        if (marks < Math.max(2, dateCols.length * 0.6)) return;
+        name = `${i + 1}º aluno da lista (nome ilegível)`;
+      }
       for (const { col, date } of dateCols) {
         entries.push({ row: hdr + i + 2, name, turma: turmaCol >= 0 ? cellText(r[turmaCol]) || null : null, date, value: cellText(r[col]).toUpperCase() });
       }
     });
   }
 
-  if (!format) throw new Error('Não encontrei chamadas nesta planilha. Use uma linha por aluno com as datas nas colunas, ou colunas Data, Aluno e Situação.');
+  if (!format) throw new Error('Não encontrei chamadas neste arquivo. Ele precisa ter uma linha por aluno com as datas nas colunas, ou colunas Data, Aluno e Situação.');
 
   // No mapa, data sem nenhuma marcação (coluna toda vazia) não é aula: descarta.
   const marked = new Set(entries.filter((e) => e.value).map((e) => e.date));
@@ -251,7 +246,33 @@ export function matchStudent(name: string, students: { id: string; full_name: st
     const p = new Set(normName(s.full_name).split(' '));
     return parts.every((x) => p.has(x));
   });
-  return contains.length === 1 ? contains[0].id : null;
+  if (contains.length === 1) return contains[0].id;
+  // Leitura de foto/PDF: espaço faltando ("Brunolima") ou letra trocada ("CaraMendes").
+  const flat = n.replace(/ /g, '');
+  const scored = students
+    .map((s) => {
+      const full = normName(s.full_name).replace(/ /g, '');
+      const p = normName(s.full_name).split(' ');
+      const short = (p[0] + p[p.length - 1]).replace(/ /g, '');
+      return { id: s.id, d: Math.min(dist(flat, full) / Math.max(full.length, 1), dist(flat, short) / Math.max(short.length, 1)) };
+    })
+    .sort((a, b) => a.d - b.d);
+  if (scored[0] && scored[0].d <= 0.2 && (!scored[1] || scored[1].d - scored[0].d >= 0.1)) return scored[0].id;
+  return null;
+}
+
+/** Distância de edição (Levenshtein). */
+function dist(a: string, b: string) {
+  const m = a.length;
+  const n = b.length;
+  if (!m || !n) return Math.max(m, n);
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[n];
 }
 
 /** Modelo em mapa: alunos da turma × dias úteis do mês atual. */

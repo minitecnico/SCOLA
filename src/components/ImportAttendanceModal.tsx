@@ -30,6 +30,7 @@ export function ImportAttendanceModal({ open, onClose, classes, defaultClassId }
   const [fileName, setFileName] = useState('');
   const [err, setErr] = useState('');
   const [reading, setReading] = useState(false);
+  const [progress, setProgress] = useState('');
   const [classId, setClassId] = useState(defaultClassId);
   const [useSheetTurma, setUseSheetTurma] = useState(false);
   const [map, setMap] = useState<Record<string, Mapped>>({});
@@ -81,7 +82,8 @@ export function ImportAttendanceModal({ open, onClose, classes, defaultClassId }
     setReading(true);
     setResult(null);
     try {
-      const p = await parseAttendanceFile(f);
+      setProgress('Lendo o arquivo…');
+      const p = await parseAttendanceFile(f, new Date().getFullYear(), setProgress);
       setParsed(p);
       setFileName(f.name);
       setMap({});
@@ -92,6 +94,7 @@ export function ImportAttendanceModal({ open, onClose, classes, defaultClassId }
       setErr((e as Error).message);
     } finally {
       setReading(false);
+      setProgress('');
       if (inputRef.current) inputRef.current.value = '';
     }
   }
@@ -186,12 +189,12 @@ export function ImportAttendanceModal({ open, onClose, classes, defaultClassId }
               className="mt-3 flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 px-4 py-6 text-center transition hover:border-neutral-400 hover:bg-muted/60"
             >
               {parsed ? <FileSpreadsheet size={26} className="text-green-700" /> : <Upload size={26} className="text-muted-foreground" />}
-              <span className="text-sm font-semibold">{reading ? 'Lendo a planilha…' : parsed ? fileName : 'Escolher planilha (.xlsx, .xls ou .csv)'}</span>
+              <span className="text-sm font-semibold">{reading ? progress || 'Lendo o arquivo…' : parsed ? fileName : 'Escolher arquivo ou arrastar aqui'}</span>
               <span className="max-w-xl text-xs text-muted-foreground">
-                Serve o <b>mapa de chamada</b> (alunos nas linhas, datas nas colunas) ou uma <b>lista</b> com colunas Data, Aluno e Situação. Vale P/F, •, 1/0, presente/falta… você confirma a seguir.
+                <b>Qualquer formato:</b> Excel, CSV, ODS, TXT, JSON, Word, PDF (até escaneado) ou <b>foto</b> da chamada. Serve o mapa (alunos nas linhas, datas nas colunas) ou uma lista (Data, Aluno, Situação). Você confere tudo antes de gravar.
               </span>
             </button>
-            <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => void onFile(e.target.files?.[0])} />
+            <input ref={inputRef} type="file" className="hidden" onChange={(e) => void onFile(e.target.files?.[0])} />
             {err ? <p className="mt-2 text-sm font-semibold text-red-600">{err}</p> : null}
           </section>
 
@@ -203,6 +206,12 @@ export function ImportAttendanceModal({ open, onClose, classes, defaultClassId }
                 <Stat label="Alunos reconhecidos" value={`${matchedCount}/${people.length}`} tone={unmatched.length ? 'warn' : 'ok'} />
                 <Stat label="Marcações a importar" value={marks} />
               </div>
+
+              {/\.(jpe?g|png|webp|bmp|gif|tiff?|heic|heif|avif)$/i.test(fileName) || (/\.pdf$/i.test(fileName) && parsed.values.some((v) => v.value.length > 3)) ? (
+                <p className="flex gap-2 rounded-lg bg-brand/15 px-3 py-2 text-xs text-neutral-900 ring-1 ring-inset ring-brand/40">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" /> Lido por reconhecimento de texto: confira os alunos e as marcações abaixo. Marcas feitas à mão podem vir trocadas.
+                </p>
+              ) : null}
 
               {parsed.warnings.length ? (
                 <details className="rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-900 ring-1 ring-inset ring-orange-200">

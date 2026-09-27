@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { Check, CheckCheck, ClipboardCheck, Layers, Pencil, Save, Search, Users, X } from 'lucide-react';
+import { Check, CheckCheck, ClipboardCheck, FileSpreadsheet, Layers, Pencil, Save, Search, Users, X } from 'lucide-react';
+import { ImportAttendanceModal } from '../components/ImportAttendanceModal';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
@@ -23,6 +24,7 @@ export function AttendancePage() {
 
   const [mode, setMode] = usePersistentState<'turma' | 'prova'>('scola:attendance:mode', 'turma');
   const [classId, setClassId] = usePersistentState('scola:attendance:classId', '');
+  const [importing, setImporting] = useState(false);
   // Sempre inicia no dia de HOJE (não persiste) — evita o professor lançar chamada em data antiga por engano.
   const [date, setDate] = useState(today);
   // Exceção: veio do painel pedindo uma chamada específica (turma + data).
@@ -166,7 +168,23 @@ export function AttendancePage() {
 
   return (
     <div className="pb-28">
-      <PageHeader title="Chamadas" subtitle="Toque no aluno para marcar falta." action={<ModeToggle mode={mode} setMode={setMode} />} />
+      <PageHeader
+        title="Chamadas"
+        subtitle="Toque no aluno para marcar falta."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setImporting(true)}
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3.5 text-sm font-semibold ring-1 ring-inset ring-border hover:bg-muted"
+              title="Importar chamadas já feitas de uma planilha"
+            >
+              <FileSpreadsheet size={16} /> Importar
+            </button>
+            <ModeToggle mode={mode} setMode={setMode} />
+          </div>
+        }
+      />
+      <ImportAttendanceModal open={importing} onClose={() => setImporting(false)} classes={classes} defaultClassId={classId || classes[0]?.id || ''} />
 
       <FilterBar>
         <FilterField label="Turma" grow>

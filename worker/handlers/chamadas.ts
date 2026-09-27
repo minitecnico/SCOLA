@@ -1,5 +1,5 @@
 import { assertClassOpen, requireBase, requireRole, ROSTER_SQL, type Ctx } from '../auth';
-import { all, fail, first, inList, json, now, run, uid } from '../db';
+import { all, fail, first, inList, json, now, run, stmt, uid } from '../db';
 
 const PEDAGOGICO = ['gestor', 'professor'] as const;
 const isPresent = (s: string) => s === 'present' || s === 'late';
@@ -149,4 +149,57 @@ export async function reportAttendance(ctx: Ctx, classId: string, from: string, 
     };
   });
   return { sessions: sessions.length, rows, examDates, dates };
+}
+
+/**
+ * Importa chamadas já feitas (planilha de outro sistema). Cada sessão = turma + data.
+ * `skipExisting`: não mexe em dias que já têm chamada; senão, atualiza só os alunos da planilha.
+ */
+export async function importAttendance(
+  ctx: Ctx,
+  input: { sessions: { class_id: string; date: string; records: { student_id: string; status: string }[] }[]; skipExisting?: boolean },
+) {
+  const base = requireRole(ctx, ...PEDAGOGICO);
+  const STATUSES = new Set(['present', 'absent', 'late', 'justified']);
+  const sessions = (input?.sessions ?? []).filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s.date) && s.records?.length);
+  if (!sessions.length) fail('Nada para importar.');
+  if (sessions.length > 2000) fail('Planilha grande demais: importe no máximo 2.000 dias de chamada por vez.');
+  const total = sessions.reduce((a, s) => a + s.records.length, 0);
+  if (total > 60000) fail('Planilha grande demais: importe no máximo 60.000 marcações por vez.');
+  if (sessions.some((s) => s.records.some((r) => !STATUSES.has(r.status)))) fail('Há marcação com situação inválida.');
+  const today = now().slice(0, 10);
+  if (sessions.some((s) => s.date > today)) fail('Há datas no futuro na planilha. Confira as datas.');
+  for (const c of new Set(sessions.map((s) => s.class_id))) await assertClassOpen(ctx, base, c);
+
+  const existing = await all<{ class_id: string; session_date: string }>(ctx.db,
+    `SELECT class_id, session_date FROM attendance_sessions
+      WHERE base_id = ? AND deleted_at IS NULL AND class_id IN (SELECT value FROM json_each(?))`,
+    base, json([...new Set(sessions.map((s) => s.class_id))]));
+  const had = new Set(existing.map((e) => `${e.class_id}|${e.session_date}`));
+  const todo = input.skipExisting ? sessions.filter((s) => !had.has(`${s.class_id}|${s.date}`)) : sessions;
+
+  const ts = now();
+  const stmts = todo.flatMap((s) => [
+    stmt(ctx.db,
+      `INSERT INTO attendance_sessions (id, base_id, class_id, session_date, note, exam_mode, deleted_at, updated_at)
+       VALUES (?, ?, ?, ?, 'Importada de planilha', 0, NULL, ?)
+       ON CONFLICT (class_id, session_date) DO UPDATE SET deleted_at = NULL, updated_at = excluded.updated_at`,
+      uid(), base, s.class_id, s.date, ts),
+    stmt(ctx.db,
+      `INSERT INTO attendance_records (session_id, student_id, base_id, status, note)
+       SELECT (SELECT id FROM attendance_sessions WHERE class_id = ?1 AND session_date = ?2), json_extract(value, '$.student_id'), ?3, json_extract(value, '$.status'), NULL
+         FROM json_each(?4)
+        WHERE json_extract(value, '$.student_id') IN (SELECT id FROM students WHERE base_id = ?3)
+       ON CONFLICT (session_id, student_id) DO UPDATE SET status = excluded.status`,
+      s.class_id, s.date, base, json(s.records.map((r) => ({ student_id: r.student_id, status: r.status })))),
+  ]);
+  // Lotes (limite de instruções por batch do D1).
+  for (let i = 0; i < stmts.length; i += 80) await ctx.db.batch(stmts.slice(i, i + 80));
+  return {
+    sessions: todo.length,
+    created: todo.filter((s) => !had.has(`${s.class_id}|${s.date}`)).length,
+    updated: todo.filter((s) => had.has(`${s.class_id}|${s.date}`)).length,
+    skipped: sessions.length - todo.length,
+    records: todo.reduce((a, s) => a + s.records.length, 0),
+  };
 }

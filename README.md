@@ -72,6 +72,14 @@ npm run migrar -- --aplicar    # grava no Cloudflare
 - A pasta `migracao/` gerada contém dados pessoais: não a envie ao GitHub (já está no `.gitignore`).
 - Quem entrava só pelo Google não tinha senha: o script avisa, e você gera a senha em **Equipe**.
 
+## Importar chamadas já feitas
+
+Em **Chamadas → Importar**, envie a planilha de outro sistema (.xlsx, .xls ou .csv). Dois formatos são reconhecidos sozinhos:
+- **Mapa:** uma linha por aluno e uma coluna por data. Vale data completa no cabeçalho ou só o dia, com o mês no título ("Julho/2026"). Linhas e colunas de total são ignoradas.
+- **Lista:** colunas Data, Aluno e Situação, com Turma opcional (uma turma por linha).
+
+O professor confirma o que cada símbolo significa (P, F, •, 1/0, X…), escolhe os alunos que não bateram pelo nome e decide se os dias que já têm chamada no SCOLA são atualizados ou pulados.
+
 ## Provas e correção pela câmera
 
 Menu **Provas e correção** (gestão e professores). Dois tipos de prova:

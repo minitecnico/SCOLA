@@ -86,6 +86,9 @@ export const getSession = (classId: string, date: string) => rpc<AttendanceSessi
 export const getRecords = (sessionId: string) => rpc<AttendanceRecord[]>('getRecords', sessionId);
 export const saveAttendance = (classId: string, date: string, records: AttendanceRecord[], opts?: { note?: string; examMode?: boolean }) =>
   rpc<void>('saveAttendance', classId, date, records, opts);
+/** Importa chamadas já feitas (planilha). */
+export const importAttendance = (input: { sessions: { class_id: string; date: string; records: { student_id: string; status: string }[] }[]; skipExisting?: boolean }) =>
+  rpc<{ sessions: number; created: number; updated: number; skipped: number; records: number }>('importAttendance', input);
 
 export interface RecentSession {
   id: string;

@@ -9,6 +9,7 @@ import { all, fail, first, HttpError, parse, run, uid, type Env } from './db';
 import * as alertas from './handlers/alertas';
 import * as anoletivo from './handlers/anoletivo';
 import * as cadastros from './handlers/cadastros';
+import * as editor from './handlers/editor';
 import * as chamadas from './handlers/chamadas';
 import * as comunicacao from './handlers/comunicacao';
 import * as contas from './handlers/contas';
@@ -20,9 +21,9 @@ import * as usuarios from './handlers/usuarios';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
-const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades']);
+const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades', 'docInBase', 'canEditDoc', 'saveEditableContent']);
 const handlers: Record<string, Handler> = {};
-for (const mod of [alertas, anoletivo, cadastros, chamadas, comunicacao, contas, logs, notas, painel, provas, usuarios]) {
+for (const mod of [alertas, anoletivo, cadastros, editor, chamadas, comunicacao, contas, logs, notas, painel, provas, usuarios]) {
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn === 'function' && !INTERNAL.has(name)) handlers[name] = fn as Handler;
   }
@@ -294,6 +295,46 @@ app.get('/api/files/:id', async (c) => {
   });
 });
 
+/* ------------------------ Editor de documentos/planilhas ------------------------ */
+/** Conteúdo editável (JSON do editor). Vazio = documento novo ou arquivo ainda não aberto no editor. */
+app.get('/api/plandocs/:id/content', async (c) => {
+  const ctx = await authed(c);
+  const d = await editor.docInBase(ctx, c.req.param('id'));
+  const body = d.kind === 'file' ? null : await c.env.FILES.get(`c:${d.id}`, 'text');
+  return new Response(body || null, {
+    status: body ? 200 : 204,
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Doc-Version': String(d.version) },
+  });
+});
+
+/** Uma versão do histórico. */
+app.get('/api/plandocs/:id/versions/:vid', async (c) => {
+  const ctx = await authed(c);
+  const d = await editor.docInBase(ctx, c.req.param('id'));
+  const v = await first(ctx.db, 'SELECT 1 FROM plan_doc_versions WHERE id = ? AND doc_id = ?', c.req.param('vid'), d.id);
+  if (!v) fail('Versão não encontrada.', 404);
+  const body = await c.env.FILES.get(`v:${c.req.param('vid')}`, 'text');
+  if (!body) fail('Versão não encontrada.', 404);
+  return new Response(body, { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
+});
+
+/** Salvar: conteúdo do editor + o arquivo .docx/.xlsx já exportado pelo navegador. */
+app.post('/api/plandocs/:id/content', async (c) => {
+  const ctx = await authed(c);
+  const form = await c.req.formData();
+  const content = form.get('content');
+  const file = form.get('file');
+  const kind = String(form.get('kind'));
+  if (typeof content !== 'string' || (kind !== 'doc' && kind !== 'sheet')) fail('Conteúdo inválido.');
+  const buf = file && typeof file !== 'string' ? await (file as unknown as File).arrayBuffer() : null;
+  if (buf && buf.byteLength > MAX_FILE) fail('Arquivo grande demais (máximo 20 MB).');
+  const r = await editor.saveEditableContent(ctx, c.env, c.req.param('id'), {
+    content: content as string, file: buf, baseVersion: Number(form.get('base_version') ?? 0), kind: kind as 'doc' | 'sheet',
+    name: (form.get('name') as string) || null,
+  });
+  return c.json({ data: r });
+});
+
 /* -------------------------- Relatório público por link ---------------------------- */
 app.get('/api/public/reports/:id', async (c) => {
   const r = await first<{ payload: string }>(c.env.DB, 'SELECT payload FROM shared_reports WHERE id = ?', c.req.param('id'));
@@ -310,7 +351,8 @@ export default {
     await run(env.DB, 'DELETE FROM audit_log WHERE at < ?', new Date(Date.now() - 180 * 86400_000).toISOString());
     const rows = await all<{ id: string }>(env.DB, 'SELECT id FROM kv_trash LIMIT 40');
     if (!rows.length) return;
-    await Promise.all(rows.map((r) => env.FILES.delete(`f:${r.id}`)));
+    // Chave com prefixo (c:<id> conteúdo do editor, v:<id> versão) ou id puro (= f:<id>).
+    await Promise.all(rows.map((r) => env.FILES.delete(r.id.includes(':') ? r.id : `f:${r.id}`)));
     await run(env.DB, `DELETE FROM kv_trash WHERE id IN (SELECT value FROM json_each(?))`, JSON.stringify(rows.map((r) => r.id)));
   },
 } satisfies ExportedHandler<Env>;

@@ -170,6 +170,7 @@ export const ACTIONS: Record<string, Spec> = {
   setOrgActive: { cat: 'admin', label: (a) => (a[1] ? 'Reativou base' : 'Suspendeu base'), refs: (a) => ({ baseId: a[0] }) },
   deleteOrganization: { cat: 'admin', label: 'Excluiu base', refs: (a) => ({ baseId: a[0] }), pre: true },
   importAttendance: { cat: 'chamada', label: 'Importou chamadas de planilha', refs: (a) => ({ classId: a[0]?.sessions?.[0]?.class_id, text: `${n(a[0]?.sessions)} dia(s)` }), result: (r) => (r ? `${r.created} dia(s) novo(s) · ${r.updated} atualizado(s) · ${r.skipped} pulado(s) · ${r.records} marcações` : null) },
+  createEditableDoc: { cat: 'comunicacao', label: (a) => ((a[0] as { kind?: string })?.kind === 'sheet' ? 'Criou planilha no planejamento' : 'Criou documento no planejamento'), refs: (a) => ({ classId: a[0]?.class_id, text: s(a[0]?.name) }) },
   closeSchoolYear: { cat: 'cadastro', label: 'Encerrou o ano letivo', refs: (a) => ({ text: a[0]?.year ? `${a[0].year} → ${Number(a[0].year) + 1}` : null }), result: (r) => (r ? `${r.archived} turma(s) arquivada(s) · ${r.created} nova(s) · ${r.moved} aluno(s) promovido(s) · ${r.left} saíram` : null) },
   reopenSchoolYear: { cat: 'cadastro', label: 'Reabriu o ano letivo', refs: (a) => ({ text: s(a[0]) }), result: (r) => (r ? `${r.reopened} turma(s)` : null) },
   updateUserAdmin: { cat: 'admin', label: 'Editou dados de usuário', refs: (a) => ({ userId: a[0], text: s(a[1]?.email) }) },

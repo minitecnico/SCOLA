@@ -1,0 +1,54 @@
+{
+  "toolbar": {
+    "toolbar": "Barra de ferramentas", "undo": "Desfazer", "redo": "Refazer", "paintFormat": "Pincel de formatação",
+    "currencyFormat": "Formato de moeda", "percentageFormat": "Formato de porcentagem", "numberDecrease": "Diminuir casas decimais",
+    "numberIncrease": "Aumentar casas decimais", "moreFormats": "Mais formatos", "format": "Formato", "font": "Fonte",
+    "font-size": "Tamanho da fonte", "bold": "Negrito (Ctrl+B)", "italic": "Itálico (Ctrl+I)", "strikethrough": "Tachado",
+    "underline": "Sublinhado", "font-color": "Cor do texto", "chooseColor": "escolher cor", "resetColor": "Redefinir",
+    "customColor": "PERSONALIZADA", "alternatingColors": "Cores alternadas", "confirmColor": "OK", "cancelColor": "Cancelar",
+    "collapse": "Recolher", "background": "Cor de preenchimento", "border": "Bordas", "borderStyle": "Estilo da borda",
+    "merge-cell": "Mesclar células", "chooseMergeType": "Tipo de mesclagem", "horizontalAlign": "Alinhamento horizontal",
+    "verticalAlign": "Alinhamento vertical", "alignment": "Alinhamento", "textWrap": "Quebra de texto", "textWrapMode": "Modo de quebra",
+    "textRotate": "Girar texto", "textRotateMode": "Modo de rotação", "freeze": "Congelar", "sort": "Classificar", "filter": "Filtrar",
+    "findAndReplace": "Localizar e substituir", "formula-sum": "SOMA", "autoSum": "Soma automática", "moreFunction": "Mais funções",
+    "conditionalFormat": "Formatação condicional", "comment": "Comentário", "pivotTable": "Tabela dinâmica", "chart": "Gráfico",
+    "screenshot": "Captura", "splitColumn": "Dividir texto", "insertImage": "Inserir imagem", "dataVerification": "Validação de dados",
+    "protection": "Proteger planilha", "clearText": "Limpar cor", "noColorSelectedText": "Nenhuma cor selecionada",
+    "toolMore": "Mais", "toolLess": "Menos", "toolClose": "Fechar", "toolMoreTip": "Mais recursos", "moreOptions": "Mais opções",
+    "cellFormat": "Formatar células", "print": "Imprimir"
+  },
+  "button": { "confirm": "OK", "cancel": "Cancelar", "close": "Fechar", "update": "Atualizar", "delete": "Excluir", "insert": "Inserir", "prevPage": "Anterior", "nextPage": "Próxima", "total": "total:" },
+  "rightclick": {
+    "copy": "Copiar", "copyAs": "Copiar como", "paste": "Colar", "insert": "Inserir", "image": "Inserir imagem", "link": "Inserir link",
+    "delete": "Excluir", "deleteCell": "Excluir célula", "deleteSelected": "Excluir selecionadas ", "hide": "Ocultar",
+    "hideSelected": "Ocultar selecionadas ", "showHide": "Reexibir ", "to": "para", "left": "à esquerda", "right": "à direita",
+    "top": "acima", "bottom": "abaixo", "moveLeft": "Deslocar para a esquerda", "moveUp": "Deslocar para cima", "add": "Inserir",
+    "row": "linha", "column": "coluna", "width": "Largura", "height": "Altura", "number": "Quantidade", "confirm": "Confirmar",
+    "orderAZ": "Classificar de A a Z", "orderZA": "Classificar de Z a A", "clearContent": "Limpar conteúdo", "matrix": "Operações de matriz",
+    "sortSelection": "Classificar", "filterSelection": "Filtrar", "chartGeneration": "Criar gráfico", "firstLineTitle": "primeira linha é título",
+    "untitled": "sem título", "noMulti": "Não dá para fazer isso em várias áreas ao mesmo tempo. Selecione uma área só.",
+    "cannotDeleteAllRow": "Não é possível excluir todas as linhas", "cannotDeleteAllColumn": "Não é possível excluir todas as colunas",
+    "rowOverLimit": "Limite de 10.000 linhas", "columnOverLimit": "Limite de 1.000 colunas"
+  },
+  "sheetconfig": {
+    "delete": "Excluir", "copy": "Duplicar", "rename": "Renomear", "changeColor": "Mudar cor", "hide": "Ocultar", "unhide": "Reexibir",
+    "moveLeft": "Mover para a esquerda", "moveRight": "Mover para a direita", "resetColor": "Redefinir cor", "cancelText": "Cancelar",
+    "chooseText": "Confirmar cor", "focus": "Focar", "tipNameRepeat": "Já existe uma aba com esse nome.",
+    "noMoreSheet": "A planilha precisa ter pelo menos uma aba visível.", "confirmDelete": "Excluir a aba", "redoDelete": "Dá para desfazer com Ctrl+Z",
+    "noHide": "Mantenha pelo menos uma aba visível.", "sheetNameSpecCharError": "O nome não pode ter: [ ] : ? * / ' \"",
+    "sheetNamecannotIsEmptyError": "Dê um nome à aba"
+  },
+  "merge": { "mergeAll": "Mesclar tudo", "mergeV": "Mesclar verticalmente", "mergeH": "Mesclar horizontalmente", "mergeCancel": "Desfazer mesclagem", "overlappingError": "Não é possível mesclar áreas sobrepostas", "partiallyError": "Não é possível fazer isso em células parcialmente mescladas" },
+  "align": { "left": "Esquerda", "center": "Centro", "right": "Direita", "top": "Topo", "middle": "Meio", "bottom": "Base" },
+  "textWrap": { "overflow": "Transbordar", "wrap": "Quebrar texto", "clip": "Cortar" },
+  "rotation": { "none": "Nenhuma", "angleup": "Inclinar para cima", "angledown": "Inclinar para baixo", "vertical": "Empilhar na vertical", "rotationUp": "Girar para cima", "rotationDown": "Girar para baixo" },
+  "freezen": {
+    "default": "Congelar", "freezenRow": "Primeira linha", "freezenColumn": "Primeira coluna", "freezenRC": "Linha e coluna",
+    "freezenRowRange": "Congelar até a linha selecionada", "freezenColumnRange": "Congelar até a coluna selecionada",
+    "freezenRCRange": "Congelar até a célula selecionada", "freezenCancel": "Descongelar", "noSeletionError": "Nenhuma área selecionada"
+  },
+  "sort": { "asc": "Crescente ", "desc": "Decrescente ", "custom": "Classificação personalizada", "hasTitle": "Os dados têm linha de cabeçalho", "sortBy": "Classificar por", "addOthers": "Adicionar outra coluna", "close": "fechar", "confirm": "classificar" },
+  "findAndReplace": { "find": "Localizar", "replace": "Substituir", "findTextbox": "Localizar", "replaceTextbox": "Substituir por", "allReplaceBtn": "Substituir tudo", "replaceBtn": "Substituir", "allFindBtn": "Localizar tudo", "findBtn": "Localizar próximo", "noFindTip": "Nada encontrado", "modeTip": "Não disponível neste modo" },
+  "cellFormat": { "cellFormatTitle": "Formatar células", "protection": "Proteção", "locked": "Bloquear células", "hidden": "Ocultar fórmulas" },
+  "print": { "normalBtn": "Normal", "layoutBtn": "Layout da página", "pageBtn": "Quebra de página", "menuItemPrint": "Imprimir (Ctrl+P)", "menuItemAreas": "Imprimir área selecionada", "menuItemRows": "Imprimir títulos de linhas", "menuItemColumns": "Imprimir títulos de colunas" }
+}

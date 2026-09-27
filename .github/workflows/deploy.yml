@@ -29,6 +29,8 @@ jobs:
 
       - name: Verificar tipos e gerar o site
         run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
 
       - name: Atualizar o banco (migrações D1)
         uses: cloudflare/wrangler-action@v3

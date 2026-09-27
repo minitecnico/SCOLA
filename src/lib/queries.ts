@@ -447,6 +447,55 @@ export const updatePlanDoc = (id: string, patch: { name?: string; segment?: stri
   rpc<void>('updatePlanDoc', id, patch);
 export const deletePlanDoc = (doc: { id: string; path: string }) => rpc<void>('deletePlanDoc', { id: doc.id });
 
+/* ------------------- Editor de documentos e planilhas (Planejamento) ------------------- */
+export type EditableKind = 'doc' | 'sheet';
+export interface PlanDocMeta extends PlanDoc {
+  kind: 'file' | EditableKind;
+  version: number;
+  updated_at: string | null;
+  updated_by_name: string | null;
+  author_name: string | null;
+  lock: { by: string; name: string | null; until: string } | null;
+  can_edit: boolean;
+}
+export const createEditableDoc = (input: { kind: EditableKind; name?: string; segment: string; term?: number | null; class_id?: string | null; turma_label?: string | null }) =>
+  rpc<{ id: string }>('createEditableDoc', input);
+export const getPlanDocMeta = (id: string) => rpc<PlanDocMeta>('getPlanDocMeta', id);
+export const lockPlanDoc = (id: string, force = false) => rpc<{ ok: boolean; by: string | null; until: string; version: number }>('lockPlanDoc', id, force);
+export const unlockPlanDoc = (id: string) => rpc<void>('unlockPlanDoc', id);
+export const listPlanDocVersions = (id: string) => rpc<{ id: string; created_at: string; author_name: string | null }[]>('listPlanDocVersions', id);
+
+/** Conteúdo editável salvo (JSON) — null se ainda não existe (documento novo ou arquivo enviado). */
+export async function loadDocContent(id: string): Promise<{ content: unknown | null; version: number }> {
+  const res = await fetch(`/api/plandocs/${id}/content`, { credentials: 'same-origin' });
+  if (!res.ok && res.status !== 204) throw new Error((await res.json().catch(() => ({})))?.error || 'Não consegui abrir o documento.');
+  const version = Number(res.headers.get('X-Doc-Version') ?? 0);
+  const text = res.status === 204 ? '' : await res.text();
+  return { content: text ? JSON.parse(text) : null, version };
+}
+export async function loadDocVersion(id: string, vid: string): Promise<unknown> {
+  const res = await fetch(`/api/plandocs/${id}/versions/${vid}`, { credentials: 'same-origin' });
+  if (!res.ok) throw new Error('Versão não encontrada.');
+  return res.json();
+}
+/** Salva o conteúdo + o arquivo .docx/.xlsx exportado. Erro 409 = conflito (outra pessoa/janela). */
+export async function saveDocContent(id: string, input: { content: unknown; file: Blob | null; baseVersion: number; kind: EditableKind; name?: string }) {
+  const form = new FormData();
+  form.append('content', JSON.stringify(input.content));
+  if (input.file) form.append('file', input.file, input.kind === 'doc' ? 'doc.docx' : 'sheet.xlsx');
+  form.append('base_version', String(input.baseVersion));
+  form.append('kind', input.kind);
+  if (input.name) form.append('name', input.name);
+  const res = await fetch(`/api/plandocs/${id}/content`, { method: 'POST', credentials: 'same-origin', headers: { 'x-scola': '1' }, body: form });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(body?.error || 'Não consegui salvar.') as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+  return body.data as { version: number; updated_at: string; name: string };
+}
+
 /* ----------------------------------- Início ------------------------------------- */
 export const dashboardCounts = () => rpc<{ schools: number; classes: number; students: number }>('dashboardCounts');
 

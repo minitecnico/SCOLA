@@ -145,3 +145,30 @@ a {
     font-size: 11px;
   }
 }
+
+/* ------------------------------------------------------------------------------
+   Editor de documentos (Planejamento) — aparência de página de Word/Docs.
+   ------------------------------------------------------------------------------ */
+.scola-doc { font-family: Calibri, Carlito, 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #111827; min-height: 60vh; }
+.scola-doc > * + * { margin-top: 0.6em; }
+.scola-doc h1 { font-size: 20pt; font-weight: 700; line-height: 1.25; margin-top: 0.8em; }
+.scola-doc h2 { font-size: 16pt; font-weight: 700; line-height: 1.3; margin-top: 0.8em; }
+.scola-doc h3 { font-size: 13pt; font-weight: 700; margin-top: 0.7em; }
+.scola-doc ul { list-style: disc; padding-left: 1.6em; }
+.scola-doc ol { list-style: decimal; padding-left: 1.6em; }
+.scola-doc li > p { margin: 0.15em 0; }
+.scola-doc blockquote { border-left: 3px solid #d1d5db; padding-left: 1em; color: #4b5563; }
+.scola-doc a { color: #1d4ed8; text-decoration: underline; }
+.scola-doc hr { border: 0; border-top: 1px solid #d1d5db; margin: 1.2em 0; }
+.scola-doc img { max-width: 100%; height: auto; }
+.scola-doc img.ProseMirror-selectednode { outline: 2px solid #facc15; }
+.scola-doc table { border-collapse: collapse; width: 100%; table-layout: fixed; margin: 0.8em 0; overflow: hidden; }
+.scola-doc td, .scola-doc th { border: 1px solid #9ca3af; padding: 4px 8px; vertical-align: top; position: relative; min-width: 2em; }
+.scola-doc th { background: #f1f5f9; font-weight: 700; text-align: left; }
+.scola-doc td > p, .scola-doc th > p { margin: 0; }
+.scola-doc .selectedCell::after { content: ''; position: absolute; inset: 0; background: rgba(250, 204, 21, 0.25); pointer-events: none; }
+.scola-doc .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: #facc15; pointer-events: none; }
+.scola-doc.resize-cursor, .resize-cursor { cursor: col-resize; }
+.scola-doc .tableWrapper { overflow-x: auto; }
+.scola-doc p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: #9ca3af; float: left; height: 0; pointer-events: none; }
+.scola-doc mark { border-radius: 2px; padding: 0 1px; }

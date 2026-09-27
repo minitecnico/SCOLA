@@ -371,7 +371,9 @@ export async function markPlanRead(ctx: Ctx, planId: string) {
 export async function listPlanDocs(ctx: Ctx) {
   const base = requireBase(ctx);
   const rows = await all<Record<string, unknown> & { id: string }>(ctx.db,
-    'SELECT id, segment, term, class_id, turma_label, name, mime, author_id, created_at FROM plan_docs WHERE base_id = ? ORDER BY created_at DESC', base);
+    `SELECT id, segment, term, class_id, turma_label, name, mime, author_id, created_at, kind, version, updated_at, size,
+            CASE WHEN lock_until > strftime('%Y-%m-%dT%H:%M:%fZ','now') THEN lock_by END AS lock_by
+       FROM plan_docs WHERE base_id = ? ORDER BY COALESCE(updated_at, created_at) DESC`, base);
   return rows.map((r) => ({ ...r, path: r.id, url: fileUrl(r.id) }));
 }
 
@@ -393,7 +395,9 @@ export async function deletePlanDoc(ctx: Ctx, doc: { id: string }) {
   if (!cur) return;
   if (cur.author_id !== ctx.user.id) requireRole(ctx, 'gestor');
   await ctx.db.batch([
-    stmt(ctx.db, 'INSERT OR IGNORE INTO kv_trash (id) VALUES (?)', doc.id),
+    stmt(ctx.db, 'INSERT OR IGNORE INTO kv_trash (id) VALUES (?), (?)', doc.id, `c:${doc.id}`),
+    // Versões do histórico (conteúdo no KV em v:<id>).
+    stmt(ctx.db, "INSERT OR IGNORE INTO kv_trash (id) SELECT 'v:' || id FROM plan_doc_versions WHERE doc_id = ?", doc.id),
     stmt(ctx.db, 'DELETE FROM plan_docs WHERE id = ?', doc.id),
   ]);
 }

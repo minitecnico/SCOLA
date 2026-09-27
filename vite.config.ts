@@ -1,9 +1,32 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { readFileSync } from 'node:fs';
+
+/**
+ * Planilha (FortuneSheet) em português: a biblioteca não traz pt-BR, então
+ * acrescentamos "pt" à tabela interna de idiomas — espanhol como base e a nossa
+ * tradução por cima (src/lib/sheet-locale-pt.json). Vale no build e no dev.
+ */
+const ptOverlay = readFileSync(new URL('./src/lib/sheet-locale-pt.json', import.meta.url), 'utf8');
+const addPortuguese = (code: string) =>
+  code.replace(
+    'var localeObj = {',
+    `var __ptOv = ${ptOverlay};
+var __ptMerge = function (base, ov) { var o = Object.assign({}, base); for (var k in ov) { o[k] = (ov[k] && typeof ov[k] === 'object' && !Array.isArray(ov[k])) ? Object.assign({}, base[k], ov[k]) : ov[k]; } return o; };
+var localeObj = {
+  pt: __ptMerge(es, __ptOv),`,
+  );
+const fortunePt = {
+  name: 'fortune-sheet-pt',
+  transform(code: string, id: string) {
+    if (id.includes('@fortune-sheet/core') && code.includes('var localeObj = {')) return { code: addPortuguese(code), map: null };
+  },
+};
 
 export default defineConfig({
   plugins: [
+    fortunePt,
     react(),
     VitePWA({
       // "prompt": a versão nova só entra quando o professor tocar em "Atualizar"
@@ -48,7 +71,7 @@ export default defineConfig({
         // Leitor de QR (ZXing, ~1 MB) entra no cache: a correção funciona sem internet.
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         // Pesados e raros no celular (Excel, PDF, ZIP): baixam só quando usados.
-        globIgnores: ['screenshots/**', 'og-image.png', '**/xlsx-*.js', '**/pdf-*.js', '**/pdf.worker*', '**/jszip*'],
+        globIgnores: ['screenshots/**', 'og-image.png', '**/xlsx-*.js', '**/pdf-*.js', '**/pdf.worker*', '**/jszip*', '**/PlanDocEditorPage-*.js', '**/docxConvert-*.js', '**/main-*.js'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
         cleanupOutdatedCaches: true,
@@ -57,6 +80,22 @@ export default defineConfig({
       },
     }),
   ],
+  // No dev, as dependências são pré-empacotadas pelo esbuild: aplica a mesma tradução lá.
+  optimizeDeps: {
+    esbuildOptions: {
+      plugins: [
+        {
+          name: 'fortune-sheet-pt',
+          setup(build) {
+            build.onLoad({ filter: /@fortune-sheet[\\/]core[\\/]dist[\\/]index\.esm\.js$/ }, (args) => ({
+              contents: addPortuguese(readFileSync(args.path, 'utf8')),
+              loader: 'js',
+            }));
+          },
+        },
+      ],
+    },
+  },
   server: {
     port: 5173,
     // Em desenvolvimento, a API roda no `wrangler dev` (porta 8787).

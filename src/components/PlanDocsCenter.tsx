@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Eye, FileText, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
+import { Download, Eye, FilePen, FileSpreadsheet, FileText, Loader2, Lock, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { canReviewPlan } from '../lib/permissions';
-import { deletePlanDoc, listClasses, listPlanDocs, updatePlanDoc, uploadPlanDoc } from '../lib/queries';
+import { createEditableDoc, deletePlanDoc, listClasses, listPlanDocs, updatePlanDoc, uploadPlanDoc, type EditableKind } from '../lib/queries';
 import { downloadAllAttachments, safeFileName, translateStorageError } from '../lib/storage';
 import type { ClassRoom, PlanDoc } from '../lib/types';
 import { Button, Modal, Select } from './ui';
@@ -18,6 +19,9 @@ const SEGMENTS: { key: string; label: string; color: string }[] = [
   { key: 'fund2', label: 'Fundamental II', color: '#7c3aed' },
 ];
 const TERMS = [1, 2, 3];
+/** Abre no editor do SCOLA? (documentos e planilhas; o resto baixa/visualiza). */
+export const editableKind = (d: Pick<PlanDoc, 'kind' | 'name'>): EditableKind | null =>
+  d.kind === 'doc' || d.kind === 'sheet' ? d.kind : /\.docx$/i.test(d.name) ? 'doc' : /\.(xlsx|xlsm|xls|ods|csv|tsv)$/i.test(d.name) ? 'sheet' : null;
 const termLabel = (t: number | null) => (t ? `${t}º Trimestre` : 'Sem trimestre');
 const fmtDate = (iso: string) => {
   const [y, m, d] = iso.slice(0, 10).split('-');
@@ -80,7 +84,17 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
   const [editing, setEditing] = useState<PlanDoc | null>(null);
   const [zipping, setZipping] = useState(false);
 
+  const navigate = useNavigate();
   const invalidate = () => qc.invalidateQueries({ queryKey: ['plan-docs'] });
+  const create = useMutation({
+    mutationFn: (kind: EditableKind) =>
+      createEditableDoc({ kind, segment: segKey, term: term ? Number(term) : null, class_id: turma || null, turma_label: turmaName }),
+    onSuccess: (r) => {
+      invalidate();
+      navigate(`/planejamento/editor/${r.id}`);
+    },
+    onError: (e) => alert((e as Error).message),
+  });
   const segLabel = SEGMENTS.find((s) => s.key === segKey)?.label ?? '';
   const turmaName = turma ? classes.find((c) => c.id === turma)?.name ?? null : null;
 
@@ -148,6 +162,8 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
       doc={d}
       canManage={canManage(d)}
       onPreview={() => setPreview(d)}
+      onOpenEditor={editableKind(d) ? () => navigate(`/planejamento/editor/${d.id}`) : undefined}
+      lockedByOther={!!d.lock_by && d.lock_by !== userId}
       onEdit={() => setEditing(d)}
       onDelete={() => confirm(`Excluir "${d.name}"?\n\n⚠️ Ação irreversível: remove o arquivo do banco e do armazenamento.`) && remove.mutate(d)}
     />
@@ -183,6 +199,27 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
             {zipping ? 'Compactando…' : `Baixar todos (.zip) — ${filtered.length}`}
           </button>
         ) : null}
+      </div>
+
+      {/* Criar no próprio SCOLA (tipo Docs/Sheets) */}
+      <div className="grid grid-cols-2 gap-2 sm:flex">
+        <button
+          onClick={() => create.mutate('doc')}
+          disabled={create.isPending}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
+        >
+          <span className="grid h-7 w-7 place-items-center rounded-md bg-blue-600 text-white"><FileText size={15} /></span>
+          <Plus size={14} className="-ml-1" /> Novo documento
+        </button>
+        <button
+          onClick={() => create.mutate('sheet')}
+          disabled={create.isPending}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:border-green-300 hover:bg-green-50 disabled:opacity-50"
+        >
+          <span className="grid h-7 w-7 place-items-center rounded-md bg-green-600 text-white"><FileSpreadsheet size={15} /></span>
+          <Plus size={14} className="-ml-1" /> Nova planilha
+        </button>
+        <p className="col-span-2 self-center text-xs text-muted-foreground sm:ml-2">Edite direto no SCOLA, como no Docs e no Sheets. Word e Excel enviados também abrem aqui.</p>
       </div>
 
       {/* Dropzone slim — destino atual derivado dos filtros acima */}
@@ -227,12 +264,16 @@ function FileRow({
   doc,
   canManage,
   onPreview,
+  onOpenEditor,
+  lockedByOther,
   onEdit,
   onDelete,
 }: {
   doc: PlanDoc;
   canManage: boolean;
   onPreview: () => void;
+  onOpenEditor?: () => void;
+  lockedByOther?: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -240,30 +281,49 @@ function FileRow({
   const canPrev = !!doc.url && (isImg || doc.mime === 'application/pdf');
   const ext = (doc.name.split('.').pop() || 'arq').toUpperCase().slice(0, 4);
   const openExternal = () => doc.url && window.open(doc.url, '_blank', 'noopener');
+  const ek = editableKind(doc);
+  const open = onOpenEditor ?? (canPrev ? onPreview : openExternal);
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 transition hover:bg-muted sm:px-4">
       <button
-        onClick={canPrev ? onPreview : openExternal}
-        className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-muted text-muted-foreground"
+        onClick={open}
+        className={cn(
+          'grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg',
+          ek === 'doc' ? 'bg-blue-600 text-white' : ek === 'sheet' ? 'bg-green-600 text-white' : 'bg-muted text-muted-foreground',
+        )}
         aria-label="Abrir"
       >
-        {isImg && doc.url ? <img src={doc.url} alt={doc.name} className="h-full w-full object-cover" /> : <span className="text-[9px] font-black text-muted-foreground">{ext}</span>}
+        {isImg && doc.url ? (
+          <img src={doc.url} alt={doc.name} className="h-full w-full object-cover" />
+        ) : ek === 'doc' ? (
+          <FileText size={18} />
+        ) : ek === 'sheet' ? (
+          <FileSpreadsheet size={18} />
+        ) : (
+          <span className="text-[9px] font-black text-muted-foreground">{ext}</span>
+        )}
       </button>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold text-foreground" title={doc.name}>{doc.name}</p>
+        <button onClick={open} className="block max-w-full truncate text-left text-sm font-bold text-foreground hover:underline" title={doc.name}>{doc.name}</button>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
           {doc.turma_label ? <span className="font-bold text-muted-foreground">{doc.turma_label}</span> : null}
           {doc.turma_label ? <span>·</span> : null}
-          <span>{fmtDate(doc.created_at)}</span>
+          <span>{doc.updated_at && doc.kind !== 'file' ? `editado ${fmtDate(doc.updated_at)}` : fmtDate(doc.created_at)}</span>
+          {lockedByOther ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-1.5 py-0.5 font-semibold text-orange-800">
+              <Lock size={10} /> em edição
+            </span>
+          ) : null}
         </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
-        <IconBtn label="Visualizar" onClick={canPrev ? onPreview : openExternal}><Eye size={15} /></IconBtn>
+        {onOpenEditor ? <IconBtn label={canManage ? 'Abrir no editor' : 'Abrir'} onClick={onOpenEditor}><FilePen size={15} /></IconBtn> : null}
+        {!onOpenEditor ? <IconBtn label="Visualizar" onClick={canPrev ? onPreview : openExternal}><Eye size={15} /></IconBtn> : null}
         <IconBtn label="Baixar" href={doc.url} download={doc.name}><Download size={15} /></IconBtn>
-        {canManage ? <IconBtn label="Editar" onClick={onEdit}><Pencil size={15} /></IconBtn> : null}
+        {canManage ? <IconBtn label="Renomear / mover" onClick={onEdit}><Pencil size={15} /></IconBtn> : null}
         {canManage ? <IconBtn label="Excluir" danger onClick={onDelete}><Trash2 size={15} /></IconBtn> : null}
       </div>
     </div>

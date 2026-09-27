@@ -72,6 +72,19 @@ npm run migrar -- --aplicar    # grava no Cloudflare
 - A pasta `migracao/` gerada contém dados pessoais: não a envie ao GitHub (já está no `.gitignore`).
 - Quem entrava só pelo Google não tinha senha: o script avisa, e você gera a senha em **Equipe**.
 
+## Documentos e planilhas no Planejamento (sem Google)
+
+Em **Planejamento**, há os botões **Novo documento** (tipo Docs) e **Nova planilha** (tipo Sheets). Word (.docx) e planilhas (.xlsx, .xls, .ods, .csv) enviados também abrem no editor.
+- **Documento:** TipTap, com títulos, negrito/itálico/sublinhado, cores, marca-texto, alinhamento, listas, tabelas (mesclar, redimensionar) e imagens. Baixa como .docx (biblioteca `docx`) ou imprime em PDF. O Word enviado é aberto com o `mammoth`.
+- **Planilha:** FortuneSheet em português (tradução injetada pelo `vite.config.ts`), com abas, fórmulas, formatação, mesclar, congelar, filtrar e classificar. Importa e exporta .xlsx com `@corbe30/fortune-excel` (exceljs).
+- **Salva sozinho** enquanto a pessoa edita. O conteúdo editável fica no KV em `c:<id>`, e `f:<id>` guarda sempre o .docx/.xlsx atualizado, para baixar e visualizar.
+- **"Em edição por Fulano":** uma trava renovada a cada 30 s impede duas pessoas de sobrescreverem uma à outra. A gestão pode assumir uma trava esquecida.
+- **Histórico:** uma cópia é guardada a cada 15 min de edição, e dá para restaurar.
+- **Quem edita:** quem criou o arquivo e a gestão. Os demais só leem.
+- Abrir um arquivo enviado **não altera nada**: o original só é substituído quando alguém edita.
+
+Código: `src/pages/PlanDocEditorPage.tsx`, `src/components/editor/`, `src/lib/docxConvert.ts`, `worker/handlers/editor.ts`, `migrations/0009_plan_docs_editor.sql`.
+
 ## Importar chamadas já feitas
 
 Em **Chamadas → Importar**, envie o arquivo do outro sistema **em qualquer formato**: Excel (.xlsx, .xls), ODS, CSV, TSV, TXT, JSON, HTML, Word (.docx), LibreOffice (.odt), **PDF** (com texto ou escaneado) e **foto** (JPG, PNG, WEBP…).

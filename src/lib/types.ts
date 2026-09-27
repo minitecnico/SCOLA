@@ -283,6 +283,13 @@ export interface PlanDoc {
   author_id: string;
   created_at: string;
   url?: string;             // URL assinada
+  /** 'file' = arquivo enviado · 'doc'/'sheet' = editável no SCOLA */
+  kind?: 'file' | 'doc' | 'sheet';
+  version?: number;
+  updated_at?: string | null;
+  size?: number | null;
+  /** Em edição agora por (id do usuário). */
+  lock_by?: string | null;
 }
 
 export interface PlanMessage {

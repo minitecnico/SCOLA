@@ -624,7 +624,7 @@ export async function sendMail(mime: Blob) {
 
 /* ------------------------------------- Pastas ------------------------------------- */
 export const listPlanFolders = () => rpc<PlanFolder[]>('listPlanFolders');
-export const createPlanFolder = (input: { name: string; segment: string; class_id?: string | null }) => rpc<{ id: string }>('createPlanFolder', input);
+export const createPlanFolder = (input: { name: string; segment: string; class_id?: string | null; parent_id?: string | null }) => rpc<{ id: string }>('createPlanFolder', input);
 export const createClassFolders = (segment: string) => rpc<{ created: number }>('createClassFolders', segment);
 export const renamePlanFolder = (id: string, name: string) => rpc<void>('renamePlanFolder', id, name);
 export const deletePlanFolder = (id: string) => rpc<void>('deletePlanFolder', id);

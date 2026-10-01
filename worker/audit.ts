@@ -171,7 +171,7 @@ export const ACTIONS: Record<string, Spec> = {
   deleteOrganization: { cat: 'admin', label: 'Excluiu base', refs: (a) => ({ baseId: a[0] }), pre: true },
   importAttendance: { cat: 'chamada', label: 'Importou chamadas de planilha', refs: (a) => ({ classId: a[0]?.sessions?.[0]?.class_id, text: `${n(a[0]?.sessions)} dia(s)` }), result: (r) => (r ? `${r.created} dia(s) novo(s) · ${r.updated} atualizado(s) · ${r.skipped} pulado(s) · ${r.records} marcações` : null) },
   createGoogleDoc: { cat: 'comunicacao', label: (a) => `Criou ${({ spreadsheet: 'planilha', presentation: 'apresentação', form: 'formulário' } as Record<string, string>)[(a[0] as { gkind?: string })?.gkind ?? ''] ?? 'documento'} no Google`, refs: (a) => ({ classId: a[0]?.class_id, text: s(a[0]?.name) }) },
-  createPlanFolder: { cat: 'comunicacao', label: 'Criou pasta no planejamento', refs: (a) => ({ classId: a[0]?.class_id, text: s(a[0]?.name) }) },
+  createPlanFolder: { cat: 'comunicacao', label: (a) => ((a[0] as { parent_id?: string })?.parent_id ? 'Criou subpasta no planejamento' : 'Criou pasta no planejamento'), refs: (a) => ({ classId: a[0]?.class_id, text: s(a[0]?.name) }) },
   createClassFolders: { cat: 'comunicacao', label: 'Criou pastas das turmas no planejamento', result: (r) => `${r?.created ?? 0} pasta(s)` },
   renamePlanFolder: { cat: 'comunicacao', label: 'Renomeou pasta do planejamento', refs: (a) => ({ text: s(a[1]) }) },
   deletePlanFolder: { cat: 'comunicacao', label: 'Excluiu pasta do planejamento' },

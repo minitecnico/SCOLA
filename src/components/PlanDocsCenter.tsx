@@ -117,6 +117,14 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
   const invalidate = () => qc.invalidateQueries({ queryKey: ['plan-docs'] });
   const [folderId, setFolderId] = useState<string | null>(null);
   const folder = folders.find((f) => f.id === folderId) ?? null;
+  const children = folders.filter((f) => (f.parent_id ?? null) === folderId);
+  // Caminho da raiz até a pasta (para o "Pastas / A / B") e rótulos "A / B" no seletor de mover.
+  const pathOf = (id: string | null): PlanFolder[] => {
+    const out: PlanFolder[] = [];
+    for (let cur = id ? folders.find((f) => f.id === id) : undefined; cur && out.length < 8; cur = cur.parent_id ? folders.find((f) => f.id === cur!.parent_id) : undefined) out.unshift(cur);
+    return out;
+  };
+  const labelOfFolder = (id: string) => pathOf(id).map((f) => f.name).join(' / ');
   // Dentro de uma pasta de turma, tudo o que for criado/enviado já fica dessa turma.
   const destClass = folder?.class_id ?? (turma || null);
   const destClassName = destClass ? classes.find((c) => c.id === destClass)?.name ?? null : null;
@@ -169,6 +177,7 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
 
   const [newFolder, setNewFolder] = useState(false);
   const countIn = (id: string | null) => docs.filter((d) => (d.folder_id ?? null) === id).length;
+  const subCount = (id: string) => folders.filter((f) => f.parent_id === id).length;
   const refreshFolders = () => qc.invalidateQueries({ queryKey: ['plan-folders'] });
   const move = useMutation({
     mutationFn: ({ ids, to }: { ids: string[]; to: string | null }) => movePlanDocs(ids, to),
@@ -187,10 +196,10 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
   const removeFolder = useMutation({
     mutationFn: () => deletePlanFolder(folder!.id),
     onSuccess: () => {
-      setFolderId(null);
+      setFolderId(folder?.parent_id ?? null);
       refreshFolders();
       invalidate();
-      successToast('Pasta excluída. Os arquivos voltaram para o início.');
+      successToast('Pasta excluída. O conteúdo subiu um nível.');
     },
     onError: (e) => alert((e as Error).message),
   });
@@ -285,51 +294,60 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
           >
             <option value="" className="text-slate-900">Mover para…</option>
             {folderId ? <option value="__root" className="text-slate-900">Início (sem pasta)</option> : null}
-            {folders.filter((f) => f.id !== folderId).map((f) => <option key={f.id} value={f.id} className="text-slate-900">{f.name}</option>)}
+            {[...folders].filter((f) => f.id !== folderId).sort((a, b) => labelOfFolder(a.id).localeCompare(labelOfFolder(b.id), 'pt-BR')).map((f) => <option key={f.id} value={f.id} className="text-slate-900">{labelOfFolder(f.id)}</option>)}
           </select>
           <button onClick={() => sel.setAll(filtered.map((d) => d.id))} className="text-xs font-bold underline">Selecionar todos ({filtered.length})</button>
           <button onClick={sel.clear} className="ml-auto text-xs font-bold underline">Limpar</button>
         </div>
       ) : null}
 
-      {/* Pastas */}
+      {/* Pastas e subpastas */}
       {folder ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
-          <button onClick={() => { setFolderId(null); sel.clear(); }} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-bold text-muted-foreground hover:bg-muted">
+        <div className="flex flex-wrap items-center gap-1 rounded-xl border border-border bg-card px-3 py-2 text-sm">
+          <button onClick={() => { setFolderId(null); sel.clear(); }} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-bold text-muted-foreground hover:bg-muted">
             <ArrowLeft size={15} /> Pastas
           </button>
-          <span className="text-muted-foreground">/</span>
-          <span className="flex min-w-0 items-center gap-1.5 text-sm font-black"><Folder size={16} className="shrink-0 text-amber-500" /><span className="truncate">{folder.name}</span></span>
+          {pathOf(folder.id).map((f, i, arr) => (
+            <span key={f.id} className="flex min-w-0 items-center gap-1">
+              <span className="text-muted-foreground">/</span>
+              {i === arr.length - 1 ? (
+                <span className="flex min-w-0 items-center gap-1.5 font-black"><Folder size={16} className="shrink-0 text-amber-500" /><span className="truncate">{f.name}</span></span>
+              ) : (
+                <button onClick={() => { setFolderId(f.id); sel.clear(); }} className="max-w-[10rem] truncate rounded-lg px-1.5 py-1 font-bold text-muted-foreground hover:bg-muted">{f.name}</button>
+              )}
+            </span>
+          ))}
           {canManageFolder ? (
             <span className="ml-auto flex gap-1">
               <IconBtn label="Renomear pasta" onClick={() => { const n = prompt('Novo nome da pasta:', folder.name); if (n && n.trim()) renameFolder.mutate(n); }}><Pencil size={15} /></IconBtn>
-              <IconBtn label="Excluir pasta" danger onClick={() => confirm(`Excluir a pasta "${folder.name}"?\n\nOs arquivos NÃO são apagados: voltam para o início.`) && removeFolder.mutate()}><Trash2 size={15} /></IconBtn>
+              <IconBtn label="Excluir pasta" danger onClick={() => confirm(`Excluir a pasta "${folder.name}"?\n\nNada é apagado: subpastas e arquivos sobem um nível.`) && removeFolder.mutate()}><Trash2 size={15} /></IconBtn>
             </span>
           ) : null}
         </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-          {folders.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => { setFolderId(f.id); sel.clear(); }}
-              className="flex min-w-0 items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 text-left transition hover:border-amber-300 hover:bg-amber-50"
-            >
-              <Folder size={22} className="shrink-0 fill-amber-200 text-amber-500" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-bold">{f.name}</span>
-                <span className="text-[11px] text-muted-foreground">{countIn(f.id)} arquivo{countIn(f.id) === 1 ? '' : 's'}</span>
-              </span>
-            </button>
-          ))}
+      ) : null}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+        {children.map((f) => (
           <button
-            onClick={() => setNewFolder(true)}
-            className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-2.5 text-sm font-bold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            key={f.id}
+            onClick={() => { setFolderId(f.id); sel.clear(); }}
+            className="flex min-w-0 items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 text-left transition hover:border-amber-300 hover:bg-amber-50"
           >
-            <FolderPlus size={18} /> Nova pasta
+            <Folder size={22} className="shrink-0 fill-amber-200 text-amber-500" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-bold">{f.name}</span>
+              <span className="text-[11px] text-muted-foreground">
+                {countIn(f.id)} arquivo{countIn(f.id) === 1 ? '' : 's'}{subCount(f.id) ? ` · ${subCount(f.id)} subpasta${subCount(f.id) > 1 ? 's' : ''}` : ''}
+              </span>
+            </span>
           </button>
-        </div>
-      )}
+        ))}
+        <button
+          onClick={() => setNewFolder(true)}
+          className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-2.5 text-sm font-bold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <FolderPlus size={18} /> {folder ? 'Nova subpasta' : 'Nova pasta'}
+        </button>
+      </div>
 
       {/* Dropzone slim — destino atual derivado dos filtros acima */}
       <Dropzone
@@ -363,7 +381,7 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
         <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-card">{filtered.map(row)}</div>
       )}
 
-      {newFolder ? <NewFolderModal segment={segKey} classes={classes} folders={folders} onClose={() => setNewFolder(false)} onDone={(id) => { refreshFolders(); if (id) setFolderId(id); }} /> : null}
+      {newFolder ? <NewFolderModal segment={segKey} parentId={folderId} classes={classes} folders={folders} onClose={() => setNewFolder(false)} onDone={(id) => { refreshFolders(); if (id) setFolderId(id); }} /> : null}
       {mailDocs ? <SendMailModal docs={mailDocs} google={google} onClose={() => setMailDocs(null)} onSent={sel.clear} /> : null}
       {preview?.url ? <PreviewModal name={preview.name} url={preview.url} mime={preview.mime} onClose={() => setPreview(null)} /> : null}
       {editing ? <EditDocModal doc={editing} classes={classes} onClose={() => setEditing(null)} onSaved={invalidate} /> : null}
@@ -371,12 +389,12 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
   );
 }
 
-function NewFolderModal({ segment, classes, folders, onClose, onDone }: { segment: string; classes: ClassRoom[]; folders: PlanFolder[]; onClose: () => void; onDone: (openId?: string) => void }) {
+function NewFolderModal({ segment, parentId, classes, folders, onClose, onDone }: { segment: string; parentId: string | null; classes: ClassRoom[]; folders: PlanFolder[]; onClose: () => void; onDone: (openId?: string) => void }) {
   const [name, setName] = useState('');
   const [turma, setTurma] = useState('');
-  const missing = classes.filter((c) => !c.archived_at && !folders.some((f) => f.class_id === c.id));
+  const missing = classes.filter((c) => !c.archived_at && !folders.some((f) => f.class_id === c.id && !f.parent_id));
   const create = useMutation({
-    mutationFn: () => createPlanFolder({ name: name.trim() || classes.find((c) => c.id === turma)?.name || '', segment, class_id: turma || null }),
+    mutationFn: () => createPlanFolder({ name: name.trim() || classes.find((c) => c.id === turma)?.name || '', segment, class_id: turma || null, parent_id: parentId }),
     onSuccess: (r) => { onDone(r.id); onClose(); },
     onError: (e) => alert((e as Error).message),
   });
@@ -386,7 +404,7 @@ function NewFolderModal({ segment, classes, folders, onClose, onDone }: { segmen
     onError: (e) => alert((e as Error).message),
   });
   return (
-    <Modal open onClose={onClose} title="Nova pasta">
+    <Modal open onClose={onClose} title={parentId ? "Nova subpasta" : "Nova pasta"}>
       <div className="space-y-3">
         <label className="block"><span className="mb-1 block text-xs font-bold text-muted-foreground">Nome</span>
           <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Planejamento de outubro" className="w-full rounded-lg border border-border px-3 py-2 text-sm outline-none focus:border-slate-900" />
@@ -399,9 +417,9 @@ function NewFolderModal({ segment, classes, folders, onClose, onDone }: { segmen
         </label>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button onClick={() => create.mutate()} disabled={create.isPending || (!name.trim() && !turma)}>{create.isPending ? 'Criando…' : 'Criar pasta'}</Button>
+          <Button onClick={() => create.mutate()} disabled={create.isPending || (!name.trim() && !turma)}>{create.isPending ? 'Criando…' : 'Criar'}</Button>
         </div>
-        {missing.length > 0 ? (
+        {missing.length > 0 && !parentId ? (
           <div className="border-t border-border pt-3">
             <button onClick={() => all.mutate()} disabled={all.isPending} className="inline-flex items-center gap-2 text-sm font-bold underline disabled:opacity-50">
               <FolderInput size={15} /> {all.isPending ? 'Criando…' : `Criar uma pasta para cada turma (${missing.length})`}

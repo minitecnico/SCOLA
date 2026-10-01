@@ -17,9 +17,10 @@ const GOOGLE_TYPES = {
   document: { mime: 'application/vnd.google-apps.document', label: 'Documento sem título' },
   spreadsheet: { mime: 'application/vnd.google-apps.spreadsheet', label: 'Planilha sem título' },
   presentation: { mime: 'application/vnd.google-apps.presentation', label: 'Apresentação sem título' },
+  form: { mime: 'application/vnd.google-apps.form', label: 'Formulário sem título' },
 } as const;
 export const googleLink = (kind: string, id: string) =>
-  `https://docs.google.com/${kind}/d/${id}/edit`;
+  `https://docs.google.com/${kind === 'form' ? 'forms' : kind}/d/${id}/edit`;
 
 /** Cria um Doc/Sheet/Slides no Google Drive de quem chamou e registra na central de planejamento. */
 export async function createGoogleDoc(ctx: Ctx, input: {

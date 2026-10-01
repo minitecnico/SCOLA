@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, ExternalLink, Eye, FilePen, FileSpreadsheet, FileText, Loader2, Lock, Pencil, Presentation, Plus, Search, Trash2 } from 'lucide-react';
+import { Download, ExternalLink, Eye, FilePen, FileSpreadsheet, FileText, Loader2, Lock, Pencil, Presentation, ClipboardList, Plus, Search, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
@@ -8,6 +8,7 @@ import { createEditableDoc, createGoogleDoc, deletePlanDoc, disconnectGoogle, ge
 import { downloadAllAttachments, safeFileName, translateStorageError } from '../lib/storage';
 import type { ClassRoom, PlanDoc } from '../lib/types';
 import { Button, Modal, Select } from './ui';
+import { GoogleHub } from './GoogleHub';
 import { Dropzone } from './Dropzone';
 import { PreviewModal } from './Attachments';
 import { successToast } from './Feedback';
@@ -245,40 +246,16 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
         <p className="col-span-2 self-center text-xs text-muted-foreground sm:ml-2">Edite direto no SCOLA, como no Docs e no Sheets. Word e Excel enviados também abrem aqui.</p>
       </div>
 
-      {/* Google Docs / Sheets / Slides (conta de cada usuário) */}
-      {google?.available ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3">
-          {google.connected ? (
-            <>
-              {([['document', 'Google Docs', FileText, 'bg-blue-500'], ['spreadsheet', 'Google Sheets', FileSpreadsheet, 'bg-green-500'], ['presentation', 'Google Slides', Presentation, 'bg-yellow-500']] as const).map(([k, label, Icon, color]) => (
-                <button
-                  key={k}
-                  onClick={() => newGoogle(k)}
-                  disabled={createG.isPending}
-                  className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-semibold transition hover:bg-muted disabled:opacity-50"
-                >
-                  <span className={cn('grid h-6 w-6 place-items-center rounded-md text-white', color)}><Icon size={13} /></span>
-                  <Plus size={13} className="-ml-1" /> {label}
-                </button>
-              ))}
-              <span className="text-xs text-muted-foreground sm:ml-2">
-                Conectado como <b>{google.email || 'sua conta'}</b> ·{' '}
-                <button onClick={() => confirm('Desconectar sua conta do Google? Os arquivos continuam no seu Drive.') && unlink.mutate()} className="font-bold underline">desconectar</button>
-              </span>
-            </>
-          ) : (
-            <>
-              <a href="/api/google/connect" className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-black text-white hover:bg-slate-800">
-                <ExternalLink size={14} /> Conectar Google
-              </a>
-              <span className="text-xs text-muted-foreground">
-                {gParam === 'escopo' ? 'Faltou marcar a permissão do Google Drive na tela do Google. Conecte de novo e deixe todas as caixas marcadas. ' : gParam === 'negado' ? 'Conexão cancelada. ' : gParam === 'erro' ? 'Não deu certo, tente de novo. ' : ''}
-                Crie Docs, Sheets e Slides no seu Google Drive direto daqui. O SCOLA só acessa o que ele mesmo criar.
-              </span>
-            </>
-          )}
-        </div>
-      ) : null}
+      {/* Google: atalhos + criar Docs/Sheets/Slides/Forms (conta de cada usuário) */}
+      <GoogleHub
+        available={!!google?.available}
+        connected={!!google?.connected}
+        email={google?.email ?? null}
+        busy={createG.isPending}
+        message={gParam === 'escopo' ? 'Faltou marcar a permissão do Drive na tela do Google; conecte de novo com todas as caixas marcadas.' : gParam === 'negado' ? 'Conexão cancelada.' : gParam === 'erro' ? 'Não deu certo, tente de novo.' : undefined}
+        onCreate={newGoogle}
+        onDisconnect={() => confirm('Desconectar sua conta do Google? Os arquivos continuam no seu Drive.') && unlink.mutate()}
+      />
 
       {/* Dropzone slim — destino atual derivado dos filtros acima */}
       <Dropzone
@@ -349,7 +326,7 @@ function FileRow({
         onClick={open}
         className={cn(
           'grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg',
-          ek === 'doc' || doc.google_kind === 'document' ? 'bg-blue-600 text-white' : ek === 'sheet' || doc.google_kind === 'spreadsheet' ? 'bg-green-600 text-white' : doc.google_kind === 'presentation' ? 'bg-yellow-500 text-white' : 'bg-muted text-muted-foreground',
+          ek === 'doc' || doc.google_kind === 'document' ? 'bg-blue-600 text-white' : ek === 'sheet' || doc.google_kind === 'spreadsheet' ? 'bg-green-600 text-white' : doc.google_kind === 'presentation' ? 'bg-yellow-500 text-white' : doc.google_kind === 'form' ? 'bg-purple-600 text-white' : 'bg-muted text-muted-foreground',
         )}
         aria-label="Abrir"
       >
@@ -357,6 +334,8 @@ function FileRow({
           <img src={doc.url} alt={doc.name} className="h-full w-full object-cover" />
         ) : doc.google_kind === 'presentation' ? (
           <Presentation size={18} />
+        ) : doc.google_kind === 'form' ? (
+          <ClipboardList size={18} />
         ) : ek === 'doc' || doc.google_kind === 'document' ? (
           <FileText size={18} />
         ) : ek === 'sheet' || doc.google_kind === 'spreadsheet' ? (

@@ -287,7 +287,7 @@ export interface PlanDoc {
   kind?: 'file' | 'doc' | 'sheet' | 'google';
   /** Arquivo que mora no Google: id no Drive e tipo. */
   google_id?: string | null;
-  google_kind?: 'document' | 'spreadsheet' | 'presentation' | null;
+  google_kind?: 'document' | 'spreadsheet' | 'presentation' | 'form' | null;
   version?: number;
   updated_at?: string | null;
   size?: number | null;

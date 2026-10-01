@@ -1,9 +1,8 @@
-import { ExternalLink, FileSpreadsheet, FileText, ClipboardList, Presentation, Mail, HardDrive, CalendarDays, Youtube, Video, GraduationCap, Plus, Loader2 } from 'lucide-react';
-import type { ComponentType } from 'react';
+import { ExternalLink, FileSpreadsheet, FileText, ClipboardList, Presentation, Mail, HardDrive, CalendarDays, Youtube, Video, GraduationCap, Plus, Loader2, type LucideIcon } from 'lucide-react';
 import type { GoogleKind } from '../lib/queries';
 import { cn } from '../lib/cn';
 
-type Icon = ComponentType<{ size?: number }>;
+type Icon = LucideIcon;
 
 const CREATE: { kind: GoogleKind; label: string; icon: Icon; color: string }[] = [
   { kind: 'document', label: 'Docs', icon: FileText, color: 'bg-blue-600' },

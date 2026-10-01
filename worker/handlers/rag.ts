@@ -1,33 +1,18 @@
 import { requireBase, requireRole, type Ctx } from '../auth';
 import { all, fail, inList, now, parse, run, stmt } from '../db';
 import { docInBase } from './editor';
-import { aiConfig, aiLabel, generate } from '../ai';
+import { aiConfig, aiLabel, embedTexts, generate } from '../ai';
 
 /**
  * Assistente (RAG) sobre os documentos do Planejamento. Tudo no Cloudflare (plano gratuito):
  * o navegador extrai o texto e quebra em trechos (o Worker tem só 10 ms de CPU); aqui só embutimos
- * (bge-m3, multilíngue), guardamos no Vectorize e, na pergunta, buscamos os trechos e pedimos a resposta.
+ * (modelo configurável por chave), guardamos no Vectorize e, na pergunta, buscamos os trechos e pedimos a resposta.
  */
-const EMBED_MODEL = '@cf/baai/bge-m3';
 const MAX_CHUNKS = 300;
 const MAX_CHUNK_CHARS = 1500;
-const EMBED_BATCH = 50;
-const dailyLimit = (ctx: Ctx) => Number(ctx.env.AI_DAILY_LIMIT) || 60; // protege a cota gratuita (ou o gasto da chave)
+const dailyLimit = (ctx: Ctx) => Number(ctx.env.AI_DAILY_LIMIT) || 60; // limita o gasto da chave
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ai = (env: Ctx['env']) => env.AI as any;
-
-async function embed(ctx: Ctx, texts: string[]): Promise<number[][]> {
-  const out: number[][] = [];
-  for (let i = 0; i < texts.length; i += EMBED_BATCH) {
-    const r = await ai(ctx.env).run(EMBED_MODEL, { text: texts.slice(i, i + EMBED_BATCH) }).catch((e: Error) => {
-      console.error('embed', e);
-      return fail('O assistente está indisponível agora (limite diário do Cloudflare?). Tente mais tarde.', 503);
-    });
-    out.push(...(r.data as number[][]));
-  }
-  return out;
-}
+const embed = (ctx: Ctx, texts: string[]) => embedTexts(ctx.env, texts);
 
 /** Documentos que precisam ser (re)indexados e o andamento geral. */
 export async function ragStatus(ctx: Ctx) {
@@ -190,7 +175,7 @@ export async function ragAsk(ctx: Ctx, question: string, docIds?: string[]) {
   const q = String(question || '').trim().slice(0, 600);
   if (q.length < 3) fail('Escreva a pergunta.');
 
-  // Limite diário por pessoa (a cota gratuita do Workers AI é da conta toda).
+  // Limite diário por pessoa (protege o gasto da chave).
   const key = `rag:${ctx.user.id}:${new Date().toISOString().slice(0, 10)}`;
   const used = Number((await ctx.env.FILES.get(key)) || 0);
   if (used >= dailyLimit(ctx)) fail(`Você usou as ${dailyLimit(ctx)} perguntas de hoje. Volte amanhã.`, 429);
@@ -240,12 +225,13 @@ export async function ragAsk(ctx: Ctx, question: string, docIds?: string[]) {
 /** Qual motor está ativo (todos veem o nome; só o administrador pode testar a chave). */
 export async function assistantInfo(ctx: Ctx) {
   const c = aiConfig(ctx.env);
-  return { label: aiLabel(ctx.env), provider: c.provider, configured: c.configured, canTest: ctx.isAdmin };
+  return { label: aiLabel(ctx.env), provider: c.provider, chatReady: c.chatReady, embedReady: c.embedReady, configured: c.chatReady && c.embedReady, canTest: ctx.isAdmin };
 }
 
 export async function testAssistant(ctx: Ctx) {
   if (!ctx.isAdmin) fail('Só o administrador da plataforma pode testar.', 403);
   const t0 = Date.now();
   const text = await generate(ctx.env, [{ role: 'user', content: 'Responda apenas: OK' }], 20);
+  await embedTexts(ctx.env, ['teste']);
   return { ok: !!text, reply: text.slice(0, 40), ms: Date.now() - t0, label: aiLabel(ctx.env) };
 }

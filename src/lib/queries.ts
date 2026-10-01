@@ -637,5 +637,5 @@ export const ragStatus = () => rpc<RagStatus>('ragStatus');
 export const ragIndexDoc = (docId: string, chunks: string[]) => rpc<{ chunks: number }>('ragIndexDoc', docId, chunks);
 export const ragAsk = (question: string, docIds?: string[]) => rpc<RagAnswer>('ragAsk', question, docIds);
 export const ragSync = () => rpc<{ remaining: number }>('ragSync');
-export const assistantInfo = () => rpc<{ label: string; provider: string; configured: boolean; canTest: boolean }>('assistantInfo');
+export const assistantInfo = () => rpc<{ label: string; provider: string; chatReady: boolean; embedReady: boolean; configured: boolean; canTest: boolean }>('assistantInfo');
 export const testAssistant = () => rpc<{ ok: boolean; reply: string; ms: number; label: string }>('testAssistant');

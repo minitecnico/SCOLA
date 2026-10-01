@@ -21,23 +21,26 @@ export function AssistantModal({ selectedIds, onClose }: { selectedIds: string[]
 
   // Indexa, um por vez, o que ainda não está pronto (o navegador extrai o texto).
   useEffect(() => {
-    if (!st || started.current) return;
+    if (!st || !info?.configured || started.current) return;
     started.current = true;
     (async () => {
       const bad: string[] = [];
       for (let i = 0; i < st.pending.length; i++) {
         const d = st.pending[i];
         setPrep({ done: i, total: st.pending.length, name: d.name });
+        let chunks: string[] | null = null;
         try {
           const url = d.kind === 'google' ? `/api/google/export/${d.id}` : `/api/files/${d.id}`;
           const r = await fetch(url, { credentials: 'same-origin' });
           if (!r.ok) throw new Error('inacessível');
           const name = d.kind === 'google' ? d.name + (EXPORT_EXT[d.google_kind ?? ''] ?? '') : d.name;
-          await ragIndexDoc(d.id, chunkText(await extractText(await r.blob(), name)));
+          chunks = chunkText(await extractText(await r.blob(), name));
         } catch {
           bad.push(d.name);
-          await ragIndexDoc(d.id, []).catch(() => {}); // não tentar de novo a cada abertura
+          chunks = []; // sem texto aproveitável: não tentar de novo a cada abertura
         }
+        // Falha ao indexar (limite do provedor, rede...) não marca como pronto: tenta de novo na próxima vez.
+        await ragIndexDoc(d.id, chunks).catch(() => {});
       }
       // Avisos, calendários, planejamentos e provas: o servidor monta o texto e atualiza o que mudou.
       try {
@@ -48,7 +51,7 @@ export function AssistantModal({ selectedIds, onClose }: { selectedIds: string[]
       setPrep(null);
       qc.invalidateQueries({ queryKey: ['rag-status'] });
     })();
-  }, [st, qc]);
+  }, [st, info, qc]);
 
   const [turns, setTurns] = useState<Turn[]>([]);
   const [text, setText] = useState('');
@@ -89,6 +92,11 @@ export function AssistantModal({ selectedIds, onClose }: { selectedIds: string[]
             </label>
           ) : null}
         </div>
+        {info && !info.configured ? (
+          <p className="rounded-lg bg-amber-50 p-2 text-xs font-bold text-amber-800">
+            O assistente ainda não tem chave de IA configurada{info.canTest ? ' (veja o README: AI_PROVIDER, AI_API_KEY e AI_EMBED_*)' : '. Fale com o administrador'}.
+          </p>
+        ) : null}
         {skipped.length ? <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Sem texto para consulta (imagem, PDF escaneado ou sem acesso): {skipped.join(', ')}</p> : null}
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto rounded-xl border border-border bg-muted/40 p-3">
@@ -135,7 +143,7 @@ export function AssistantModal({ selectedIds, onClose }: { selectedIds: string[]
             placeholder={prep ? 'Aguarde, preparando os documentos…' : 'Pergunte sobre os documentos…'}
             className="min-w-0 flex-1 resize-none rounded-xl border border-border px-3 py-2 text-sm outline-none focus:border-slate-900"
           />
-          <button onClick={send} disabled={ask.isPending || !!prep || text.trim().length < 3} className="grid w-12 place-items-center rounded-xl bg-slate-900 text-white disabled:opacity-40" aria-label="Enviar pergunta">
+          <button onClick={send} disabled={ask.isPending || !!prep || text.trim().length < 3 || info?.configured === false} className="grid w-12 place-items-center rounded-xl bg-slate-900 text-white disabled:opacity-40" aria-label="Enviar pergunta">
             <Send size={18} />
           </button>
         </div>

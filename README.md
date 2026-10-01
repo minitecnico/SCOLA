@@ -93,12 +93,15 @@ Colunas `plan_docs.google_id` e `google_kind` reservadas para documentos que mor
 ## Assistente (RAG)
 
 Botão **Assistente** em Planejamento: pergunta em português sobre documentos, avisos, calendário, planejamentos e provas, e responde citando as fontes. Notas, frequência e dados de alunos NÃO entram (dados em tabela pedem consulta exata, não busca por semelhança).
-- **Visibilidade** (metadados `vis` e `owner`, filtrados no Worker depois da busca): documentos e calendários são de toda a escola; avisos seguem o público (todos, papel ou pessoa) e o autor sempre os vê; planejamentos e provas só o autor e a gestão. Índices de metadados do Vectorize: `base_id`, `doc_id`, `vis`, `owner`.
-- Avisos/calendários/planejamentos/provas são montados no servidor (`ragSync`, em lotes de 10, só o que mudou) e controlados pela tabela `rag_items`. Tudo no Cloudflare (plano gratuito):
-- **Vectorize** (índice `scola-rag`, 1024 dimensões, cosseno, metadados `base_id` e `doc_id`) guarda os trechos; **Workers AI** gera os embeddings (`bge-m3`, multilíngue) e a resposta (`gemma-3-12b-it`).
-- O **navegador** extrai o texto (Word, Excel/ODS, PDF com texto, PPTX, TXT/CSV, Docs/Sheets/Slides do Google exportados) e divide em trechos; o Worker só embute e grava. Documentos novos ou editados são preparados sozinhos ao abrir o assistente. PDF escaneado e imagem não entram.
-- **Motor da resposta configurável** (a busca continua no Workers AI, para o índice não mudar): `AI_PROVIDER` = `workers` (padrão, gratuito) | `anthropic` | `openai` (qualquer API compatível: OpenAI, Gemini, Groq, OpenRouter), com `AI_API_KEY`, `AI_MODEL` e, no `openai`, `AI_BASE_URL`. Cadastre com `npx wrangler secret put AI_API_KEY` etc. O administrador tem o botão **Testar motor** no rodapé do assistente. Com provedor externo, os trechos usados na pergunta saem do Cloudflare para esse provedor.
-- Cada pessoa tem 60 perguntas por dia (`AI_DAILY_LIMIT`) (protege a cota gratuita do Workers AI, que é da conta inteira). O índice foi criado uma vez com `wrangler vectorize create scola-rag --dimensions=1024 --metric=cosine` e dois índices de metadados.
+
+**Está desligado até você configurar uma chave de IA** (nenhum modelo vem embutido). Dois modelos, todos por segredos do Worker (`npx wrangler secret put NOME`):
+- **Respostas:** `AI_PROVIDER` = `anthropic` ou `openai` (esta serve para qualquer API compatível: Gemini, Groq, OpenRouter...), `AI_API_KEY`, `AI_MODEL` (opcional) e, no `openai` com outro provedor, `AI_BASE_URL`.
+- **Busca (embeddings):** API compatível com OpenAI (`/embeddings`): `AI_EMBED_API_KEY` (se `AI_PROVIDER=openai` pode omitir), `AI_EMBED_BASE_URL`, `AI_EMBED_MODEL` (padrão `text-embedding-3-small`). O modelo precisa aceitar `dimensions: 1024`, que é o tamanho do índice. O Claude não gera embeddings: com `anthropic`, a busca usa outro provedor.
+- **Trocou o modelo de busca?** Os vetores antigos deixam de servir. Apague e recrie o índice (`wrangler vectorize delete scola-rag` e `create scola-rag --dimensions=1024 --metric=cosine`, mais os índices de metadados `base_id` e `doc_id`) e rode no D1: `UPDATE plan_docs SET rag_at = NULL, rag_chunks = NULL; DELETE FROM rag_items;`.
+- O administrador tem **Testar motor** no rodapé do assistente. Com provedor externo, os trechos usados na pergunta saem do Cloudflare para ele. Cada pessoa tem 60 perguntas por dia (`AI_DAILY_LIMIT`), o que limita o gasto da chave.
+
+**Como funciona:** o navegador extrai o texto (Word, Excel/ODS, PDF com texto, PPTX, TXT/CSV, Docs/Sheets/Slides do Google exportados) e divide em trechos; o Worker só embute e grava no **Vectorize** (índice `scola-rag`, 1024 dimensões, cosseno). PDF escaneado e imagem não entram. Avisos, calendários, planejamentos e provas são montados no servidor (`ragSync`, lotes de 10, só o que mudou, tabela `rag_items`).
+**Visibilidade** (metadados `vis` e `owner`, filtrados no Worker depois da busca): documentos e calendários são de toda a escola; avisos seguem o público e o autor sempre os vê; planejamentos e provas só o autor e a gestão.
 
 ## Documentos e planilhas no Planejamento (sem Google)
 

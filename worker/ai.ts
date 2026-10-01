@@ -1,52 +1,48 @@
 import { fail, type Env } from './db';
 
 /**
- * Motor de IA do Assistente (só a RESPOSTA; a busca usa sempre os embeddings do Workers AI, para o índice não mudar).
- * Escolha pelos segredos do Worker — sem eles, usa o Workers AI gratuito do Cloudflare:
- *   AI_PROVIDER  = workers (padrão) | anthropic | openai
- *   AI_API_KEY   = chave do provedor (anthropic/openai)
- *   AI_MODEL     = opcional (padrão: claude-haiku-4-5-20251001 | gpt-4o-mini | @cf/google/gemma-3-12b-it)
- *   AI_BASE_URL  = só para "openai": qualquer API compatível (Gemini, Groq, OpenRouter, Azure...). Padrão: https://api.openai.com/v1
+ * IA do Assistente — tudo por chave de API (segredos do Worker), nada embutido:
+ *  Respostas:  AI_PROVIDER = anthropic | openai, AI_API_KEY, AI_MODEL (opcional),
+ *              AI_BASE_URL (só "openai": qualquer API compatível — Gemini, Groq, OpenRouter...; padrão https://api.openai.com/v1)
+ *  Busca:      /embeddings de uma API compatível com OpenAI — AI_EMBED_API_KEY (ou AI_API_KEY se AI_PROVIDER=openai),
+ *              AI_EMBED_BASE_URL (padrão AI_BASE_URL ou OpenAI), AI_EMBED_MODEL (padrão text-embedding-3-small).
+ *              O índice do Vectorize tem 1024 dimensões: o modelo precisa aceitar "dimensions": 1024.
+ *              Trocou de modelo de busca? Os vetores antigos não servem: apague o índice e reindexe (README).
  */
 export type Msg = { role: 'system' | 'user' | 'assistant'; content: string };
-export type Provider = 'workers' | 'anthropic' | 'openai';
+export type Provider = 'none' | 'anthropic' | 'openai';
+export const EMBED_DIMENSIONS = 1024;
 
-const DEFAULTS: Record<Provider, string> = {
-  workers: '@cf/google/gemma-3-12b-it',
-  anthropic: 'claude-haiku-4-5-20251001',
-  openai: 'gpt-4o-mini',
-};
+const DEFAULT_MODEL: Record<string, string> = { anthropic: 'claude-haiku-4-5-20251001', openai: 'gpt-4o-mini' };
+const OPENAI_BASE = 'https://api.openai.com/v1';
 
 export function aiConfig(env: Env) {
-  const p = String(env.AI_PROVIDER || 'workers').toLowerCase();
-  const provider: Provider = p === 'anthropic' || p === 'openai' ? p : 'workers';
-  const needsKey = provider !== 'workers';
+  const p = String(env.AI_PROVIDER || '').toLowerCase();
+  const provider: Provider = p === 'anthropic' || p === 'openai' ? p : 'none';
+  const embedKey = env.AI_EMBED_API_KEY || (provider === 'openai' ? env.AI_API_KEY : '');
   return {
     provider,
-    model: env.AI_MODEL || DEFAULTS[provider],
-    baseUrl: (env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, ''),
-    configured: !needsKey || !!env.AI_API_KEY,
+    model: env.AI_MODEL || DEFAULT_MODEL[provider] || '',
+    baseUrl: (env.AI_BASE_URL || OPENAI_BASE).replace(/\/+$/, ''),
+    chatReady: provider !== 'none' && !!env.AI_API_KEY,
+    embedReady: !!embedKey,
+    embedKey: embedKey || '',
+    embedBase: (env.AI_EMBED_BASE_URL || env.AI_BASE_URL || OPENAI_BASE).replace(/\/+$/, ''),
+    embedModel: env.AI_EMBED_MODEL || 'text-embedding-3-small',
   };
 }
 
-const LABEL: Record<Provider, string> = { workers: 'Cloudflare Workers AI (gratuito)', anthropic: 'Claude (Anthropic)', openai: 'API compatível com OpenAI' };
 export const aiLabel = (env: Env) => {
   const c = aiConfig(env);
-  return `${LABEL[c.provider]} · ${c.model}`;
+  return c.chatReady ? `${c.provider === 'anthropic' ? 'Claude (Anthropic)' : 'API compatível com OpenAI'} · ${c.model}` : 'Nenhum (configure a chave de IA)';
 };
+
+const NOT_CONFIGURED = 'O assistente ainda não foi configurado com uma chave de IA. Fale com o administrador.';
 
 /** Gera a resposta no provedor configurado. Erros viram mensagens amigáveis (a chave nunca aparece). */
 export async function generate(env: Env, messages: Msg[], maxTokens = 700): Promise<string> {
   const c = aiConfig(env);
-  if (!c.configured) fail('O assistente está sem chave de IA configurada. Fale com o administrador.', 503);
-  const unavailable = () => fail('O assistente está indisponível agora. Tente mais tarde.', 503);
-
-  if (c.provider === 'workers') {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r = await (env.AI as any).run(c.model, { max_tokens: maxTokens, messages }).catch((e: Error) => { console.error('workers ai', e); return unavailable(); });
-    return String(r?.response ?? r?.choices?.[0]?.message?.content ?? '').trim();
-  }
-
+  if (!c.chatReady) fail(NOT_CONFIGURED, 503);
   const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
   const rest = messages.filter((m) => m.role !== 'system');
   const res = c.provider === 'anthropic'
@@ -60,12 +56,37 @@ export async function generate(env: Env, messages: Msg[], maxTokens = 700): Prom
         headers: { 'content-type': 'application/json', authorization: `Bearer ${env.AI_API_KEY}` },
         body: JSON.stringify({ model: c.model, max_tokens: maxTokens, messages }),
       });
-  if (!res.ok) {
-    console.error('ai provider', c.provider, res.status, (await res.text().catch(() => '')).slice(0, 500));
-    if (res.status === 401 || res.status === 403) fail('A chave de IA foi recusada pelo provedor. Fale com o administrador.', 503);
-    if (res.status === 429) fail('O provedor de IA atingiu o limite de uso. Tente em instantes.', 503);
-    return unavailable();
-  }
+  if (!res.ok) providerError('chat', res);
   const j = (await res.json().catch(() => ({}))) as { content?: { type: string; text?: string }[]; choices?: { message?: { content?: string } }[] };
   return String(c.provider === 'anthropic' ? (j.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('') : j.choices?.[0]?.message?.content ?? '').trim();
+}
+
+/** Vetores (1024 dimensões) para os textos, em lotes, por uma API /embeddings compatível com OpenAI. */
+export async function embedTexts(env: Env, texts: string[]): Promise<number[][]> {
+  const c = aiConfig(env);
+  if (!c.embedReady) fail(NOT_CONFIGURED, 503);
+  const out: number[][] = [];
+  for (let i = 0; i < texts.length; i += 50) {
+    const res = await fetch(`${c.embedBase}/embeddings`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${c.embedKey}` },
+      body: JSON.stringify({ model: c.embedModel, input: texts.slice(i, i + 50), dimensions: EMBED_DIMENSIONS }),
+    });
+    if (!res.ok) providerError('embed', res);
+    const j = (await res.json().catch(() => ({}))) as { data?: { index?: number; embedding: number[] }[] };
+    const rows = [...(j.data ?? [])].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    if (rows.length !== Math.min(50, texts.length - i) || rows.some((r) => r.embedding.length !== EMBED_DIMENSIONS)) {
+      console.error('embed: resposta inesperada', rows.length, rows[0]?.embedding?.length);
+      fail('O modelo de busca não devolveu vetores de 1024 dimensões. Confira AI_EMBED_MODEL.', 503);
+    }
+    out.push(...rows.map((r) => r.embedding));
+  }
+  return out;
+}
+
+async function providerError(what: string, res: Response): Promise<never> {
+  console.error('ai provider', what, res.status, (await res.text().catch(() => '')).slice(0, 500));
+  if (res.status === 401 || res.status === 403) fail('A chave de IA foi recusada pelo provedor. Fale com o administrador.', 503);
+  if (res.status === 429) fail('O provedor de IA atingiu o limite de uso. Tente em instantes.', 503);
+  return fail('O assistente está indisponível agora. Tente mais tarde.', 503);
 }

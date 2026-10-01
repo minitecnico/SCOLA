@@ -7,17 +7,19 @@
 export type Env = {
   DB: D1Database;
   FILES: KVNamespace;
-  AI: Ai;
   VECTORIZE: VectorizeIndex;
   ASSETS: Fetcher;
   PBKDF2_ITER?: string;
   // Integração Google (opcional): segredos do Worker. Sem eles o botão "Conectar Google" fica oculto.
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
-  AI_PROVIDER?: string; // 'workers' (padrão) | 'anthropic' | 'openai'
+  AI_PROVIDER?: string; // 'anthropic' | 'openai' — motor das respostas
   AI_API_KEY?: string;
   AI_MODEL?: string;
   AI_BASE_URL?: string;
+  AI_EMBED_API_KEY?: string; // busca: API compatível com OpenAI (/embeddings); padrão = AI_API_KEY quando AI_PROVIDER=openai
+  AI_EMBED_BASE_URL?: string;
+  AI_EMBED_MODEL?: string;
   AI_DAILY_LIMIT?: string; // perguntas por pessoa por dia (padrão 60)
   GOOGLE_TOKEN_KEY?: string; // qualquer texto longo e aleatório; cifra os tokens no banco
 };

@@ -4,9 +4,14 @@ GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-xxxx
 GOOGLE_TOKEN_KEY=troque-por-um-texto-longo-e-aleatorio
 
-# Assistente: motor de IA (opcional). Sem isto usa o Workers AI gratuito do Cloudflare.
-# AI_PROVIDER=anthropic          # workers | anthropic | openai
+# Assistente (opcional) — IA por chave de API. Sem isto o assistente fica desligado.
+# Respostas:
+# AI_PROVIDER=anthropic          # anthropic | openai
 # AI_API_KEY=sk-ant-xxxx
 # AI_MODEL=claude-haiku-4-5-20251001
-# AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai   # só para "openai" (Gemini, Groq, OpenRouter...)
+# AI_BASE_URL=                   # só "openai" com outro provedor (Gemini, Groq, OpenRouter...)
+# Busca (embeddings; API compatível com OpenAI, modelo que aceite dimensions=1024):
+# AI_EMBED_API_KEY=sk-xxxx       # se AI_PROVIDER=openai, pode omitir (usa AI_API_KEY)
+# AI_EMBED_BASE_URL=
+# AI_EMBED_MODEL=text-embedding-3-small
 # AI_DAILY_LIMIT=60              # perguntas por pessoa por dia

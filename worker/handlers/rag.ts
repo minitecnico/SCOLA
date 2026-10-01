@@ -1,6 +1,7 @@
 import { requireBase, requireRole, type Ctx } from '../auth';
 import { all, fail, inList, now, parse, run, stmt } from '../db';
 import { docInBase } from './editor';
+import { aiConfig, aiLabel, generate } from '../ai';
 
 /**
  * Assistente (RAG) sobre os documentos do Planejamento. Tudo no Cloudflare (plano gratuito):
@@ -8,11 +9,10 @@ import { docInBase } from './editor';
  * (bge-m3, multilíngue), guardamos no Vectorize e, na pergunta, buscamos os trechos e pedimos a resposta.
  */
 const EMBED_MODEL = '@cf/baai/bge-m3';
-const CHAT_MODEL = '@cf/google/gemma-3-12b-it';
 const MAX_CHUNKS = 300;
 const MAX_CHUNK_CHARS = 1500;
 const EMBED_BATCH = 50;
-const DAILY_QUESTIONS = 60; // protege a cota gratuita do Workers AI
+const dailyLimit = (ctx: Ctx) => Number(ctx.env.AI_DAILY_LIMIT) || 60; // protege a cota gratuita (ou o gasto da chave)
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ai = (env: Ctx['env']) => env.AI as any;
@@ -193,7 +193,7 @@ export async function ragAsk(ctx: Ctx, question: string, docIds?: string[]) {
   // Limite diário por pessoa (a cota gratuita do Workers AI é da conta toda).
   const key = `rag:${ctx.user.id}:${new Date().toISOString().slice(0, 10)}`;
   const used = Number((await ctx.env.FILES.get(key)) || 0);
-  if (used >= DAILY_QUESTIONS) fail(`Você usou as ${DAILY_QUESTIONS} perguntas de hoje. Volte amanhã.`, 429);
+  if (used >= dailyLimit(ctx)) fail(`Você usou as ${dailyLimit(ctx)} perguntas de hoje. Volte amanhã.`, 429);
   await ctx.env.FILES.put(key, String(used + 1), { expirationTtl: 86400 });
 
   const [qv] = await embed(ctx, [q]);
@@ -218,17 +218,10 @@ export async function ragAsk(ctx: Ctx, question: string, docIds?: string[]) {
   };
   const context = hits.map((h, i) => { const l = label(h); return `[${i + 1}] (${KIND_LABEL[l.kind] ?? l.kind}: ${l.name})\n${h.metadata!.text}`; }).join('\n\n');
 
-  const r = await ai(ctx.env).run(CHAT_MODEL, {
-    max_tokens: 700,
-    messages: [
-      { role: 'system', content: `Você é o assistente do SCOLA, sistema de gestão escolar. Hoje é ${new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Responda em português do Brasil, de forma objetiva, usando SOMENTE os trechos fornecidos (documentos, avisos, calendário, planejamentos, provas). Se a resposta não estiver nos trechos, diga que não encontrou. Cite a origem com [número] ao fim das frases. Nunca invente.` },
-      { role: 'user', content: `Trechos:\n\n${context}\n\nPergunta: ${q}` },
-    ],
-  }).catch((e: Error) => {
-    console.error('chat', e);
-    return fail('O assistente está indisponível agora (limite diário do Cloudflare?). Tente mais tarde.', 503);
-  });
-  const answer = String(r?.response ?? r?.choices?.[0]?.message?.content ?? '').trim() || 'Não consegui montar a resposta. Tente reformular.';
+  const answer = (await generate(ctx.env, [
+    { role: 'system', content: `Você é o assistente do SCOLA, sistema de gestão escolar. Hoje é ${new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Responda em português do Brasil, de forma objetiva, usando SOMENTE os trechos fornecidos (documentos, avisos, calendário, planejamentos, provas). Se a resposta não estiver nos trechos, diga que não encontrou. Cite a origem com [número] ao fim das frases. Nunca invente.` },
+    { role: 'user', content: `Trechos:\n\n${context}\n\nPergunta: ${q}` },
+  ])) || 'Não consegui montar a resposta. Tente reformular.';
 
   const cited = [...answer.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]) - 1).filter((i) => hits[i]);
   const order = cited.length ? [...new Set(cited)] : hits.map((_, i) => i);
@@ -242,4 +235,17 @@ export async function ragAsk(ctx: Ctx, question: string, docIds?: string[]) {
     return [{ doc_id: id, kind: l.kind, name: l.name, snippet: String(h.metadata!.text).slice(0, 220) }];
   });
   return { answer, sources };
+}
+
+/** Qual motor está ativo (todos veem o nome; só o administrador pode testar a chave). */
+export async function assistantInfo(ctx: Ctx) {
+  const c = aiConfig(ctx.env);
+  return { label: aiLabel(ctx.env), provider: c.provider, configured: c.configured, canTest: ctx.isAdmin };
+}
+
+export async function testAssistant(ctx: Ctx) {
+  if (!ctx.isAdmin) fail('Só o administrador da plataforma pode testar.', 403);
+  const t0 = Date.now();
+  const text = await generate(ctx.env, [{ role: 'user', content: 'Responda apenas: OK' }], 20);
+  return { ok: !!text, reply: text.slice(0, 40), ms: Date.now() - t0, label: aiLabel(ctx.env) };
 }

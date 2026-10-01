@@ -3,3 +3,10 @@
 GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-xxxx
 GOOGLE_TOKEN_KEY=troque-por-um-texto-longo-e-aleatorio
+
+# Assistente: motor de IA (opcional). Sem isto usa o Workers AI gratuito do Cloudflare.
+# AI_PROVIDER=anthropic          # workers | anthropic | openai
+# AI_API_KEY=sk-ant-xxxx
+# AI_MODEL=claude-haiku-4-5-20251001
+# AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai   # só para "openai" (Gemini, Groq, OpenRouter...)
+# AI_DAILY_LIMIT=60              # perguntas por pessoa por dia

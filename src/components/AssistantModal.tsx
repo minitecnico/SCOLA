@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Send, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { chunkText, extractText } from '../lib/rag';
-import { ragAsk, ragIndexDoc, ragStatus, ragSync, type RagAnswer } from '../lib/queries';
+import { ragAsk, ragIndexDoc, ragStatus, ragSync, assistantInfo, testAssistant, type RagAnswer } from '../lib/queries';
 import { Modal } from './ui';
 
 type Turn = { q: string; a?: RagAnswer; error?: string };
@@ -13,6 +13,8 @@ const EXPORT_EXT: Record<string, string> = { document: '.docx', spreadsheet: '.x
 export function AssistantModal({ selectedIds, onClose }: { selectedIds: string[]; onClose: () => void }) {
   const qc = useQueryClient();
   const { data: st } = useQuery({ queryKey: ['rag-status'], queryFn: ragStatus, staleTime: 0 });
+  const { data: info } = useQuery({ queryKey: ['assistant-info'], queryFn: assistantInfo, staleTime: 60_000 });
+  const [testMsg, setTestMsg] = useState('');
   const [prep, setPrep] = useState<{ done: number; total: number; name: string } | null>(null);
   const [skipped, setSkipped] = useState<string[]>([]);
   const started = useRef(false);
@@ -137,7 +139,13 @@ export function AssistantModal({ selectedIds, onClose }: { selectedIds: string[]
             <Send size={18} />
           </button>
         </div>
-        <p className="text-[11px] text-muted-foreground">As respostas vêm só do conteúdo da escola que você tem acesso e podem conter erros: confira nas fontes.</p>
+        <p className="text-[11px] text-muted-foreground">
+          As respostas vêm só do conteúdo da escola que você tem acesso e podem conter erros: confira nas fontes.
+          {info ? <> Motor: <b>{info.label}</b>{!info.configured ? ' (sem chave!)' : ''}.</> : null}
+          {info?.canTest ? (
+            <> <button className="font-bold underline" onClick={() => { setTestMsg('Testando…'); testAssistant().then((r) => setTestMsg(r.ok ? `Funcionando (${r.ms} ms)` : 'Sem resposta')).catch((e) => setTestMsg((e as Error).message)); }}>Testar motor</button> {testMsg}</>
+          ) : null}
+        </p>
       </div>
     </Modal>
   );

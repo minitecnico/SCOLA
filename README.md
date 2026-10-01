@@ -97,7 +97,8 @@ Botão **Assistente** em Planejamento: pergunta em português sobre documentos, 
 - Avisos/calendários/planejamentos/provas são montados no servidor (`ragSync`, em lotes de 10, só o que mudou) e controlados pela tabela `rag_items`. Tudo no Cloudflare (plano gratuito):
 - **Vectorize** (índice `scola-rag`, 1024 dimensões, cosseno, metadados `base_id` e `doc_id`) guarda os trechos; **Workers AI** gera os embeddings (`bge-m3`, multilíngue) e a resposta (`gemma-3-12b-it`).
 - O **navegador** extrai o texto (Word, Excel/ODS, PDF com texto, PPTX, TXT/CSV, Docs/Sheets/Slides do Google exportados) e divide em trechos; o Worker só embute e grava. Documentos novos ou editados são preparados sozinhos ao abrir o assistente. PDF escaneado e imagem não entram.
-- Cada pessoa tem 60 perguntas por dia (protege a cota gratuita do Workers AI, que é da conta inteira). O índice foi criado uma vez com `wrangler vectorize create scola-rag --dimensions=1024 --metric=cosine` e dois índices de metadados.
+- **Motor da resposta configurável** (a busca continua no Workers AI, para o índice não mudar): `AI_PROVIDER` = `workers` (padrão, gratuito) | `anthropic` | `openai` (qualquer API compatível: OpenAI, Gemini, Groq, OpenRouter), com `AI_API_KEY`, `AI_MODEL` e, no `openai`, `AI_BASE_URL`. Cadastre com `npx wrangler secret put AI_API_KEY` etc. O administrador tem o botão **Testar motor** no rodapé do assistente. Com provedor externo, os trechos usados na pergunta saem do Cloudflare para esse provedor.
+- Cada pessoa tem 60 perguntas por dia (`AI_DAILY_LIMIT`) (protege a cota gratuita do Workers AI, que é da conta inteira). O índice foi criado uma vez com `wrangler vectorize create scola-rag --dimensions=1024 --metric=cosine` e dois índices de metadados.
 
 ## Documentos e planilhas no Planejamento (sem Google)
 

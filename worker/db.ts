@@ -14,6 +14,11 @@ export type Env = {
   // Integração Google (opcional): segredos do Worker. Sem eles o botão "Conectar Google" fica oculto.
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  AI_PROVIDER?: string; // 'workers' (padrão) | 'anthropic' | 'openai'
+  AI_API_KEY?: string;
+  AI_MODEL?: string;
+  AI_BASE_URL?: string;
+  AI_DAILY_LIMIT?: string; // perguntas por pessoa por dia (padrão 60)
   GOOGLE_TOKEN_KEY?: string; // qualquer texto longo e aleatório; cifra os tokens no banco
 };
 

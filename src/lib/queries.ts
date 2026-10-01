@@ -5,7 +5,7 @@
  */
 import { apiGet, rpc, upload } from './api';
 import { assertUploadFile } from './fileSecurity';
-import type {
+import type { PlanFolder,
   AppRole,
   AttendanceRecord,
   AttendanceSession,
@@ -439,9 +439,9 @@ export const planUnreadCounts = () => rpc<Record<string, number>>('planUnreadCou
 export const markPlanRead = (planId: string) => rpc<void>('markPlanRead', planId);
 
 export const listPlanDocs = () => rpc<PlanDoc[]>('listPlanDocs');
-export async function uploadPlanDoc(args: { segment: string; term: number | null; classId: string | null; turmaLabel: string | null; file: File }) {
+export async function uploadPlanDoc(args: { segment: string; term: number | null; classId: string | null; turmaLabel: string | null; folderId?: string | null; file: File }) {
   assertUploadFile(args.file);
-  await upload('/api/plandocs', args.file, { segment: args.segment, term: args.term, class_id: args.classId, turma_label: args.turmaLabel });
+  await upload('/api/plandocs', args.file, { segment: args.segment, term: args.term, class_id: args.classId, turma_label: args.turmaLabel, folder_id: args.folderId });
 }
 export const updatePlanDoc = (id: string, patch: { name?: string; segment?: string; term?: number | null; class_id?: string | null; turma_label?: string | null }) =>
   rpc<void>('updatePlanDoc', id, patch);
@@ -612,7 +612,7 @@ export const dashboardMonth = (year: number, month: number) => rpc<DashboardMont
 export type GoogleKind = 'document' | 'spreadsheet' | 'presentation' | 'form';
 export const getGoogleStatus = () => rpc<{ available: boolean; connected: boolean; email: string | null; canMail: boolean; canDrive: boolean }>('getGoogleStatus');
 export const disconnectGoogle = () => rpc<{ ok: boolean }>('disconnectGoogle');
-export const createGoogleDoc = (input: { gkind: GoogleKind; name?: string; segment: string; term?: number | null; class_id?: string | null; turma_label?: string | null }) =>
+export const createGoogleDoc = (input: { folder_id?: string | null; gkind: GoogleKind; name?: string; segment: string; term?: number | null; class_id?: string | null; turma_label?: string | null }) =>
   rpc<{ id: string; link: string }>('createGoogleDoc', input);
 export const googleLink = (kind: GoogleKind, id: string) => `https://docs.google.com/${({ document: 'document', spreadsheet: 'spreadsheets', presentation: 'presentation', form: 'forms' })[kind]}/d/${id}/edit`;
 export const listMailRecipients = () => rpc<{ id: string; name: string; email: string; role: string }[]>('listMailRecipients');
@@ -621,3 +621,11 @@ export async function sendMail(mime: Blob) {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body?.error || 'Não consegui enviar o e-mail.');
 }
+
+/* ------------------------------------- Pastas ------------------------------------- */
+export const listPlanFolders = () => rpc<PlanFolder[]>('listPlanFolders');
+export const createPlanFolder = (input: { name: string; segment: string; class_id?: string | null }) => rpc<{ id: string }>('createPlanFolder', input);
+export const createClassFolders = (segment: string) => rpc<{ created: number }>('createClassFolders', segment);
+export const renamePlanFolder = (id: string, name: string) => rpc<void>('renamePlanFolder', id, name);
+export const deletePlanFolder = (id: string) => rpc<void>('deletePlanFolder', id);
+export const movePlanDocs = (ids: string[], folderId: string | null) => rpc<{ moved: number }>('movePlanDocs', ids, folderId);

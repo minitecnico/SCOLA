@@ -1,16 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, ExternalLink, Eye, FilePen, FileSpreadsheet, FileText, Loader2, Lock, Mail, Pencil, Presentation, ClipboardList, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, Eye, Folder, FolderInput, FolderPlus, FilePen, FileSpreadsheet, FileText, Loader2, Lock, Mail, Pencil, Presentation, ClipboardList, Plus, Search, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { canReviewPlan } from '../lib/permissions';
-import { createEditableDoc, createGoogleDoc, deletePlanDoc, disconnectGoogle, getGoogleStatus, googleLink, listClasses, listPlanDocs, updatePlanDoc, uploadPlanDoc, type EditableKind, type GoogleKind } from '../lib/queries';
+import { createClassFolders, createGoogleDoc, createPlanFolder, deletePlanDoc, deletePlanFolder, listPlanFolders, movePlanDocs, renamePlanFolder, disconnectGoogle, getGoogleStatus, googleLink, listClasses, listPlanDocs, updatePlanDoc, uploadPlanDoc, type EditableKind, type GoogleKind } from '../lib/queries';
 import { downloadAllAttachments, safeFileName, translateStorageError } from '../lib/storage';
-import type { ClassRoom, PlanDoc } from '../lib/types';
+import type { ClassRoom, PlanDoc, PlanFolder } from '../lib/types';
 import { Button, Modal, Select } from './ui';
 import { SendMailModal } from './SendMailModal';
 import { useSelection } from '../lib/useSelection';
-import { GoogleHub } from './GoogleHub';
+import { GoogleMenus } from './GoogleHub';
 import { Dropzone } from './Dropzone';
 import { PreviewModal } from './Attachments';
 import { successToast } from './Feedback';
@@ -34,6 +34,7 @@ const fmtDate = (iso: string) => {
 export function PlanDocsCenter() {
   const { data: docs = [], isLoading, isError, error } = useQuery({ queryKey: ['plan-docs'], queryFn: listPlanDocs, retry: false });
   const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: listClasses });
+  const { data: folders = [] } = useQuery({ queryKey: ['plan-folders'], queryFn: listPlanFolders, retry: false });
 
   const [seg, setSeg] = useState(SEGMENTS[0].key);
 
@@ -69,12 +70,12 @@ export function PlanDocsCenter() {
         })}
       </div>
 
-      <FileCenter segKey={seg} docs={docs.filter((d) => d.segment === seg)} classes={classes} loading={isLoading} />
+      <FileCenter key={seg} segKey={seg} docs={docs.filter((d) => d.segment === seg)} folders={folders.filter((f) => f.segment === seg)} classes={classes} loading={isLoading} />
     </div>
   );
 }
 
-function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: PlanDoc[]; classes: ClassRoom[]; loading: boolean }) {
+function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: string; docs: PlanDoc[]; folders: PlanFolder[]; classes: ClassRoom[]; loading: boolean }) {
   const { user, role } = useAuth();
   const userId = user?.id ?? null;
   const canReview = canReviewPlan(role);
@@ -91,7 +92,7 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
   const { data: google } = useQuery({ queryKey: ['google-status'], queryFn: getGoogleStatus, retry: false });
   const createG = useMutation({
     mutationFn: ({ gkind }: { gkind: GoogleKind; win: Window | null }) =>
-      createGoogleDoc({ gkind, segment: segKey, term: term ? Number(term) : null, class_id: turma || null, turma_label: turmaName }),
+      createGoogleDoc({ gkind, segment: segKey, term: term ? Number(term) : null, class_id: destClass, turma_label: destClassName, folder_id: folder?.id ?? null }),
     onSuccess: (r, v) => {
       invalidate();
       if (v.win) v.win.location.href = r.link;
@@ -114,21 +115,17 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
 
   const navigate = useNavigate();
   const invalidate = () => qc.invalidateQueries({ queryKey: ['plan-docs'] });
-  const create = useMutation({
-    mutationFn: (kind: EditableKind) =>
-      createEditableDoc({ kind, segment: segKey, term: term ? Number(term) : null, class_id: turma || null, turma_label: turmaName }),
-    onSuccess: (r) => {
-      invalidate();
-      navigate(`/planejamento/editor/${r.id}`);
-    },
-    onError: (e) => alert((e as Error).message),
-  });
+  const [folderId, setFolderId] = useState<string | null>(null);
+  const folder = folders.find((f) => f.id === folderId) ?? null;
+  // Dentro de uma pasta de turma, tudo o que for criado/enviado já fica dessa turma.
+  const destClass = folder?.class_id ?? (turma || null);
+  const destClassName = destClass ? classes.find((c) => c.id === destClass)?.name ?? null : null;
   const segLabel = SEGMENTS.find((s) => s.key === segKey)?.label ?? '';
   const turmaName = turma ? classes.find((c) => c.id === turma)?.name ?? null : null;
 
   const upload = useMutation({
     mutationFn: (file: File) =>
-      uploadPlanDoc({ segment: segKey, term: term ? Number(term) : null, classId: turma || null, turmaLabel: turmaName, file }),
+      uploadPlanDoc({ segment: segKey, term: term ? Number(term) : null, classId: destClass, turmaLabel: destClassName, folderId: folder?.id ?? null, file }),
     onSuccess: () => {
       invalidate();
       successToast('Arquivo enviado');
@@ -153,11 +150,13 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
     const needle = q.trim().toLowerCase();
     return docs.filter(
       (d) =>
+        // Com busca, procura em todas as pastas; sem busca, só na pasta aberta (ou na raiz).
+        (needle || (d.folder_id ?? null) === folderId) &&
         (!term || d.term === Number(term)) &&
         (!turma || d.class_id === turma) &&
         (!needle || d.name.toLowerCase().includes(needle)),
     );
-  }, [docs, term, turma, q]);
+  }, [docs, term, turma, q, folderId]);
 
   // Agrupa por trimestre quando sem filtro/busca; senão lista plana.
   const grouped = useMemo(() => {
@@ -167,6 +166,35 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
       .map((t) => ({ term: t, items: filtered.filter((d) => (d.term ?? null) === t) }))
       .filter((g) => g.items.length > 0);
   }, [filtered, term, q]);
+
+  const [newFolder, setNewFolder] = useState(false);
+  const countIn = (id: string | null) => docs.filter((d) => (d.folder_id ?? null) === id).length;
+  const refreshFolders = () => qc.invalidateQueries({ queryKey: ['plan-folders'] });
+  const move = useMutation({
+    mutationFn: ({ ids, to }: { ids: string[]; to: string | null }) => movePlanDocs(ids, to),
+    onSuccess: (r) => {
+      invalidate();
+      sel.clear();
+      successToast(r.moved ? `${r.moved} arquivo${r.moved > 1 ? 's' : ''} movido${r.moved > 1 ? 's' : ''}` : 'Nada foi movido (só o autor ou a gestão move arquivos)');
+    },
+    onError: (e) => alert((e as Error).message),
+  });
+  const renameFolder = useMutation({
+    mutationFn: (name: string) => renamePlanFolder(folder!.id, name),
+    onSuccess: refreshFolders,
+    onError: (e) => alert((e as Error).message),
+  });
+  const removeFolder = useMutation({
+    mutationFn: () => deletePlanFolder(folder!.id),
+    onSuccess: () => {
+      setFolderId(null);
+      refreshFolders();
+      invalidate();
+      successToast('Pasta excluída. Os arquivos voltaram para o início.');
+    },
+    onError: (e) => alert((e as Error).message),
+  });
+  const canManageFolder = !!folder && (folder.author_id === userId || canReview);
 
   async function baixarTodos() {
     if (zipping || filtered.length === 0) return;
@@ -182,7 +210,7 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
   }
 
   const canManage = (d: PlanDoc) => d.author_id === userId || canReview;
-  const destino = [segLabel, term ? `${term}º tri` : 'sem trimestre', turmaName].filter(Boolean).join(' · ');
+  const destino = [segLabel, folder?.name, term ? `${term}º tri` : 'sem trimestre', destClassName].filter(Boolean).join(' · ');
 
   const row = (d: PlanDoc) => (
     <FileRow
@@ -220,6 +248,17 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
           <Search size={16} className="shrink-0 text-muted-foreground" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar arquivo…" className="w-full bg-transparent text-sm outline-none" />
         </label>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <GoogleMenus
+            available={!!google?.available}
+            connected={!!google?.connected}
+            email={google?.email ?? null}
+            busy={createG.isPending}
+            message={gParam === 'escopo' ? 'Faltou marcar a permissão do Drive na tela do Google; conecte de novo com todas as caixas marcadas.' : gParam === 'negado' ? 'Conexão cancelada.' : gParam === 'erro' ? 'Não deu certo, tente de novo.' : undefined}
+            onCreate={newGoogle}
+            onDisconnect={() => confirm('Desconectar sua conta do Google? Os arquivos continuam no seu Drive.') && unlink.mutate()}
+          />
+        </div>
         {filtered.length >= 2 ? (
           <button
             onClick={baixarTodos}
@@ -238,42 +277,59 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
           <button onClick={() => setMailDocs(docs.filter((d) => sel.has(d.id)))} className="inline-flex items-center gap-1.5 rounded-lg bg-yellow-400 px-3 py-1.5 text-xs font-black text-slate-900">
             <Mail size={14} /> Enviar por e-mail
           </button>
+          <select
+            value=""
+            onChange={(e) => e.target.value && move.mutate({ ids: [...sel.ids], to: e.target.value === '__root' ? null : e.target.value })}
+            className="rounded-lg bg-white/10 px-2 py-1.5 text-xs font-bold text-white outline-none"
+            aria-label="Mover para pasta"
+          >
+            <option value="" className="text-slate-900">Mover para…</option>
+            {folderId ? <option value="__root" className="text-slate-900">Início (sem pasta)</option> : null}
+            {folders.filter((f) => f.id !== folderId).map((f) => <option key={f.id} value={f.id} className="text-slate-900">{f.name}</option>)}
+          </select>
           <button onClick={() => sel.setAll(filtered.map((d) => d.id))} className="text-xs font-bold underline">Selecionar todos ({filtered.length})</button>
           <button onClick={sel.clear} className="ml-auto text-xs font-bold underline">Limpar</button>
         </div>
       ) : null}
 
-      {/* Criar no próprio SCOLA (tipo Docs/Sheets) */}
-      <div className="grid grid-cols-2 gap-2 sm:flex">
-        <button
-          onClick={() => create.mutate('doc')}
-          disabled={create.isPending}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
-        >
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-blue-600 text-white"><FileText size={15} /></span>
-          <Plus size={14} className="-ml-1" /> Novo documento
-        </button>
-        <button
-          onClick={() => create.mutate('sheet')}
-          disabled={create.isPending}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:border-green-300 hover:bg-green-50 disabled:opacity-50"
-        >
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-green-600 text-white"><FileSpreadsheet size={15} /></span>
-          <Plus size={14} className="-ml-1" /> Nova planilha
-        </button>
-        <p className="col-span-2 self-center text-xs text-muted-foreground sm:ml-2">Edite direto no SCOLA, como no Docs e no Sheets. Word e Excel enviados também abrem aqui.</p>
-      </div>
-
-      {/* Google: atalhos + criar Docs/Sheets/Slides/Forms (conta de cada usuário) */}
-      <GoogleHub
-        available={!!google?.available}
-        connected={!!google?.connected}
-        email={google?.email ?? null}
-        busy={createG.isPending}
-        message={gParam === 'escopo' ? 'Faltou marcar a permissão do Drive na tela do Google; conecte de novo com todas as caixas marcadas.' : gParam === 'negado' ? 'Conexão cancelada.' : gParam === 'erro' ? 'Não deu certo, tente de novo.' : undefined}
-        onCreate={newGoogle}
-        onDisconnect={() => confirm('Desconectar sua conta do Google? Os arquivos continuam no seu Drive.') && unlink.mutate()}
-      />
+      {/* Pastas */}
+      {folder ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+          <button onClick={() => { setFolderId(null); sel.clear(); }} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-bold text-muted-foreground hover:bg-muted">
+            <ArrowLeft size={15} /> Pastas
+          </button>
+          <span className="text-muted-foreground">/</span>
+          <span className="flex min-w-0 items-center gap-1.5 text-sm font-black"><Folder size={16} className="shrink-0 text-amber-500" /><span className="truncate">{folder.name}</span></span>
+          {canManageFolder ? (
+            <span className="ml-auto flex gap-1">
+              <IconBtn label="Renomear pasta" onClick={() => { const n = prompt('Novo nome da pasta:', folder.name); if (n && n.trim()) renameFolder.mutate(n); }}><Pencil size={15} /></IconBtn>
+              <IconBtn label="Excluir pasta" danger onClick={() => confirm(`Excluir a pasta "${folder.name}"?\n\nOs arquivos NÃO são apagados: voltam para o início.`) && removeFolder.mutate()}><Trash2 size={15} /></IconBtn>
+            </span>
+          ) : null}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          {folders.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => { setFolderId(f.id); sel.clear(); }}
+              className="flex min-w-0 items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 text-left transition hover:border-amber-300 hover:bg-amber-50"
+            >
+              <Folder size={22} className="shrink-0 fill-amber-200 text-amber-500" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold">{f.name}</span>
+                <span className="text-[11px] text-muted-foreground">{countIn(f.id)} arquivo{countIn(f.id) === 1 ? '' : 's'}</span>
+              </span>
+            </button>
+          ))}
+          <button
+            onClick={() => setNewFolder(true)}
+            className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-2.5 text-sm font-bold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <FolderPlus size={18} /> Nova pasta
+          </button>
+        </div>
+      )}
 
       {/* Dropzone slim — destino atual derivado dos filtros acima */}
       <Dropzone
@@ -307,10 +363,53 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
         <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-card">{filtered.map(row)}</div>
       )}
 
+      {newFolder ? <NewFolderModal segment={segKey} classes={classes} folders={folders} onClose={() => setNewFolder(false)} onDone={(id) => { refreshFolders(); if (id) setFolderId(id); }} /> : null}
       {mailDocs ? <SendMailModal docs={mailDocs} google={google} onClose={() => setMailDocs(null)} onSent={sel.clear} /> : null}
       {preview?.url ? <PreviewModal name={preview.name} url={preview.url} mime={preview.mime} onClose={() => setPreview(null)} /> : null}
       {editing ? <EditDocModal doc={editing} classes={classes} onClose={() => setEditing(null)} onSaved={invalidate} /> : null}
     </div>
+  );
+}
+
+function NewFolderModal({ segment, classes, folders, onClose, onDone }: { segment: string; classes: ClassRoom[]; folders: PlanFolder[]; onClose: () => void; onDone: (openId?: string) => void }) {
+  const [name, setName] = useState('');
+  const [turma, setTurma] = useState('');
+  const missing = classes.filter((c) => !c.archived_at && !folders.some((f) => f.class_id === c.id));
+  const create = useMutation({
+    mutationFn: () => createPlanFolder({ name: name.trim() || classes.find((c) => c.id === turma)?.name || '', segment, class_id: turma || null }),
+    onSuccess: (r) => { onDone(r.id); onClose(); },
+    onError: (e) => alert((e as Error).message),
+  });
+  const all = useMutation({
+    mutationFn: () => createClassFolders(segment),
+    onSuccess: (r) => { onDone(); onClose(); successToast(r.created ? `${r.created} pasta${r.created > 1 ? 's' : ''} criada${r.created > 1 ? 's' : ''}` : 'As turmas já têm pasta'); },
+    onError: (e) => alert((e as Error).message),
+  });
+  return (
+    <Modal open onClose={onClose} title="Nova pasta">
+      <div className="space-y-3">
+        <label className="block"><span className="mb-1 block text-xs font-bold text-muted-foreground">Nome</span>
+          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Planejamento de outubro" className="w-full rounded-lg border border-border px-3 py-2 text-sm outline-none focus:border-slate-900" />
+        </label>
+        <label className="block"><span className="mb-1 block text-xs font-bold text-muted-foreground">Turma (opcional — o que entrar na pasta já fica dessa turma)</span>
+          <Select value={turma} onChange={(e) => setTurma(e.target.value)}>
+            <option value="">Nenhuma</option>
+            {classes.filter((c) => !c.archived_at).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+        </label>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button onClick={() => create.mutate()} disabled={create.isPending || (!name.trim() && !turma)}>{create.isPending ? 'Criando…' : 'Criar pasta'}</Button>
+        </div>
+        {missing.length > 0 ? (
+          <div className="border-t border-border pt-3">
+            <button onClick={() => all.mutate()} disabled={all.isPending} className="inline-flex items-center gap-2 text-sm font-bold underline disabled:opacity-50">
+              <FolderInput size={15} /> {all.isPending ? 'Criando…' : `Criar uma pasta para cada turma (${missing.length})`}
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </Modal>
   );
 }
 

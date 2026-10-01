@@ -286,6 +286,7 @@ export interface PlanDoc {
   /** 'file' = arquivo enviado · 'doc'/'sheet' = editável no SCOLA */
   kind?: 'file' | 'doc' | 'sheet' | 'google';
   /** Arquivo que mora no Google: id no Drive e tipo. */
+  folder_id?: string | null;
   google_id?: string | null;
   google_kind?: 'document' | 'spreadsheet' | 'presentation' | 'form' | null;
   version?: number;
@@ -627,3 +628,12 @@ export const STATUS_LABEL: Record<AttendanceStatus, string> = {
   late: 'Atrasado',
   justified: 'Justificado',
 };
+
+/** Pasta da central de planejamento. */
+export interface PlanFolder {
+  id: string;
+  segment: string;
+  name: string;
+  class_id: string | null;
+  author_id: string | null;
+}

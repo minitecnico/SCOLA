@@ -1,5 +1,6 @@
 import { assertClassInBase, requireBase, requireRole, type Ctx } from '../auth';
 import { all, fail, first, now, run, uid } from '../db';
+import { folderInBase } from './folders';
 import { googleConfigured, googleFetch, revokeAndForget } from '../google';
 
 /** Situação da integração para o usuário logado (a tela decide se mostra "Conectar Google"). */
@@ -24,9 +25,10 @@ export const googleLink = (kind: string, id: string) =>
 
 /** Cria um Doc/Sheet/Slides no Google Drive de quem chamou e registra na central de planejamento. */
 export async function createGoogleDoc(ctx: Ctx, input: {
-  gkind: keyof typeof GOOGLE_TYPES; name?: string; segment: string; term?: number | null; class_id?: string | null; turma_label?: string | null;
+  gkind: keyof typeof GOOGLE_TYPES; name?: string; segment: string; term?: number | null; class_id?: string | null; turma_label?: string | null; folder_id?: string | null;
 }) {
   const base = requireRole(ctx, 'gestor', 'professor');
+  if (input.folder_id) await folderInBase(ctx, input.folder_id);
   const t = GOOGLE_TYPES[input.gkind];
   if (!t) fail('Tipo inválido.');
   await assertClassInBase(ctx, base, input.class_id ?? null);
@@ -37,10 +39,10 @@ export async function createGoogleDoc(ctx: Ctx, input: {
   const { id: gid } = (await r.json()) as { id: string };
   const id = uid();
   await run(ctx.db,
-    `INSERT INTO plan_docs (id, base_id, author_id, segment, term, class_id, turma_label, name, mime, kind, version, updated_at, updated_by, google_id, google_kind)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'google', 0, ?, ?, ?, ?)`,
+    `INSERT INTO plan_docs (id, base_id, author_id, segment, term, class_id, turma_label, name, mime, kind, version, updated_at, updated_by, google_id, google_kind, folder_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'google', 0, ?, ?, ?, ?, ?)`,
     id, base, ctx.user.id, String(input.segment || 'geral'), input.term ?? null, input.class_id ?? null, input.turma_label ?? null,
-    name, t.mime, now(), ctx.user.id, gid, input.gkind);
+    name, t.mime, now(), ctx.user.id, gid, input.gkind, input.folder_id ?? null);
   return { id, link: googleLink(input.gkind, gid) };
 }
 

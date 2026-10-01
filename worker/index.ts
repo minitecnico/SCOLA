@@ -10,6 +10,7 @@ import * as alertas from './handlers/alertas';
 import * as anoletivo from './handlers/anoletivo';
 import * as cadastros from './handlers/cadastros';
 import * as editor from './handlers/editor';
+import * as folders from './handlers/folders';
 import * as google from './handlers/google';
 import { accessTokenFor, authUrl, exchangeCode, googleConfigured, sealToken } from './google';
 import * as chamadas from './handlers/chamadas';
@@ -23,9 +24,9 @@ import * as usuarios from './handlers/usuarios';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
-const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades', 'docInBase', 'canEditDoc', 'saveEditableContent']);
+const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades', 'docInBase', 'folderInBase', 'canEditDoc', 'saveEditableContent']);
 const handlers: Record<string, Handler> = {};
-for (const mod of [alertas, anoletivo, cadastros, editor, google, chamadas, comunicacao, contas, logs, notas, painel, provas, usuarios]) {
+for (const mod of [alertas, anoletivo, cadastros, editor, folders, google, chamadas, comunicacao, contas, logs, notas, painel, provas, usuarios]) {
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn === 'function' && !INTERNAL.has(name)) handlers[name] = fn as Handler;
   }
@@ -261,12 +262,14 @@ app.post('/api/plandocs', async (c) => {
   const term = form.get('term');
   const classId = (form.get('class_id') as string) || null;
   if (classId && !(await first(ctx.db, 'SELECT 1 FROM classes WHERE id = ? AND base_id = ?', classId, base))) fail('Turma não encontrada.', 404);
+  const folderId = (form.get('folder_id') as string) || null;
+  if (folderId && !(await first(ctx.db, 'SELECT 1 FROM plan_folders WHERE id = ? AND base_id = ?', folderId, base))) fail('Pasta não encontrada.', 404);
   const id = uid();
   await putFile(c.env, id, file);
   await run(ctx.db,
-    'INSERT INTO plan_docs (id, base_id, author_id, segment, term, class_id, turma_label, name, mime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO plan_docs (id, base_id, author_id, segment, term, class_id, turma_label, name, mime, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     id, base, ctx.user.id, String(form.get('segment') || 'geral'), term ? Number(term) : null,
-    classId, (form.get('turma_label') as string) || null, file.name, file.type || null);
+    classId, (form.get('turma_label') as string) || null, file.name, file.type || null, folderId);
   logAs(c, ctx.user, {
     role: ctx.isAdmin ? 'admin' : ctx.role, baseId: base, action: 'uploadPlanDoc', category: 'comunicacao',
     summary: 'Enviou documento de planejamento', refs: { classId, text: file.name },

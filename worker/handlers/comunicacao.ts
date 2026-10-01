@@ -371,7 +371,7 @@ export async function markPlanRead(ctx: Ctx, planId: string) {
 export async function listPlanDocs(ctx: Ctx) {
   const base = requireBase(ctx);
   const rows = await all<Record<string, unknown> & { id: string }>(ctx.db,
-    `SELECT id, segment, term, class_id, turma_label, name, mime, author_id, created_at, kind, version, updated_at, size, google_id, google_kind,
+    `SELECT id, segment, term, class_id, turma_label, name, mime, author_id, created_at, kind, version, updated_at, size, google_id, google_kind, folder_id,
             CASE WHEN lock_until > strftime('%Y-%m-%dT%H:%M:%fZ','now') THEN lock_by END AS lock_by
        FROM plan_docs WHERE base_id = ? ORDER BY COALESCE(updated_at, created_at) DESC`, base);
   return rows.map((r) => ({ ...r, path: r.id, url: fileUrl(r.id) }));

@@ -35,8 +35,11 @@ export function SendMailModal({ docs, google, onClose, onSent }: { docs: PlanDoc
   const [text, setText] = useState(`Olá,\n\nSegue${docs.length > 1 ? 'm' : ''} em anexo.\n\nAtt.,\n${user?.user_metadata.full_name || ''}`);
   const [err, setErr] = useState('');
 
-  const files = docs.filter((d) => d.kind !== 'google');
-  const links = docs.filter((d) => d.kind === 'google' && d.google_id && d.google_kind);
+  // Docs, Sheets e Slides viram anexo (.docx/.xlsx/.pptx); só o Forms vai como link.
+  const EXT: Record<string, string> = { document: '.docx', spreadsheet: '.xlsx', presentation: '.pptx' };
+  const isG = (d: PlanDoc) => d.kind === 'google';
+  const files = docs.filter((d) => !isG(d) || !!EXT[d.google_kind ?? '']);
+  const links = docs.filter((d) => isG(d) && d.google_id && d.google_kind === 'form');
   const total = files.reduce((n, d) => n + (d.size ?? 0), 0);
 
   const toggle = (email: string) => setPicked((p) => (p.includes(email) ? p.filter((e) => e !== email) : [...p, email]));
@@ -51,12 +54,13 @@ export function SendMailModal({ docs, google, onClose, onSent }: { docs: PlanDoc
       if (total > MAX_ATTACH) throw new Error(`Anexos somam ${mb(total)}. O limite é ${mb(MAX_ATTACH)}: envie em mais de um e-mail.`);
       const blobs: { name: string; blob: Blob }[] = [];
       for (const d of files) {
-        const r = await fetch(d.url!, { credentials: 'same-origin' });
-        if (!r.ok) throw new Error(`Não consegui abrir "${d.name}".`);
-        blobs.push({ name: d.name, blob: await r.blob() });
+        const r = await fetch(isG(d) ? `/api/google/export/${d.id}` : d.url!, { credentials: 'same-origin' });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || `Não consegui abrir "${d.name}".`);
+        const name = isG(d) && !d.name.toLowerCase().endsWith(EXT[d.google_kind!]) ? d.name + EXT[d.google_kind!] : d.name;
+        blobs.push({ name, blob: await r.blob() });
       }
       if (blobs.reduce((n, b) => n + b.blob.size, 0) > MAX_ATTACH) throw new Error(`Os anexos passam de ${mb(MAX_ATTACH)}. Envie em mais de um e-mail.`);
-      const linkText = links.length ? `\n\nArquivos no Google:\n${links.map((d) => `${d.name}: ${googleLink(d.google_kind!, d.google_id!)}`).join('\n')}\n(Peça acesso ao autor se o link não abrir.)` : '';
+      const linkText = links.length ? `\n\nFormulários (link):\n${links.map((d) => `${d.name}: ${googleLink(d.google_kind!, d.google_id!)}`).join('\n')}\n` : '';
       await sendMail(await buildMime({ to, subject: subject.trim() || 'Arquivos', text: text + linkText, files: blobs }));
       try {
         localStorage.setItem(KEY, JSON.stringify(picked));
@@ -124,7 +128,7 @@ export function SendMailModal({ docs, google, onClose, onSent }: { docs: PlanDoc
             <span className="mb-1 flex items-center gap-1 text-xs font-bold text-muted-foreground"><Paperclip size={12} /> Anexos ({docs.length}){total ? ` · ${mb(total)}` : ''}</span>
             <ul className="max-h-28 space-y-0.5 overflow-y-auto rounded-lg border border-border p-2 text-xs">
               {docs.map((d) => (
-                <li key={d.id} className="flex justify-between gap-2"><span className="truncate">{d.name}</span><span className="shrink-0 text-muted-foreground">{d.kind === 'google' ? 'link do Google' : d.size ? mb(d.size) : ''}</span></li>
+                <li key={d.id} className="flex justify-between gap-2"><span className="truncate">{d.name}</span><span className="shrink-0 text-muted-foreground">{d.kind === 'google' ? (EXT[d.google_kind ?? ''] ? 'Google → ' + EXT[d.google_kind ?? ''] : 'link do Google') : d.size ? mb(d.size) : ''}</span></li>
               ))}
             </ul>
           </div>

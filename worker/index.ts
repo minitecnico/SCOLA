@@ -388,6 +388,28 @@ app.post('/api/google/send-mail', async (c) => {
   return c.json({ data: { ok: true } });
 });
 
+/** Exporta um arquivo do Google (Docs/Sheets/Slides) como .docx/.xlsx/.pptx, usando a conta de quem pediu. Repassa o corpo sem processar. */
+const EXPORT_TYPES: Record<string, string> = {
+  document: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  spreadsheet: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  presentation: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+};
+app.get('/api/google/export/:id', async (c) => {
+  const ctx = await authed(c);
+  const d = await editor.docInBase(ctx, c.req.param('id'));
+  const mime = d.google_kind ? EXPORT_TYPES[d.google_kind] : undefined;
+  if (!d.google_id || !mime) fail('Este arquivo não pode ser exportado.', 400);
+  const token = await accessTokenFor(c.env, ctx.user.id);
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(d.google_id!)}/export?mimeType=${encodeURIComponent(mime!)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) {
+    console.error('google export', r.status, await r.text().catch(() => ''));
+    fail(r.status === 404 || r.status === 403 ? 'Só quem criou o arquivo no Google consegue anexá-lo. Peça ao autor ou use o link.' : 'O Google não conseguiu exportar o arquivo.', r.status === 404 || r.status === 403 ? 403 : 502);
+  }
+  return new Response(r.body, { headers: { 'Content-Type': mime!, 'Cache-Control': 'no-store' } });
+});
+
 /* -------------------------- Relatório público por link ---------------------------- */
 app.get('/api/public/reports/:id', async (c) => {
   const r = await first<{ payload: string }>(c.env.DB, 'SELECT payload FROM shared_reports WHERE id = ?', c.req.param('id'));

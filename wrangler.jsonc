@@ -16,6 +16,9 @@
   "kv_namespaces": [
     { "binding": "FILES", "id": "776f355daf0e4595b43ceb3bb85f444d" }
   ],
+  // Assistente (RAG): embeddings e respostas no Workers AI + busca no Vectorize (planos gratuitos).
+  "ai": { "binding": "AI" },
+  "vectorize": [{ "binding": "VECTORIZE", "index_name": "scola-rag" }],
   // Limpeza diária dos anexos excluídos (03:00 UTC).
   "triggers": { "crons": ["0 3 * * *"] },
   "observability": { "enabled": true }

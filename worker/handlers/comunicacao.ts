@@ -1,4 +1,5 @@
 import { assertClassInBase, requireBase, requireRole, type Ctx, type Role } from '../auth';
+import { ragForget } from './rag';
 import { all, fail, first, inList, json, now, parse, run, stmt, uid } from '../db';
 
 /* ------------------------------ Pessoas da base ---------------------------------- */
@@ -391,9 +392,10 @@ export async function updatePlanDoc(ctx: Ctx, id: string, patch: { name?: string
 
 export async function deletePlanDoc(ctx: Ctx, doc: { id: string }) {
   const base = requireRole(ctx, 'gestor', 'professor');
-  const cur = await first<{ author_id: string }>(ctx.db, 'SELECT author_id FROM plan_docs WHERE id = ? AND base_id = ?', doc.id, base);
+  const cur = await first<{ author_id: string; rag_chunks: number | null }>(ctx.db, 'SELECT author_id, rag_chunks FROM plan_docs WHERE id = ? AND base_id = ?', doc.id, base);
   if (!cur) return;
   if (cur.author_id !== ctx.user.id) requireRole(ctx, 'gestor');
+  await ragForget(ctx, doc.id, cur.rag_chunks);
   await ctx.db.batch([
     stmt(ctx.db, 'INSERT OR IGNORE INTO kv_trash (id) VALUES (?), (?)', doc.id, `c:${doc.id}`),
     // Versões do histórico (conteúdo no KV em v:<id>).

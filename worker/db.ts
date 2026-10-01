@@ -7,6 +7,8 @@
 export type Env = {
   DB: D1Database;
   FILES: KVNamespace;
+  AI: Ai;
+  VECTORIZE: VectorizeIndex;
   ASSETS: Fetcher;
   PBKDF2_ITER?: string;
   // Integração Google (opcional): segredos do Worker. Sem eles o botão "Conectar Google" fica oculto.

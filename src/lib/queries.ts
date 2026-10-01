@@ -629,3 +629,10 @@ export const createClassFolders = (segment: string) => rpc<{ created: number }>(
 export const renamePlanFolder = (id: string, name: string) => rpc<void>('renamePlanFolder', id, name);
 export const deletePlanFolder = (id: string) => rpc<void>('deletePlanFolder', id);
 export const movePlanDocs = (ids: string[], folderId: string | null) => rpc<{ moved: number }>('movePlanDocs', ids, folderId);
+
+/* ---------------------------------- Assistente (RAG) ---------------------------------- */
+export interface RagStatus { total: number; ready: number; pending: { id: string; name: string; kind: string; google_kind: string | null }[] }
+export interface RagAnswer { answer: string; sources: { doc_id: string; name: string; snippet: string }[] }
+export const ragStatus = () => rpc<RagStatus>('ragStatus');
+export const ragIndexDoc = (docId: string, chunks: string[]) => rpc<{ chunks: number }>('ragIndexDoc', docId, chunks);
+export const ragAsk = (question: string, docIds?: string[]) => rpc<RagAnswer>('ragAsk', question, docIds);

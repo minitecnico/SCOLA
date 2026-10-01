@@ -15,7 +15,7 @@ export type PlanDocRow = {
   id: string; base_id: string; author_id: string; segment: string; term: number | null; class_id: string | null; turma_label: string | null;
   name: string; mime: string | null; created_at: string; kind: DocKind; version: number; updated_at: string | null; updated_by: string | null;
   lock_by: string | null; lock_until: string | null; size: number | null;
-  google_id: string | null; google_kind: string | null;
+  google_id: string | null; google_kind: string | null; rag_chunks: number | null;
 };
 
 const isManager = (ctx: Ctx) => ctx.isAdmin || ctx.role === 'gestor' || ctx.role === 'superadmin';

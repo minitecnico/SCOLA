@@ -90,6 +90,13 @@ Já pronto no código: rota `/api/google/connect` → Google → `/api/google/ca
 Envio por e-mail: escopo `gmail.send` (sensível — sem verificação do Google, o app mostra o aviso "não verificado" e aceita até 100 usuários). O navegador monta o e-mail e o Worker repassa ao Gmail do próprio professor.
 Colunas `plan_docs.google_id` e `google_kind` reservadas para documentos que moram no Google. Sem os segredos, nada muda para quem usa hoje.
 
+## Assistente (RAG) dos documentos
+
+Botão **Assistente** em Planejamento: pergunta em português sobre o conteúdo dos documentos da escola e responde citando as fontes. Tudo no Cloudflare (plano gratuito):
+- **Vectorize** (índice `scola-rag`, 1024 dimensões, cosseno, metadados `base_id` e `doc_id`) guarda os trechos; **Workers AI** gera os embeddings (`bge-m3`, multilíngue) e a resposta (`gemma-3-12b-it`).
+- O **navegador** extrai o texto (Word, Excel/ODS, PDF com texto, PPTX, TXT/CSV, Docs/Sheets/Slides do Google exportados) e divide em trechos; o Worker só embute e grava. Documentos novos ou editados são preparados sozinhos ao abrir o assistente. PDF escaneado e imagem não entram.
+- Cada pessoa tem 60 perguntas por dia (protege a cota gratuita do Workers AI, que é da conta inteira). O índice foi criado uma vez com `wrangler vectorize create scola-rag --dimensions=1024 --metric=cosine` e dois índices de metadados.
+
 ## Documentos e planilhas no Planejamento (sem Google)
 
 Em **Planejamento**, há os botões **Novo documento** (tipo Docs) e **Nova planilha** (tipo Sheets). Word (.docx) e planilhas (.xlsx, .xls, .ods, .csv) enviados também abrem no editor.

@@ -20,13 +20,14 @@ import * as logs from './handlers/logs';
 import * as notas from './handlers/notas';
 import * as painel from './handlers/painel';
 import * as provas from './handlers/provas';
+import * as rag from './handlers/rag';
 import * as usuarios from './handlers/usuarios';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
-const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades', 'docInBase', 'folderInBase', 'canEditDoc', 'saveEditableContent']);
+const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades', 'docInBase', 'folderInBase', 'canEditDoc', 'saveEditableContent', 'ragForget']);
 const handlers: Record<string, Handler> = {};
-for (const mod of [alertas, anoletivo, cadastros, editor, folders, google, chamadas, comunicacao, contas, logs, notas, painel, provas, usuarios]) {
+for (const mod of [alertas, anoletivo, cadastros, editor, folders, google, chamadas, comunicacao, contas, logs, notas, painel, provas, rag, usuarios]) {
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn === 'function' && !INTERNAL.has(name)) handlers[name] = fn as Handler;
   }

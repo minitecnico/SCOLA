@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, ExternalLink, Eye, Folder, FolderInput, FolderPlus, FilePen, FileSpreadsheet, FileText, Loader2, Lock, Mail, Pencil, Presentation, ClipboardList, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, Sparkles, Download, ExternalLink, Eye, Folder, FolderInput, FolderPlus, FilePen, FileSpreadsheet, FileText, Loader2, Lock, Mail, Pencil, Presentation, ClipboardList, Plus, Search, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
@@ -10,6 +10,7 @@ import type { ClassRoom, PlanDoc, PlanFolder } from '../lib/types';
 import { Button, Modal, Select } from './ui';
 import { SendMailModal } from './SendMailModal';
 import { useSelection } from '../lib/useSelection';
+import { AssistantModal } from './AssistantModal';
 import { GoogleMenus } from './GoogleHub';
 import { Dropzone } from './Dropzone';
 import { PreviewModal } from './Attachments';
@@ -89,6 +90,7 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
   const [zipping, setZipping] = useState(false);
   const sel = useSelection();
   const [mailDocs, setMailDocs] = useState<PlanDoc[] | null>(null);
+  const [assistant, setAssistant] = useState(false);
   const { data: google } = useQuery({ queryKey: ['google-status'], queryFn: getGoogleStatus, retry: false });
   const createG = useMutation({
     mutationFn: ({ gkind }: { gkind: GoogleKind; win: Window | null }) =>
@@ -258,6 +260,9 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar arquivo…" className="w-full bg-transparent text-sm outline-none" />
         </label>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <button onClick={() => setAssistant(true)} className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900 transition hover:bg-amber-100">
+            <Sparkles size={15} /> Assistente
+          </button>
           <GoogleMenus
             available={!!google?.available}
             connected={!!google?.connected}
@@ -382,6 +387,7 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
       )}
 
       {newFolder ? <NewFolderModal segment={segKey} parentId={folderId} classes={classes} folders={folders} onClose={() => setNewFolder(false)} onDone={(id) => { refreshFolders(); if (id) setFolderId(id); }} /> : null}
+      {assistant ? <AssistantModal selectedIds={[...sel.ids]} onClose={() => setAssistant(false)} /> : null}
       {mailDocs ? <SendMailModal docs={mailDocs} google={google} onClose={() => setMailDocs(null)} onSent={sel.clear} /> : null}
       {preview?.url ? <PreviewModal name={preview.name} url={preview.url} mime={preview.mime} onClose={() => setPreview(null)} /> : null}
       {editing ? <EditDocModal doc={editing} classes={classes} onClose={() => setEditing(null)} onSaved={invalidate} /> : null}

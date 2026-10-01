@@ -632,7 +632,8 @@ export const movePlanDocs = (ids: string[], folderId: string | null) => rpc<{ mo
 
 /* ---------------------------------- Assistente (RAG) ---------------------------------- */
 export interface RagStatus { total: number; ready: number; pending: { id: string; name: string; kind: string; google_kind: string | null }[] }
-export interface RagAnswer { answer: string; sources: { doc_id: string; name: string; snippet: string }[] }
+export interface RagAnswer { answer: string; sources: { doc_id: string; kind: string; name: string; snippet: string }[] }
 export const ragStatus = () => rpc<RagStatus>('ragStatus');
 export const ragIndexDoc = (docId: string, chunks: string[]) => rpc<{ chunks: number }>('ragIndexDoc', docId, chunks);
 export const ragAsk = (question: string, docIds?: string[]) => rpc<RagAnswer>('ragAsk', question, docIds);
+export const ragSync = () => rpc<{ remaining: number }>('ragSync');

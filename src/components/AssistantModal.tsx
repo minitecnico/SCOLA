@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Send, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { chunkText, extractText } from '../lib/rag';
-import { ragAsk, ragIndexDoc, ragStatus, type RagAnswer } from '../lib/queries';
+import { ragAsk, ragIndexDoc, ragStatus, ragSync, type RagAnswer } from '../lib/queries';
 import { Modal } from './ui';
 
 type Turn = { q: string; a?: RagAnswer; error?: string };
+const KIND: Record<string, string> = { doc: 'Documento', notice: 'Aviso', calendar: 'Calendário', plan: 'Planejamento', exam: 'Prova' };
 const EXPORT_EXT: Record<string, string> = { document: '.docx', spreadsheet: '.xlsx', presentation: '.pptx' };
 
 /** Pergunte aos documentos do Planejamento. Prepara sozinho os documentos novos ou editados. */
@@ -18,7 +19,7 @@ export function AssistantModal({ selectedIds, onClose }: { selectedIds: string[]
 
   // Indexa, um por vez, o que ainda não está pronto (o navegador extrai o texto).
   useEffect(() => {
-    if (!st || started.current || !st.pending.length) return;
+    if (!st || started.current) return;
     started.current = true;
     (async () => {
       const bad: string[] = [];
@@ -36,6 +37,11 @@ export function AssistantModal({ selectedIds, onClose }: { selectedIds: string[]
           await ragIndexDoc(d.id, []).catch(() => {}); // não tentar de novo a cada abertura
         }
       }
+      // Avisos, calendários, planejamentos e provas: o servidor monta o texto e atualiza o que mudou.
+      try {
+        setPrep({ done: 0, total: 1, name: 'avisos, calendário, planejamentos e provas' });
+        for (let guard = 0; guard < 50; guard++) if (!(await ragSync()).remaining) break;
+      } catch { /* sem isso o assistente ainda responde sobre os documentos */ }
       setSkipped(bad);
       setPrep(null);
       qc.invalidateQueries({ queryKey: ['rag-status'] });
@@ -63,7 +69,7 @@ export function AssistantModal({ selectedIds, onClose }: { selectedIds: string[]
   };
 
   return (
-    <Modal open onClose={onClose} title="Assistente dos documentos" size="xl">
+    <Modal open onClose={onClose} title="Assistente do SCOLA" size="xl">
       <div className="flex h-[70vh] min-h-[320px] flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <Sparkles size={14} className="text-amber-500" />
@@ -86,8 +92,8 @@ export function AssistantModal({ selectedIds, onClose }: { selectedIds: string[]
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto rounded-xl border border-border bg-muted/40 p-3">
           {turns.length === 0 ? (
             <div className="space-y-2 text-sm text-muted-foreground">
-              <p>Pergunte sobre o conteúdo dos planejamentos, provas e planilhas da escola. Exemplos:</p>
-              {['O que foi planejado para o 2º trimestre?', 'Quais habilidades da BNCC aparecem nos planejamentos?', 'Resuma os documentos selecionados.'].map((s) => (
+              <p>Pergunte sobre documentos, avisos, calendário, planejamentos e provas. Exemplos:</p>
+              {['O que foi avisado sobre a próxima reunião de pais?', 'Quais eventos temos no calendário em novembro?', 'O que foi planejado para o 2º trimestre?'].map((s) => (
                 <button key={s} onClick={() => setText(s)} className="block rounded-lg border border-border bg-card px-3 py-1.5 text-left text-xs font-semibold hover:bg-muted">{s}</button>
               ))}
             </div>
@@ -104,7 +110,7 @@ export function AssistantModal({ selectedIds, onClose }: { selectedIds: string[]
                         <p className="mb-1 text-[11px] font-black uppercase tracking-wide text-muted-foreground">Fontes</p>
                         {t.a.sources.map((s) => (
                           <details key={s.doc_id} className="text-xs">
-                            <summary className="cursor-pointer font-bold">{s.name}</summary>
+                            <summary className="cursor-pointer font-bold"><span className="mr-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-black uppercase text-muted-foreground">{KIND[s.kind] ?? s.kind}</span>{s.name}</summary>
                             <p className="mt-0.5 text-muted-foreground">“{s.snippet}…”</p>
                           </details>
                         ))}
@@ -131,7 +137,7 @@ export function AssistantModal({ selectedIds, onClose }: { selectedIds: string[]
             <Send size={18} />
           </button>
         </div>
-        <p className="text-[11px] text-muted-foreground">As respostas vêm só dos documentos da escola e podem conter erros: confira nas fontes.</p>
+        <p className="text-[11px] text-muted-foreground">As respostas vêm só do conteúdo da escola que você tem acesso e podem conter erros: confira nas fontes.</p>
       </div>
     </Modal>
   );

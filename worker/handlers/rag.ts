@@ -197,20 +197,16 @@ export async function ragAsk(ctx: Ctx, question: string, docIds?: string[]) {
   await ctx.env.FILES.put(key, String(used + 1), { expirationTtl: 86400 });
 
   const [qv] = await embed(ctx, [q]);
-  // Visibilidade: o que é de todos, do seu papel ou de você; e (consulta B) o que você mesmo criou.
-  const roles = [ctx.role === 'superadmin' || ctx.isAdmin ? 'gestor' : ctx.role].filter(Boolean);
-  const fa: VectorizeVectorMetadataFilter = { base_id: base, vis: { $in: ['all', ...roles.map((r) => `role:${r}`), `user:${ctx.user.id}`] } };
-  const fb: VectorizeVectorMetadataFilter = { base_id: base, owner: ctx.user.id };
-  if (docIds?.length) { fa.doc_id = { $in: docIds.slice(0, 50) }; }
-  const [ra, rb] = await Promise.all([
-    ctx.env.VECTORIZE.query(qv, { topK: 8, returnMetadata: 'all', filter: fa }),
-    docIds?.length ? Promise.resolve(null) : ctx.env.VECTORIZE.query(qv, { topK: 8, returnMetadata: 'all', filter: fb }),
-  ]);
-  const seen0 = new Set<string>();
-  const hits = [...ra.matches, ...(rb?.matches ?? [])]
-    .filter((m) => (seen0.has(m.id) ? false : (seen0.add(m.id), true)))
-    .filter((m) => m.score > 0.3 && typeof m.metadata?.text === 'string')
-    .sort((a, b) => b.score - a.score).slice(0, 8);
+  // Busca na escola toda e filtra a visibilidade aqui: é de todos, do seu papel, de você, ou foi você quem criou.
+  const role = ctx.role === 'superadmin' || ctx.isAdmin ? 'gestor' : ctx.role;
+  const allowed = new Set(['all', `role:${role}`, `user:${ctx.user.id}`]);
+  const filter: VectorizeVectorMetadataFilter = { base_id: base };
+  if (docIds?.length) filter.doc_id = { $in: docIds.slice(0, 50) };
+  const found = await ctx.env.VECTORIZE.query(qv, { topK: 20, returnMetadata: 'all', filter });
+  const hits = found.matches
+    .filter((m) => typeof m.metadata?.text === 'string' && m.score > 0.3)
+    .filter((m) => allowed.has(String(m.metadata!.vis ?? 'all')) || m.metadata!.owner === ctx.user.id)
+    .slice(0, 8);
   if (!hits.length) return { answer: 'Não encontrei nada sobre isso. Tente outras palavras ou confira se o conteúdo já foi preparado.', sources: [] };
 
   const docRefs = [...new Set(hits.filter((h) => (h.metadata!.kind ?? 'doc') === 'doc').map((h) => String(h.metadata!.doc_id)))];

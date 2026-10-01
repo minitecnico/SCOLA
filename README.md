@@ -93,7 +93,7 @@ Colunas `plan_docs.google_id` e `google_kind` reservadas para documentos que mor
 ## Assistente (RAG)
 
 Botão **Assistente** em Planejamento: pergunta em português sobre documentos, avisos, calendário, planejamentos e provas, e responde citando as fontes. Notas, frequência e dados de alunos NÃO entram (dados em tabela pedem consulta exata, não busca por semelhança).
-- **Visibilidade** (metadados `vis` e `owner`, duas consultas ao Vectorize): documentos e calendários são de toda a escola; avisos seguem o público (todos, papel ou pessoa) e o autor sempre os vê; planejamentos e provas só o autor e a gestão. Índices de metadados do Vectorize: `base_id`, `doc_id`, `vis`, `owner`.
+- **Visibilidade** (metadados `vis` e `owner`, filtrados no Worker depois da busca): documentos e calendários são de toda a escola; avisos seguem o público (todos, papel ou pessoa) e o autor sempre os vê; planejamentos e provas só o autor e a gestão. Índices de metadados do Vectorize: `base_id`, `doc_id`, `vis`, `owner`.
 - Avisos/calendários/planejamentos/provas são montados no servidor (`ragSync`, em lotes de 10, só o que mudou) e controlados pela tabela `rag_items`. Tudo no Cloudflare (plano gratuito):
 - **Vectorize** (índice `scola-rag`, 1024 dimensões, cosseno, metadados `base_id` e `doc_id`) guarda os trechos; **Workers AI** gera os embeddings (`bge-m3`, multilíngue) e a resposta (`gemma-3-12b-it`).
 - O **navegador** extrai o texto (Word, Excel/ODS, PDF com texto, PPTX, TXT/CSV, Docs/Sheets/Slides do Google exportados) e divide em trechos; o Worker só embute e grava. Documentos novos ou editados são preparados sozinhos ao abrir o assistente. PDF escaneado e imagem não entram.

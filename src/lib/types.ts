@@ -284,7 +284,10 @@ export interface PlanDoc {
   created_at: string;
   url?: string;             // URL assinada
   /** 'file' = arquivo enviado · 'doc'/'sheet' = editável no SCOLA */
-  kind?: 'file' | 'doc' | 'sheet';
+  kind?: 'file' | 'doc' | 'sheet' | 'google';
+  /** Arquivo que mora no Google: id no Drive e tipo. */
+  google_id?: string | null;
+  google_kind?: 'document' | 'spreadsheet' | 'presentation' | null;
   version?: number;
   updated_at?: string | null;
   size?: number | null;

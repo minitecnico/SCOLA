@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Eye, FilePen, FileSpreadsheet, FileText, Loader2, Lock, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Download, ExternalLink, Eye, FilePen, FileSpreadsheet, FileText, Loader2, Lock, Pencil, Presentation, Plus, Search, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { canReviewPlan } from '../lib/permissions';
-import { createEditableDoc, deletePlanDoc, listClasses, listPlanDocs, updatePlanDoc, uploadPlanDoc, type EditableKind } from '../lib/queries';
+import { createEditableDoc, createGoogleDoc, deletePlanDoc, disconnectGoogle, getGoogleStatus, googleLink, listClasses, listPlanDocs, updatePlanDoc, uploadPlanDoc, type EditableKind, type GoogleKind } from '../lib/queries';
 import { downloadAllAttachments, safeFileName, translateStorageError } from '../lib/storage';
 import type { ClassRoom, PlanDoc } from '../lib/types';
 import { Button, Modal, Select } from './ui';
@@ -21,7 +21,7 @@ const SEGMENTS: { key: string; label: string; color: string }[] = [
 const TERMS = [1, 2, 3];
 /** Abre no editor do SCOLA? (documentos e planilhas; o resto baixa/visualiza). */
 export const editableKind = (d: Pick<PlanDoc, 'kind' | 'name'>): EditableKind | null =>
-  d.kind === 'doc' || d.kind === 'sheet' ? d.kind : /\.docx$/i.test(d.name) ? 'doc' : /\.(xlsx|xlsm|xls|ods|csv|tsv)$/i.test(d.name) ? 'sheet' : null;
+  d.kind === 'google' ? null : d.kind === 'doc' || d.kind === 'sheet' ? d.kind : /\.docx$/i.test(d.name) ? 'doc' : /\.(xlsx|xlsm|xls|ods|csv|tsv)$/i.test(d.name) ? 'sheet' : null;
 const termLabel = (t: number | null) => (t ? `${t}º Trimestre` : 'Sem trimestre');
 const fmtDate = (iso: string) => {
   const [y, m, d] = iso.slice(0, 10).split('-');
@@ -83,6 +83,29 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
   const [preview, setPreview] = useState<PlanDoc | null>(null);
   const [editing, setEditing] = useState<PlanDoc | null>(null);
   const [zipping, setZipping] = useState(false);
+  const { data: google } = useQuery({ queryKey: ['google-status'], queryFn: getGoogleStatus, retry: false });
+  const createG = useMutation({
+    mutationFn: ({ gkind }: { gkind: GoogleKind; win: Window | null }) =>
+      createGoogleDoc({ gkind, segment: segKey, term: term ? Number(term) : null, class_id: turma || null, turma_label: turmaName }),
+    onSuccess: (r, v) => {
+      invalidate();
+      if (v.win) v.win.location.href = r.link;
+      else window.open(r.link, '_blank', 'noopener');
+    },
+    onError: (e, v) => {
+      v.win?.close();
+      alert((e as Error).message);
+    },
+  });
+  const newGoogle = (gkind: GoogleKind) => createG.mutate({ gkind, win: window.open('', '_blank') });
+  const unlink = useMutation({
+    mutationFn: disconnectGoogle,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['google-status'] });
+      successToast('Google desconectado');
+    },
+  });
+  const gParam = new URLSearchParams(window.location.search).get('google');
 
   const navigate = useNavigate();
   const invalidate = () => qc.invalidateQueries({ queryKey: ['plan-docs'] });
@@ -144,7 +167,7 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
     if (zipping || filtered.length === 0) return;
     setZipping(true);
     try {
-      await downloadAllAttachments(filtered.map((d) => ({ name: d.name, url: d.url })), safeFileName(segLabel) || 'arquivos');
+      await downloadAllAttachments(filtered.filter((d) => d.kind !== 'google').map((d) => ({ name: d.name, url: d.url })), safeFileName(segLabel) || 'arquivos');
       successToast(filtered.length > 1 ? 'Baixado (.zip)' : 'Arquivo baixado');
     } catch (e) {
       alert((e as Error).message);
@@ -222,6 +245,41 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
         <p className="col-span-2 self-center text-xs text-muted-foreground sm:ml-2">Edite direto no SCOLA, como no Docs e no Sheets. Word e Excel enviados também abrem aqui.</p>
       </div>
 
+      {/* Google Docs / Sheets / Slides (conta de cada usuário) */}
+      {google?.available ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3">
+          {google.connected ? (
+            <>
+              {([['document', 'Google Docs', FileText, 'bg-blue-500'], ['spreadsheet', 'Google Sheets', FileSpreadsheet, 'bg-green-500'], ['presentation', 'Google Slides', Presentation, 'bg-yellow-500']] as const).map(([k, label, Icon, color]) => (
+                <button
+                  key={k}
+                  onClick={() => newGoogle(k)}
+                  disabled={createG.isPending}
+                  className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-semibold transition hover:bg-muted disabled:opacity-50"
+                >
+                  <span className={cn('grid h-6 w-6 place-items-center rounded-md text-white', color)}><Icon size={13} /></span>
+                  <Plus size={13} className="-ml-1" /> {label}
+                </button>
+              ))}
+              <span className="text-xs text-muted-foreground sm:ml-2">
+                Conectado como <b>{google.email || 'sua conta'}</b> ·{' '}
+                <button onClick={() => confirm('Desconectar sua conta do Google? Os arquivos continuam no seu Drive.') && unlink.mutate()} className="font-bold underline">desconectar</button>
+              </span>
+            </>
+          ) : (
+            <>
+              <a href="/api/google/connect" className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-black text-white hover:bg-slate-800">
+                <ExternalLink size={14} /> Conectar Google
+              </a>
+              <span className="text-xs text-muted-foreground">
+                {gParam === 'negado' ? 'Conexão cancelada. ' : gParam === 'erro' ? 'Não deu certo, tente de novo. ' : ''}
+                Crie Docs, Sheets e Slides no seu Google Drive direto daqui. O SCOLA só acessa o que ele mesmo criar.
+              </span>
+            </>
+          )}
+        </div>
+      ) : null}
+
       {/* Dropzone slim — destino atual derivado dos filtros acima */}
       <Dropzone
         compact
@@ -280,9 +338,10 @@ function FileRow({
   const isImg = !!doc.mime?.startsWith('image/');
   const canPrev = !!doc.url && (isImg || doc.mime === 'application/pdf');
   const ext = (doc.name.split('.').pop() || 'arq').toUpperCase().slice(0, 4);
-  const openExternal = () => doc.url && window.open(doc.url, '_blank', 'noopener');
+  const gLink = doc.kind === 'google' && doc.google_id && doc.google_kind ? googleLink(doc.google_kind, doc.google_id) : null;
+  const openExternal = () => (gLink ?? doc.url) && window.open(gLink ?? doc.url, '_blank', 'noopener');
   const ek = editableKind(doc);
-  const open = onOpenEditor ?? (canPrev ? onPreview : openExternal);
+  const open = gLink ? openExternal : onOpenEditor ?? (canPrev ? onPreview : openExternal);
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 transition hover:bg-muted sm:px-4">
@@ -290,15 +349,17 @@ function FileRow({
         onClick={open}
         className={cn(
           'grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg',
-          ek === 'doc' ? 'bg-blue-600 text-white' : ek === 'sheet' ? 'bg-green-600 text-white' : 'bg-muted text-muted-foreground',
+          ek === 'doc' || doc.google_kind === 'document' ? 'bg-blue-600 text-white' : ek === 'sheet' || doc.google_kind === 'spreadsheet' ? 'bg-green-600 text-white' : doc.google_kind === 'presentation' ? 'bg-yellow-500 text-white' : 'bg-muted text-muted-foreground',
         )}
         aria-label="Abrir"
       >
         {isImg && doc.url ? (
           <img src={doc.url} alt={doc.name} className="h-full w-full object-cover" />
-        ) : ek === 'doc' ? (
+        ) : doc.google_kind === 'presentation' ? (
+          <Presentation size={18} />
+        ) : ek === 'doc' || doc.google_kind === 'document' ? (
           <FileText size={18} />
-        ) : ek === 'sheet' ? (
+        ) : ek === 'sheet' || doc.google_kind === 'spreadsheet' ? (
           <FileSpreadsheet size={18} />
         ) : (
           <span className="text-[9px] font-black text-muted-foreground">{ext}</span>
@@ -320,9 +381,10 @@ function FileRow({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        {gLink ? <IconBtn label="Abrir no Google" onClick={openExternal}><ExternalLink size={15} /></IconBtn> : null}
         {onOpenEditor ? <IconBtn label={canManage ? 'Abrir no editor' : 'Abrir'} onClick={onOpenEditor}><FilePen size={15} /></IconBtn> : null}
-        {!onOpenEditor ? <IconBtn label="Visualizar" onClick={canPrev ? onPreview : openExternal}><Eye size={15} /></IconBtn> : null}
-        <IconBtn label="Baixar" href={doc.url} download={doc.name}><Download size={15} /></IconBtn>
+        {!onOpenEditor && !gLink ? <IconBtn label="Visualizar" onClick={canPrev ? onPreview : openExternal}><Eye size={15} /></IconBtn> : null}
+        {gLink ? null : <IconBtn label="Baixar" href={doc.url} download={doc.name}><Download size={15} /></IconBtn>}
         {canManage ? <IconBtn label="Renomear / mover" onClick={onEdit}><Pencil size={15} /></IconBtn> : null}
         {canManage ? <IconBtn label="Excluir" danger onClick={onDelete}><Trash2 size={15} /></IconBtn> : null}
       </div>

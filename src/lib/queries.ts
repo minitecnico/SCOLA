@@ -607,3 +607,11 @@ export interface DashboardMonth {
   classes: { id: string; name: string; sessions: number; pct: number }[];
 }
 export const dashboardMonth = (year: number, month: number) => rpc<DashboardMonth>('dashboardMonth', year, month);
+
+/* ------------------------------------ Google ------------------------------------ */
+export type GoogleKind = 'document' | 'spreadsheet' | 'presentation';
+export const getGoogleStatus = () => rpc<{ available: boolean; connected: boolean; email: string | null }>('getGoogleStatus');
+export const disconnectGoogle = () => rpc<{ ok: boolean }>('disconnectGoogle');
+export const createGoogleDoc = (input: { gkind: GoogleKind; name?: string; segment: string; term?: number | null; class_id?: string | null; turma_label?: string | null }) =>
+  rpc<{ id: string; link: string }>('createGoogleDoc', input);
+export const googleLink = (kind: GoogleKind, id: string) => `https://docs.google.com/${kind}/d/${id}/edit`;

@@ -637,4 +637,5 @@ export interface PlanFolder {
   class_id: string | null;
   author_id: string | null;
   parent_id: string | null;
+  created_at?: string;
 }

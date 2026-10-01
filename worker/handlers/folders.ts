@@ -20,7 +20,7 @@ export async function folderInBase(ctx: Ctx, id: string) {
 
 export async function listPlanFolders(ctx: Ctx) {
   const base = requireBase(ctx);
-  return all<FolderRow>(ctx.db, 'SELECT id, author_id, segment, name, class_id, parent_id FROM plan_folders WHERE base_id = ? ORDER BY name COLLATE NOCASE', base);
+  return all<FolderRow>(ctx.db, 'SELECT id, author_id, segment, name, class_id, parent_id, created_at FROM plan_folders WHERE base_id = ? ORDER BY name COLLATE NOCASE', base);
 }
 
 export async function createPlanFolder(ctx: Ctx, input: { name: string; segment: string; class_id?: string | null; parent_id?: string | null }) {

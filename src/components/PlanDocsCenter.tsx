@@ -32,6 +32,33 @@ const fmtDate = (iso: string) => {
   return `${d}/${m}/${y}`;
 };
 
+const COLS = 'grid grid-cols-[auto_minmax(0,1fr)_auto] md:grid-cols-[auto_minmax(0,1fr)_5.5rem_8rem_9.5rem_13.5rem]';
+const fmtSize = (n?: number | null) => (!n ? '—' : n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} kB` : `${(n / 1048576).toFixed(1).replace('.', ',')} MB`);
+/** "Hoje, 11:44", "Ontem", "Há 3 dias", "Há 2 semanas", "Há 4 meses" — como no gerenciador de arquivos. */
+function fmtRel(iso?: string | null) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const days = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 86400000);
+  if (days <= 0) return `Hoje, ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  if (days === 1) return 'Ontem';
+  if (days < 7) return `Há ${days} dias`;
+  if (days < 30) { const w = Math.floor(days / 7); return `Há ${w} ${w === 1 ? 'semana' : 'semanas'}`; }
+  if (days < 365) { const m = Math.floor(days / 30); return `Há ${m} ${m === 1 ? 'mês' : 'meses'}`; }
+  return fmtDate(iso);
+}
+const G_TYPE: Record<string, string> = { document: 'Google Docs', spreadsheet: 'Google Sheets', presentation: 'Google Slides', form: 'Google Forms' };
+function typeLabel(d: PlanDoc) {
+  if (d.kind === 'google') return G_TYPE[d.google_kind ?? ''] ?? 'Google';
+  const ext = (d.name.split('.').pop() || '').toLowerCase();
+  if (d.mime?.startsWith('image/')) return 'Imagem';
+  if (ext === 'pdf') return 'PDF';
+  if (['doc', 'docx', 'odt', 'rtf', 'txt'].includes(ext)) return 'Documento';
+  if (['xls', 'xlsx', 'xlsm', 'ods', 'csv', 'tsv'].includes(ext)) return 'Planilha';
+  if (['ppt', 'pptx', 'odp'].includes(ext)) return 'Apresentação';
+  return ext ? ext.toUpperCase() : 'Arquivo';
+}
+type SortKey = 'name' | 'size' | 'date';
+
 export function PlanDocsCenter() {
   const { data: docs = [], isLoading, isError, error } = useQuery({ queryKey: ['plan-docs'], queryFn: listPlanDocs, retry: false });
   const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: listClasses });
@@ -119,7 +146,11 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
   const invalidate = () => qc.invalidateQueries({ queryKey: ['plan-docs'] });
   const [folderId, setFolderId] = useState<string | null>(null);
   const folder = folders.find((f) => f.id === folderId) ?? null;
-  const children = folders.filter((f) => (f.parent_id ?? null) === folderId);
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'name', dir: 1 });
+  const toggleSort = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: key === 'name' ? 1 : -1 }));
+  const children = folders
+    .filter((f) => (f.parent_id ?? null) === folderId)
+    .sort((a, b) => (sort.key === 'date' ? (a.created_at ?? '').localeCompare(b.created_at ?? '') * sort.dir : a.name.localeCompare(b.name, 'pt-BR') * (sort.key === 'name' ? sort.dir : 1)));
   // Caminho da raiz até a pasta (para o "Pastas / A / B") e rótulos "A / B" no seletor de mover.
   const pathOf = (id: string | null): PlanFolder[] => {
     const out: PlanFolder[] = [];
@@ -169,6 +200,12 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
   }, [docs, term, turma, q, folderId]);
 
   // Agrupa por trimestre quando sem filtro/busca; senão lista plana.
+  const sortedFiles = useMemo(() => {
+    const f = [...filtered];
+    const by = (d: PlanDoc) => (sort.key === 'size' ? d.size ?? 0 : sort.key === 'date' ? Date.parse(d.updated_at ?? d.created_at) : 0);
+    return f.sort((a, b) => (sort.key === 'name' ? a.name.localeCompare(b.name, 'pt-BR', { numeric: true }) * sort.dir : (by(a) - by(b)) * sort.dir));
+  }, [filtered, sort]);
+
   const grouped = useMemo(() => {
     if (term || q.trim()) return null;
     const order: (number | null)[] = [1, 2, 3, null];
@@ -191,14 +228,14 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
     onError: (e) => alert((e as Error).message),
   });
   const renameFolder = useMutation({
-    mutationFn: (name: string) => renamePlanFolder(folder!.id, name),
+    mutationFn: ({ id, name }: { id: string; name: string }) => renamePlanFolder(id, name),
     onSuccess: refreshFolders,
     onError: (e) => alert((e as Error).message),
   });
   const removeFolder = useMutation({
-    mutationFn: () => deletePlanFolder(folder!.id),
-    onSuccess: () => {
-      setFolderId(folder?.parent_id ?? null);
+    mutationFn: (id: string) => deletePlanFolder(id),
+    onSuccess: (_r, id) => {
+      if (folderId === id) setFolderId(folder?.parent_id ?? null);
       refreshFolders();
       invalidate();
       successToast('Pasta excluída. O conteúdo subiu um nível.');
@@ -260,6 +297,9 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar arquivo…" className="w-full bg-transparent text-sm outline-none" />
         </label>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <button onClick={() => setNewFolder(true)} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold transition hover:bg-muted">
+            <FolderPlus size={15} /> {folder ? 'Nova subpasta' : 'Nova pasta'}
+          </button>
           <button onClick={() => setAssistant(true)} className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900 transition hover:bg-amber-100">
             <Sparkles size={15} /> Assistente
           </button>
@@ -324,36 +364,12 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
           ))}
           {canManageFolder ? (
             <span className="ml-auto flex gap-1">
-              <IconBtn label="Renomear pasta" onClick={() => { const n = prompt('Novo nome da pasta:', folder.name); if (n && n.trim()) renameFolder.mutate(n); }}><Pencil size={15} /></IconBtn>
-              <IconBtn label="Excluir pasta" danger onClick={() => confirm(`Excluir a pasta "${folder.name}"?\n\nNada é apagado: subpastas e arquivos sobem um nível.`) && removeFolder.mutate()}><Trash2 size={15} /></IconBtn>
+              <IconBtn label="Renomear pasta" onClick={() => { const n = prompt('Novo nome da pasta:', folder.name); if (n && n.trim()) renameFolder.mutate({ id: folder.id, name: n }); }}><Pencil size={15} /></IconBtn>
+              <IconBtn label="Excluir pasta" danger onClick={() => confirm(`Excluir a pasta "${folder.name}"?\n\nNada é apagado: subpastas e arquivos sobem um nível.`) && removeFolder.mutate(folder.id)}><Trash2 size={15} /></IconBtn>
             </span>
           ) : null}
         </div>
       ) : null}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-        {children.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => { setFolderId(f.id); sel.clear(); }}
-            className="flex min-w-0 items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 text-left transition hover:border-amber-300 hover:bg-amber-50"
-          >
-            <Folder size={22} className="shrink-0 fill-amber-200 text-amber-500" />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-bold">{f.name}</span>
-              <span className="text-[11px] text-muted-foreground">
-                {countIn(f.id)} arquivo{countIn(f.id) === 1 ? '' : 's'}{subCount(f.id) ? ` · ${subCount(f.id)} subpasta${subCount(f.id) > 1 ? 's' : ''}` : ''}
-              </span>
-            </span>
-          </button>
-        ))}
-        <button
-          onClick={() => setNewFolder(true)}
-          className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-2.5 text-sm font-bold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-        >
-          <FolderPlus size={18} /> {folder ? 'Nova subpasta' : 'Nova pasta'}
-        </button>
-      </div>
-
       {/* Dropzone slim — destino atual derivado dos filtros acima */}
       <Dropzone
         compact
@@ -361,29 +377,41 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
         title={upload.isPending ? 'Enviando…' : `Arraste ou clique para enviar — ${destino}`}
       />
 
-      {/* Lista */}
+      {/* Lista no estilo gerenciador de arquivos: pastas primeiro, depois arquivos */}
       {loading ? (
         <p className="py-10 text-center text-sm font-bold text-muted-foreground">Carregando…</p>
-      ) : filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-card py-12 text-center">
-          <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-muted text-muted-foreground"><FileText size={22} /></div>
-          <p className="text-sm font-bold text-muted-foreground">Nenhum arquivo {term || turma || q ? 'com esse filtro' : 'ainda'}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Arraste para a área acima ou clique para enviar.</p>
-        </div>
-      ) : grouped ? (
-        <div className="space-y-5">
-          {grouped.map((g) => (
-            <div key={String(g.term)}>
-              <div className="mb-2 flex items-center gap-2 px-1">
-                <h3 className="text-[11px] font-black uppercase tracking-wide text-muted-foreground">{termLabel(g.term)}</h3>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-black text-muted-foreground">{g.items.length}</span>
-              </div>
-              <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-card">{g.items.map(row)}</div>
-            </div>
-          ))}
-        </div>
       ) : (
-        <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-card">{filtered.map(row)}</div>
+        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+          <div className={cn(COLS, 'hidden items-center gap-3 border-b border-border px-4 py-2 text-[11px] font-black uppercase tracking-wide text-muted-foreground md:grid')}>
+            <span className="w-4" />
+            <SortHead label="Nome" k="name" sort={sort} onSort={toggleSort} />
+            <SortHead label="Tamanho" k="size" sort={sort} onSort={toggleSort} />
+            <span>Tipo</span>
+            <SortHead label="Modificado" k="date" sort={sort} onSort={toggleSort} />
+            <span />
+          </div>
+          <div className="divide-y divide-border">
+            {children.map((f) => (
+              <FolderRow
+                key={f.id}
+                folder={f}
+                items={countIn(f.id) + subCount(f.id)}
+                canManage={f.author_id === userId || canReview}
+                onOpen={() => { setFolderId(f.id); sel.clear(); }}
+                onRename={() => { const n = prompt('Novo nome da pasta:', f.name); if (n && n.trim()) renameFolder.mutate({ id: f.id, name: n }); }}
+                onDelete={() => confirm(`Excluir a pasta "${f.name}"?\n\nNada é apagado: subpastas e arquivos sobem um nível.`) && removeFolder.mutate(f.id)}
+              />
+            ))}
+            {sortedFiles.map(row)}
+          </div>
+          {children.length === 0 && sortedFiles.length === 0 ? (
+            <div className="py-12 text-center">
+              <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-muted text-muted-foreground"><Folder size={22} /></div>
+              <p className="text-sm font-bold text-muted-foreground">{term || turma || q ? 'Nada com esse filtro' : folder ? 'Pasta vazia' : 'Nenhum arquivo ainda'}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Arraste arquivos para a área acima ou crie uma pasta.</p>
+            </div>
+          ) : null}
+        </div>
       )}
 
       {newFolder ? <NewFolderModal segment={segKey} parentId={folderId} classes={classes} folders={folders} onClose={() => setNewFolder(false)} onDone={(id) => { refreshFolders(); if (id) setFolderId(id); }} /> : null}
@@ -437,6 +465,36 @@ function NewFolderModal({ segment, parentId, classes, folders, onClose, onDone }
   );
 }
 
+function SortHead({ label, k, sort, onSort }: { label: string; k: SortKey; sort: { key: SortKey; dir: 1 | -1 }; onSort: (k: SortKey) => void }) {
+  return (
+    <button onClick={() => onSort(k)} className="inline-flex items-center gap-1 text-left uppercase hover:text-foreground">
+      {label} {sort.key === k ? <span aria-hidden>{sort.dir === 1 ? '▲' : '▼'}</span> : null}
+    </button>
+  );
+}
+
+function FolderRow({ folder, items, canManage, onOpen, onRename, onDelete }: { folder: PlanFolder; items: number; canManage: boolean; onOpen: () => void; onRename: () => void; onDelete: () => void }) {
+  return (
+    <div className={cn(COLS, 'items-center gap-3 px-3 py-2 transition hover:bg-amber-50 sm:px-4')}>
+      <span className="w-4" />
+      <button onClick={onOpen} className="flex min-w-0 items-center gap-3 text-left">
+        <span className="grid h-10 w-10 shrink-0 place-items-center"><Folder size={26} className="fill-amber-200 text-amber-500" /></span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-bold">{folder.name}</span>
+          <span className="text-[11px] text-muted-foreground md:hidden">{items} {items === 1 ? 'item' : 'itens'}</span>
+        </span>
+      </button>
+      <span className="hidden text-xs text-muted-foreground md:block">{items} {items === 1 ? 'item' : 'itens'}</span>
+      <span className="hidden text-xs text-muted-foreground md:block">Pasta</span>
+      <span className="hidden text-xs text-muted-foreground md:block">{fmtRel(folder.created_at)}</span>
+      <div className="flex justify-end gap-0.5">
+        {canManage ? <IconBtn label="Renomear pasta" onClick={onRename}><Pencil size={15} /></IconBtn> : null}
+        {canManage ? <IconBtn label="Excluir pasta" danger onClick={onDelete}><Trash2 size={15} /></IconBtn> : null}
+      </div>
+    </div>
+  );
+}
+
 function FileRow({
   doc,
   canManage,
@@ -469,8 +527,9 @@ function FileRow({
   const open = gLink ? openExternal : onOpenEditor ?? (canPrev ? onPreview : openExternal);
 
   return (
-    <div className={cn('flex items-center gap-3 px-3 py-2.5 transition hover:bg-muted sm:px-4', selected && 'bg-amber-50')}>
+    <div className={cn(COLS, 'items-center gap-3 px-3 py-2 transition hover:bg-muted sm:px-4', selected && 'bg-amber-50')}>
       <input type="checkbox" checked={selected} onChange={onToggle} aria-label={`Selecionar ${doc.name}`} className="h-4 w-4 shrink-0 accent-slate-900" />
+      <div className="flex min-w-0 items-center gap-3">
       <button
         onClick={open}
         className={cn(
@@ -494,12 +553,13 @@ function FileRow({
         )}
       </button>
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0">
         <button onClick={open} className="block max-w-full truncate text-left text-sm font-bold text-foreground hover:underline" title={doc.name}>{doc.name}</button>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
           {doc.turma_label ? <span className="font-bold text-muted-foreground">{doc.turma_label}</span> : null}
           {doc.turma_label ? <span>·</span> : null}
-          <span>{doc.updated_at && doc.kind !== 'file' ? `editado ${fmtDate(doc.updated_at)}` : fmtDate(doc.created_at)}</span>
+          {doc.term ? <><span>{doc.term}º tri</span><span>·</span></> : null}
+          <span className="md:hidden">{typeLabel(doc)} · {fmtSize(doc.size)} · {fmtRel(doc.updated_at ?? doc.created_at)}</span>
           {lockedByOther ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-1.5 py-0.5 font-semibold text-orange-800">
               <Lock size={10} /> em edição
@@ -508,7 +568,13 @@ function FileRow({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
+      </div>
+
+      <span className="hidden text-xs text-muted-foreground md:block">{fmtSize(doc.size)}</span>
+      <span className="hidden truncate text-xs text-muted-foreground md:block">{typeLabel(doc)}</span>
+      <span className="hidden truncate text-xs text-muted-foreground md:block">{fmtRel(doc.updated_at ?? doc.created_at)}</span>
+
+      <div className="flex shrink-0 items-center justify-end gap-0.5">
         <IconBtn label="Enviar por e-mail" onClick={onMail}><Mail size={15} /></IconBtn>
         {gLink ? <IconBtn label="Abrir no Google" onClick={openExternal}><ExternalLink size={15} /></IconBtn> : null}
         {onOpenEditor ? <IconBtn label={canManage ? 'Abrir no editor' : 'Abrir'} onClick={onOpenEditor}><FilePen size={15} /></IconBtn> : null}

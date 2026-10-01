@@ -1,0 +1,5 @@
+# Copie para .dev.vars (já ignorado pelo git) para rodar no computador.
+# Em produção, cadastre com: npx wrangler secret put GOOGLE_CLIENT_ID (e os outros dois).
+GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxxx
+GOOGLE_TOKEN_KEY=troque-por-um-texto-longo-e-aleatorio

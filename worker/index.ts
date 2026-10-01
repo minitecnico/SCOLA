@@ -10,6 +10,8 @@ import * as alertas from './handlers/alertas';
 import * as anoletivo from './handlers/anoletivo';
 import * as cadastros from './handlers/cadastros';
 import * as editor from './handlers/editor';
+import * as google from './handlers/google';
+import { authUrl, exchangeCode, googleConfigured, sealToken } from './google';
 import * as chamadas from './handlers/chamadas';
 import * as comunicacao from './handlers/comunicacao';
 import * as contas from './handlers/contas';
@@ -23,7 +25,7 @@ import * as usuarios from './handlers/usuarios';
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
 const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades', 'docInBase', 'canEditDoc', 'saveEditableContent']);
 const handlers: Record<string, Handler> = {};
-for (const mod of [alertas, anoletivo, cadastros, editor, chamadas, comunicacao, contas, logs, notas, painel, provas, usuarios]) {
+for (const mod of [alertas, anoletivo, cadastros, editor, google, chamadas, comunicacao, contas, logs, notas, painel, provas, usuarios]) {
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn === 'function' && !INTERNAL.has(name)) handlers[name] = fn as Handler;
   }
@@ -333,6 +335,33 @@ app.post('/api/plandocs/:id/content', async (c) => {
     name: (form.get('name') as string) || null,
   });
   return c.json({ data: r });
+});
+
+/* ------------------------------- Conectar ao Google ------------------------------- */
+// Navegação normal (GET): o cookie de sessão acompanha o redirecionamento de volta do Google.
+app.get('/api/google/connect', async (c) => {
+  const ctx = await authed(c);
+  if (!googleConfigured(c.env)) fail('Integração com o Google não configurada.', 503);
+  const state = crypto.randomUUID();
+  await c.env.FILES.put(`g:${state}`, ctx.user.id, { expirationTtl: 600 });
+  return c.redirect(authUrl(c.env, c.req.url, state));
+});
+
+app.get('/api/google/callback', async (c) => {
+  const back = (r: string) => c.redirect(`/planejamento?google=${r}`);
+  const ctx = await authed(c);
+  const state = c.req.query('state') || '';
+  const owner = state ? await c.env.FILES.get(`g:${state}`) : null;
+  if (state) await c.env.FILES.delete(`g:${state}`);
+  const code = c.req.query('code');
+  if (!owner || owner !== ctx.user.id || !code) return back(c.req.query('error') ? 'negado' : 'erro');
+  const g = await exchangeCode(c.env, c.req.url, code);
+  await run(ctx.db,
+    `INSERT INTO google_accounts (user_id, google_email, refresh_token, scopes) VALUES (?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET google_email = excluded.google_email, refresh_token = excluded.refresh_token, scopes = excluded.scopes, connected_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`,
+    ctx.user.id, g.email, await sealToken(c.env, g.refreshToken), g.scopes);
+  logAs(c, ctx.user, { role: ctx.isAdmin ? 'admin' : ctx.role, baseId: ctx.baseId, action: 'connectGoogle', category: 'comunicacao', summary: 'Conectou a conta do Google', refs: { text: g.email } });
+  return back('ok');
 });
 
 /* -------------------------- Relatório público por link ---------------------------- */

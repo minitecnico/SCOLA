@@ -9,6 +9,10 @@ export type Env = {
   FILES: KVNamespace;
   ASSETS: Fetcher;
   PBKDF2_ITER?: string;
+  // Integração Google (opcional): segredos do Worker. Sem eles o botão "Conectar Google" fica oculto.
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  GOOGLE_TOKEN_KEY?: string; // qualquer texto longo e aleatório; cifra os tokens no banco
 };
 
 export class HttpError extends Error {

@@ -72,6 +72,23 @@ npm run migrar -- --aplicar    # grava no Cloudflare
 - A pasta `migracao/` gerada contém dados pessoais: não a envie ao GitHub (já está no `.gitignore`).
 - Quem entrava só pelo Google não tinha senha: o script avisa, e você gera a senha em **Equipe**.
 
+## Google Docs, Sheets e Slides (ambiente preparado)
+
+Cada usuário conecta a **própria** conta Google (OAuth). O Worker guarda só o refresh token, **cifrado** (AES-GCM), na tabela `google_accounts`.
+O escopo é `drive.file`: o SCOLA só acessa arquivos que ele mesmo criou — não exige verificação do app pelo Google.
+
+1. Google Cloud Console → crie o projeto → **APIs e serviços → Biblioteca**: ative **Google Drive API**, **Google Docs API**, **Google Sheets API** e **Google Slides API**.
+2. **Tela de consentimento OAuth** (externa) e **Credenciais → ID do cliente OAuth → Aplicativo da Web**, com a URI de redirecionamento:
+   - `https://SEU-DOMINIO/api/google/callback` (produção)
+   - `http://localhost:5173/api/google/callback` (desenvolvimento, se usar)
+3. Cadastre os segredos no Worker (`npx wrangler secret put NOME`):
+   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — da credencial acima
+   - `GOOGLE_TOKEN_KEY` — texto longo e aleatório (ex.: `openssl rand -base64 32`). **Não troque depois**, ou as contas conectadas precisarão reconectar.
+4. Localmente: copie `.dev.vars.example` para `.dev.vars`.
+
+Já pronto no código: rota `/api/google/connect` → Google → `/api/google/callback` (volta em `/planejamento?google=ok|negado|erro`), `getGoogleStatus`/`disconnectGoogle` (RPC) e `googleFetch()` em `worker/google.ts` para chamar Drive/Docs/Sheets/Slides.
+Colunas `plan_docs.google_id` e `google_kind` reservadas para documentos que moram no Google. Sem os segredos, nada muda para quem usa hoje.
+
 ## Documentos e planilhas no Planejamento (sem Google)
 
 Em **Planejamento**, há os botões **Novo documento** (tipo Docs) e **Nova planilha** (tipo Sheets). Word (.docx) e planilhas (.xlsx, .xls, .ods, .csv) enviados também abrem no editor.

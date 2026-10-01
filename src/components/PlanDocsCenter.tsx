@@ -272,7 +272,7 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
                 <ExternalLink size={14} /> Conectar Google
               </a>
               <span className="text-xs text-muted-foreground">
-                {gParam === 'negado' ? 'Conexão cancelada. ' : gParam === 'erro' ? 'Não deu certo, tente de novo. ' : ''}
+                {gParam === 'escopo' ? 'Faltou marcar a permissão do Google Drive na tela do Google. Conecte de novo e deixe todas as caixas marcadas. ' : gParam === 'negado' ? 'Conexão cancelada. ' : gParam === 'erro' ? 'Não deu certo, tente de novo. ' : ''}
                 Crie Docs, Sheets e Slides no seu Google Drive direto daqui. O SCOLA só acessa o que ele mesmo criar.
               </span>
             </>

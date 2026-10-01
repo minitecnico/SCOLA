@@ -356,6 +356,8 @@ app.get('/api/google/callback', async (c) => {
   const code = c.req.query('code');
   if (!owner || owner !== ctx.user.id || !code) return back(c.req.query('error') ? 'negado' : 'erro');
   const g = await exchangeCode(c.env, c.req.url, code);
+  // O Google deixa o usuário desmarcar permissões: sem acesso ao Drive a conexão não serve.
+  if (!g.scopes.includes('auth/drive.file')) return back('escopo');
   await run(ctx.db,
     `INSERT INTO google_accounts (user_id, google_email, refresh_token, scopes) VALUES (?, ?, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET google_email = excluded.google_email, refresh_token = excluded.refresh_token, scopes = excluded.scopes, connected_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`,

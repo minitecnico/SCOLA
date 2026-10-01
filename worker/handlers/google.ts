@@ -20,7 +20,7 @@ const GOOGLE_TYPES = {
   form: { mime: 'application/vnd.google-apps.form', label: 'Formulário sem título' },
 } as const;
 export const googleLink = (kind: string, id: string) =>
-  `https://docs.google.com/${kind === 'form' ? 'forms' : kind}/d/${id}/edit`;
+  `https://docs.google.com/${({ document: 'document', spreadsheet: 'spreadsheets', presentation: 'presentation', form: 'forms' } as Record<string, string>)[kind]}/d/${id}/edit`;
 
 /** Cria um Doc/Sheet/Slides no Google Drive de quem chamou e registra na central de planejamento. */
 export async function createGoogleDoc(ctx: Ctx, input: {

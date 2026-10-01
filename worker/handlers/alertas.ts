@@ -1,4 +1,5 @@
 import { calcMedia, isRecoveryActivity, MEDIA_APROVACAO, normalizeScores, type GradeActivity } from '../../src/lib/types';
+import { cached } from '../cache';
 import { requireBase, type Ctx } from '../auth';
 import { all, parse } from '../db';
 import { composeTermActs } from './notas';
@@ -48,7 +49,10 @@ const dayMinus = (iso: string, days: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-export async function smartAlerts(ctx: Ctx, year: number, today: string, minPct = 75, minSessions = 4) {
+export const smartAlerts = (ctx: Ctx, year: number, today: string, minPct = 75, minSessions = 4) =>
+  cached(ctx, 'smartAlerts', [year, today, minPct, minSessions], () => smartAlertsRaw(ctx, year, today, minPct, minSessions));
+
+async function smartAlertsRaw(ctx: Ctx, year: number, today: string, minPct = 75, minSessions = 4) {
   const base = requireBase(ctx);
   const y = Number(year) || new Date().getFullYear();
   const day = /^\d{4}-\d{2}-\d{2}$/.test(String(today)) ? String(today) : new Date().toISOString().slice(0, 10);
@@ -65,9 +69,9 @@ export async function smartAlerts(ctx: Ctx, year: number, today: string, minPct 
       `WITH rec AS (
          SELECT r.student_id, s.session_date AS d, r.status,
                 CASE WHEN r.status IN ('present','late') THEN 1 ELSE 0 END AS p
-           FROM attendance_records r
-           JOIN attendance_sessions s ON s.id = r.session_id AND s.deleted_at IS NULL
-          WHERE r.base_id = ? AND substr(s.session_date, 1, 4) = ? AND s.session_date <= ?
+           FROM attendance_sessions s
+           JOIN attendance_records r ON r.session_id = s.id
+          WHERE s.base_id = ? AND s.deleted_at IS NULL AND s.session_date BETWEEN ? AND ?
        ), agg AS (
          SELECT student_id, SUM(p) AS present, COUNT(*) AS total,
                 SUM(CASE WHEN status = 'justified' THEN 1 ELSE 0 END) AS justified,
@@ -84,7 +88,7 @@ export async function smartAlerts(ctx: Ctx, year: number, today: string, minPct 
        SELECT agg.student_id, agg.present, agg.total, agg.justified, agg.recent_total, agg.recent_present,
               COALESCE(tail.streak, 0) AS streak
          FROM agg LEFT JOIN tail ON tail.student_id = agg.student_id`,
-      base, String(y), day, recentFrom, recentFrom),
+      base, `${y}-01-01`, day < `${y}-12-31` ? day : `${y}-12-31`, recentFrom, recentFrom),
     // Datas de chamada dos últimos 30 dias, por turma (para achar turmas esquecidas).
     all<{ class_id: string; session_date: string }>(ctx.db,
       `SELECT class_id, session_date FROM attendance_sessions

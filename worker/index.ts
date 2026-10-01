@@ -5,6 +5,7 @@ import {
   recordFailure, requireBase, requireRole, SESSION_COOKIE, userFromToken, verifyPassword, type Ctx, type UserRow,
 } from './auth';
 import { ACTIONS, deviceOf, insertLog, labelOf, type LogEntry, type Refs } from './audit';
+import { clearBaseCache } from './cache';
 import { all, fail, first, HttpError, parse, run, uid, type Env } from './db';
 import * as alertas from './handlers/alertas';
 import * as anoletivo from './handlers/anoletivo';
@@ -63,6 +64,8 @@ app.onError((err, c) => {
   if (err instanceof HttpError) return c.json({ error: err.message }, err.status as 400);
   console.error(err);
   const msg = String((err as Error)?.message || '');
+  // Plano gratuito do D1: estourou o limite diário (zera à meia-noite UTC = 21h em Brasília).
+  if (/D1 DB reached|exceeded .*limit|7500/i.test(msg)) return c.json({ error: 'O limite diário gratuito do banco de dados foi atingido. O sistema volta a funcionar às 21h (horário de Brasília).' }, 503);
   if (msg.includes('UNIQUE constraint failed')) return c.json({ error: 'Registro duplicado.' }, 409);
   if (msg.includes('FOREIGN KEY constraint failed')) return c.json({ error: 'Registro relacionado não encontrado.' }, 400);
   return c.json({ error: 'Erro interno. Tente novamente.' }, 500);
@@ -204,6 +207,8 @@ app.post('/api/rpc/:name', async (c) => {
   try {
     const result = await fn!(ctx, ...args);
     if (spec && !spec.pre) bg(c, insertLog(ctx.db, { ...entry, detail: spec.result?.(result) ?? null }));
+    // Gravou algo: as agregações em cache dessa base ficam velhas.
+    if (spec && entry.baseId) bg(c, clearBaseCache(ctx.db, entry.baseId));
     return c.json({ data: result ?? null });
   } catch (err) {
     const code = err instanceof HttpError ? err.status : 500;
@@ -428,6 +433,8 @@ export default {
   async scheduled(_controller: ScheduledController, env: Env) {
     // Logs: guarda 180 dias (cabe folgado no plano gratuito do D1).
     await run(env.DB, 'DELETE FROM audit_log WHERE at < ?', new Date(Date.now() - 180 * 86400_000).toISOString());
+    await run(env.DB, 'DELETE FROM query_cache WHERE expires_at < ?', new Date().toISOString()).catch(() => null);
+    await run(env.DB, 'DELETE FROM sessions WHERE expires_at < ?', new Date().toISOString());
     const rows = await all<{ id: string }>(env.DB, 'SELECT id FROM kv_trash LIMIT 40');
     if (!rows.length) return;
     // Chave com prefixo (c:<id> conteúdo do editor, v:<id> versão) ou id puro (= f:<id>).

@@ -72,6 +72,13 @@ npm run migrar -- --aplicar    # grava no Cloudflare
 - A pasta `migracao/` gerada contém dados pessoais: não a envie ao GitHub (já está no `.gitignore`).
 - Quem entrava só pelo Google não tinha senha: o script avisa, e você gera a senha em **Equipe**.
 
+## Limites do D1 (plano gratuito)
+
+Limite de 5 milhões de leituras/dia (zera à meia-noite UTC = 21h em Brasília). Para conferir o que mais lê: `npx wrangler d1 insights scola --time-period 1d --sort-by reads --limit 10`.
+- As consultas de chamadas liam a base inteira (chamadas, presenças por turma e alertas somavam ~6 milhões de leituras por dia). Agora: lista de chamadas escolhe as N mais recentes antes de somar; filtros por faixa de datas (usam o índice) em vez de `substr()`; índice de chamadas que já traz data/turma/excluída.
+- **Cache no D1** (`query_cache`, 5 minutos): frequência do ano, alertas inteligentes e visão do ano letivo. Qualquer gravação na base apaga o cache dela (`/api/rpc`), então os números nunca ficam velhos depois de uma chamada.
+- Se o limite estourar, o sistema responde "limite diário atingido, volta às 21h" em vez de "erro interno".
+
 ## Google Docs, Sheets e Slides (ambiente preparado)
 
 Cada usuário conecta a **própria** conta Google (OAuth). O Worker guarda só o refresh token, **cifrado** (AES-GCM), na tabela `google_accounts`.

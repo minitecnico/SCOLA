@@ -54,14 +54,16 @@ type SessionCount = { id: string; class_id: string; session_date: string; delete
 
 async function sessionsWithCounts(ctx: Ctx, where: string, order: string, limit: number, ...params: (string | number)[]) {
   const base = requireBase(ctx);
+  // Primeiro escolhe as N chamadas (pelo índice), só depois soma as presenças delas — sem varrer a base inteira.
   return all<SessionCount>(ctx.db,
     `SELECT s.id, s.class_id, s.session_date, s.deleted_at,
             COALESCE(SUM(CASE WHEN r.status IN ('present','late') THEN 1 ELSE 0 END), 0) AS present,
             COALESCE(SUM(CASE WHEN r.status = 'absent' THEN 1 ELSE 0 END), 0) AS absent,
             COUNT(r.student_id) AS total
-       FROM attendance_sessions s LEFT JOIN attendance_records r ON r.session_id = s.id
-      WHERE s.base_id = ? AND ${where}
-      GROUP BY s.id ORDER BY ${order} LIMIT ?`,
+       FROM (SELECT s.id, s.class_id, s.session_date, s.deleted_at FROM attendance_sessions s
+              WHERE s.base_id = ? AND ${where} ORDER BY ${order} LIMIT ?) s
+       LEFT JOIN attendance_records r ON r.session_id = s.id
+      GROUP BY s.id ORDER BY ${order}`,
     base, ...params, limit);
 }
 

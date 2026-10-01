@@ -1,3 +1,4 @@
+import { cached } from '../cache';
 import { requireRole, type Ctx } from '../auth';
 import { all, fail, json, now, stmt, uid } from '../db';
 
@@ -14,7 +15,9 @@ const GESTAO = ['gestor'] as const;
 
 type ClassRow = { id: string; name: string; shift: string | null; year: number | null; does_exams: number; archived_at: string | null; created_at: string };
 
-export async function schoolYearOverview(ctx: Ctx) {
+export const schoolYearOverview = (ctx: Ctx) => cached(ctx, 'schoolYearOverview', [new Date().toISOString().slice(0, 10)], () => schoolYearOverviewRaw(ctx));
+
+async function schoolYearOverviewRaw(ctx: Ctx) {
   const base = requireRole(ctx, ...GESTAO);
   const [classes, students, sessions, grades] = await Promise.all([
     all<ClassRow>(ctx.db, 'SELECT id, name, shift, year, does_exams, archived_at, created_at FROM classes WHERE base_id = ? ORDER BY name COLLATE NOCASE', base),

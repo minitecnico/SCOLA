@@ -1,11 +1,11 @@
-import { assertClassInBase, requireRole, type Ctx } from '../auth';
-import { fail, first, now, run, uid } from '../db';
+import { assertClassInBase, requireBase, requireRole, type Ctx } from '../auth';
+import { all, fail, first, now, run, uid } from '../db';
 import { googleConfigured, googleFetch, revokeAndForget } from '../google';
 
 /** Situação da integração para o usuário logado (a tela decide se mostra "Conectar Google"). */
 export async function getGoogleStatus(ctx: Ctx) {
-  const acc = await first<{ google_email: string; connected_at: string }>(ctx.db, 'SELECT google_email, connected_at FROM google_accounts WHERE user_id = ?', ctx.user.id);
-  return { available: googleConfigured(ctx.env), connected: !!acc, email: acc?.google_email ?? null, connected_at: acc?.connected_at ?? null };
+  const acc = await first<{ google_email: string; connected_at: string; scopes: string }>(ctx.db, 'SELECT google_email, connected_at, scopes FROM google_accounts WHERE user_id = ?', ctx.user.id);
+  return { available: googleConfigured(ctx.env), connected: !!acc, email: acc?.google_email ?? null, canMail: !!acc?.scopes.includes('gmail.send'), canDrive: !!acc?.scopes.includes('drive.file'), connected_at: acc?.connected_at ?? null };
 }
 
 export async function disconnectGoogle(ctx: Ctx) {
@@ -42,4 +42,14 @@ export async function createGoogleDoc(ctx: Ctx, input: {
     id, base, ctx.user.id, String(input.segment || 'geral'), input.term ?? null, input.class_id ?? null, input.turma_label ?? null,
     name, t.mime, now(), ctx.user.id, gid, input.gkind);
   return { id, link: googleLink(input.gkind, gid) };
+}
+
+/** Pessoas da base ativa (para escolher o destinatário do e-mail). Gestão e secretaria primeiro. */
+export async function listMailRecipients(ctx: Ctx) {
+  const base = requireBase(ctx);
+  return all<{ id: string; name: string; email: string; role: string }>(ctx.db,
+    `SELECT u.id, COALESCE(NULLIF(u.full_name, ''), u.email) AS name, u.email, m.role
+       FROM memberships m JOIN users u ON u.id = m.user_id
+      WHERE m.base_id = ? AND u.id <> ? AND u.disabled = 0
+      ORDER BY CASE m.role WHEN 'gestor' THEN 0 WHEN 'secretaria' THEN 1 ELSE 2 END, name COLLATE NOCASE`, base, ctx.user.id);
 }

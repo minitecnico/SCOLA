@@ -87,6 +87,7 @@ O escopo é `drive.file`: o SCOLA só acessa arquivos que ele mesmo criou — n�
 4. Localmente: copie `.dev.vars.example` para `.dev.vars`.
 
 Já pronto no código: rota `/api/google/connect` → Google → `/api/google/callback` (volta em `/planejamento?google=ok|negado|erro`), `getGoogleStatus`/`disconnectGoogle` (RPC) e `googleFetch()` em `worker/google.ts` para chamar Drive/Docs/Sheets/Slides.
+Envio por e-mail: escopo `gmail.send` (sensível — sem verificação do Google, o app mostra o aviso "não verificado" e aceita até 100 usuários). O navegador monta o e-mail e o Worker repassa ao Gmail do próprio professor.
 Colunas `plan_docs.google_id` e `google_kind` reservadas para documentos que moram no Google. Sem os segredos, nada muda para quem usa hoje.
 
 ## Documentos e planilhas no Planejamento (sem Google)

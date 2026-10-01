@@ -6,9 +6,10 @@ import { fail, first, run, type Env } from './db';
  *
  * Escopo `drive.file`: o SCOLA só enxerga os arquivos que ele mesmo criou (ou que o usuário abriu
  * pelo SCOLA). É um escopo "não sensível": não exige verificação do app pelo Google.
+ * Escopo `gmail.send` (sensível): só ENVIAR e-mails pela conta do próprio usuário (professor → coordenação), sem ler a caixa de entrada.
  * Para criar Docs/Sheets/Slides, ative no Google Cloud as APIs: Google Drive, Docs, Sheets e Slides.
  */
-export const GOOGLE_SCOPES = ['openid', 'email', 'https://www.googleapis.com/auth/drive.file'];
+export const GOOGLE_SCOPES = ['openid', 'email', 'https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/gmail.send'];
 
 export const googleConfigured = (env: Env) => !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_TOKEN_KEY);
 

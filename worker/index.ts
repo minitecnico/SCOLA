@@ -11,7 +11,7 @@ import * as anoletivo from './handlers/anoletivo';
 import * as cadastros from './handlers/cadastros';
 import * as editor from './handlers/editor';
 import * as google from './handlers/google';
-import { authUrl, exchangeCode, googleConfigured, sealToken } from './google';
+import { accessTokenFor, authUrl, exchangeCode, googleConfigured, sealToken } from './google';
 import * as chamadas from './handlers/chamadas';
 import * as comunicacao from './handlers/comunicacao';
 import * as contas from './handlers/contas';
@@ -364,6 +364,28 @@ app.get('/api/google/callback', async (c) => {
     ctx.user.id, g.email, await sealToken(c.env, g.refreshToken), g.scopes);
   logAs(c, ctx.user, { role: ctx.isAdmin ? 'admin' : ctx.role, baseId: ctx.baseId, action: 'connectGoogle', category: 'comunicacao', summary: 'Conectou a conta do Google', refs: { text: g.email } });
   return back('ok');
+});
+
+/** Envia um e-mail (já montado pelo navegador, formato RFC 822) pelo Gmail do usuário. O Worker só repassa o corpo, sem processar. */
+const MAX_MAIL = 25 * 1024 * 1024;
+app.post('/api/google/send-mail', async (c) => {
+  const ctx = await authed(c);
+  const len = Number(c.req.header('content-length') || 0);
+  if (!len) fail('E-mail vazio.');
+  if (len > MAX_MAIL) fail('E-mail grande demais: o Gmail aceita até 25 MB (anexos ficam ~33% maiores ao enviar).', 413);
+  const acc = await first<{ scopes: string }>(ctx.db, 'SELECT scopes FROM google_accounts WHERE user_id = ?', ctx.user.id);
+  if (!acc) fail('Conecte sua conta do Google primeiro.', 409);
+  if (!acc!.scopes.includes('gmail.send')) fail('Reconecte o Google e permita o envio de e-mails.', 409);
+  const token = await accessTokenFor(c.env, ctx.user.id);
+  const r = await fetch('https://www.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media', {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'message/rfc822', 'Content-Length': String(len) }, body: c.req.raw.body,
+  });
+  if (!r.ok) {
+    console.error('gmail send', r.status, await r.text().catch(() => ''));
+    fail(r.status === 403 ? 'O Google não permitiu enviar. Reconecte o Google e aceite o envio de e-mails.' : 'O Gmail recusou o envio. Confira os endereços e tente de novo.', r.status === 403 ? 409 : 502);
+  }
+  logAs(c, ctx.user, { role: ctx.isAdmin ? 'admin' : ctx.role, baseId: ctx.baseId, action: 'sendMail', category: 'comunicacao', summary: 'Enviou e-mail com arquivos (Gmail)' });
+  return c.json({ data: { ok: true } });
 });
 
 /* -------------------------- Relatório público por link ---------------------------- */

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, ExternalLink, Eye, FilePen, FileSpreadsheet, FileText, Loader2, Lock, Pencil, Presentation, ClipboardList, Plus, Search, Trash2 } from 'lucide-react';
+import { Download, ExternalLink, Eye, FilePen, FileSpreadsheet, FileText, Loader2, Lock, Mail, Pencil, Presentation, ClipboardList, Plus, Search, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
@@ -8,6 +8,8 @@ import { createEditableDoc, createGoogleDoc, deletePlanDoc, disconnectGoogle, ge
 import { downloadAllAttachments, safeFileName, translateStorageError } from '../lib/storage';
 import type { ClassRoom, PlanDoc } from '../lib/types';
 import { Button, Modal, Select } from './ui';
+import { SendMailModal } from './SendMailModal';
+import { useSelection } from '../lib/useSelection';
 import { GoogleHub } from './GoogleHub';
 import { Dropzone } from './Dropzone';
 import { PreviewModal } from './Attachments';
@@ -84,6 +86,8 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
   const [preview, setPreview] = useState<PlanDoc | null>(null);
   const [editing, setEditing] = useState<PlanDoc | null>(null);
   const [zipping, setZipping] = useState(false);
+  const sel = useSelection();
+  const [mailDocs, setMailDocs] = useState<PlanDoc[] | null>(null);
   const { data: google } = useQuery({ queryKey: ['google-status'], queryFn: getGoogleStatus, retry: false });
   const createG = useMutation({
     mutationFn: ({ gkind }: { gkind: GoogleKind; win: Window | null }) =>
@@ -188,6 +192,9 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
       onPreview={() => setPreview(d)}
       onOpenEditor={editableKind(d) ? () => navigate(`/planejamento/editor/${d.id}`) : undefined}
       lockedByOther={!!d.lock_by && d.lock_by !== userId}
+      selected={sel.has(d.id)}
+      onToggle={() => sel.toggle(d.id)}
+      onMail={() => setMailDocs([d])}
       onEdit={() => setEditing(d)}
       onDelete={() => confirm(`Excluir "${d.name}"?\n\n⚠️ Ação irreversível: remove o arquivo do banco e do armazenamento.`) && remove.mutate(d)}
     />
@@ -224,6 +231,17 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
           </button>
         ) : null}
       </div>
+
+      {sel.size > 0 ? (
+        <div className="sticky top-2 z-10 flex flex-wrap items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-white shadow-lg">
+          <span className="text-sm font-black">{sel.size} selecionado{sel.size > 1 ? 's' : ''}</span>
+          <button onClick={() => setMailDocs(docs.filter((d) => sel.has(d.id)))} className="inline-flex items-center gap-1.5 rounded-lg bg-yellow-400 px-3 py-1.5 text-xs font-black text-slate-900">
+            <Mail size={14} /> Enviar por e-mail
+          </button>
+          <button onClick={() => sel.setAll(filtered.map((d) => d.id))} className="text-xs font-bold underline">Selecionar todos ({filtered.length})</button>
+          <button onClick={sel.clear} className="ml-auto text-xs font-bold underline">Limpar</button>
+        </div>
+      ) : null}
 
       {/* Criar no próprio SCOLA (tipo Docs/Sheets) */}
       <div className="grid grid-cols-2 gap-2 sm:flex">
@@ -289,6 +307,7 @@ function FileCenter({ segKey, docs, classes, loading }: { segKey: string; docs: 
         <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-card">{filtered.map(row)}</div>
       )}
 
+      {mailDocs ? <SendMailModal docs={mailDocs} google={google} onClose={() => setMailDocs(null)} onSent={sel.clear} /> : null}
       {preview?.url ? <PreviewModal name={preview.name} url={preview.url} mime={preview.mime} onClose={() => setPreview(null)} /> : null}
       {editing ? <EditDocModal doc={editing} classes={classes} onClose={() => setEditing(null)} onSaved={invalidate} /> : null}
     </div>
@@ -303,6 +322,9 @@ function FileRow({
   lockedByOther,
   onEdit,
   onDelete,
+  selected,
+  onToggle,
+  onMail,
 }: {
   doc: PlanDoc;
   canManage: boolean;
@@ -311,6 +333,9 @@ function FileRow({
   lockedByOther?: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  selected: boolean;
+  onToggle: () => void;
+  onMail: () => void;
 }) {
   const isImg = !!doc.mime?.startsWith('image/');
   const canPrev = !!doc.url && (isImg || doc.mime === 'application/pdf');
@@ -321,7 +346,8 @@ function FileRow({
   const open = gLink ? openExternal : onOpenEditor ?? (canPrev ? onPreview : openExternal);
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 transition hover:bg-muted sm:px-4">
+    <div className={cn('flex items-center gap-3 px-3 py-2.5 transition hover:bg-muted sm:px-4', selected && 'bg-amber-50')}>
+      <input type="checkbox" checked={selected} onChange={onToggle} aria-label={`Selecionar ${doc.name}`} className="h-4 w-4 shrink-0 accent-slate-900" />
       <button
         onClick={open}
         className={cn(
@@ -360,6 +386,7 @@ function FileRow({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        <IconBtn label="Enviar por e-mail" onClick={onMail}><Mail size={15} /></IconBtn>
         {gLink ? <IconBtn label="Abrir no Google" onClick={openExternal}><ExternalLink size={15} /></IconBtn> : null}
         {onOpenEditor ? <IconBtn label={canManage ? 'Abrir no editor' : 'Abrir'} onClick={onOpenEditor}><FilePen size={15} /></IconBtn> : null}
         {!onOpenEditor && !gLink ? <IconBtn label="Visualizar" onClick={canPrev ? onPreview : openExternal}><Eye size={15} /></IconBtn> : null}

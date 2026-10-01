@@ -610,8 +610,14 @@ export const dashboardMonth = (year: number, month: number) => rpc<DashboardMont
 
 /* ------------------------------------ Google ------------------------------------ */
 export type GoogleKind = 'document' | 'spreadsheet' | 'presentation' | 'form';
-export const getGoogleStatus = () => rpc<{ available: boolean; connected: boolean; email: string | null }>('getGoogleStatus');
+export const getGoogleStatus = () => rpc<{ available: boolean; connected: boolean; email: string | null; canMail: boolean; canDrive: boolean }>('getGoogleStatus');
 export const disconnectGoogle = () => rpc<{ ok: boolean }>('disconnectGoogle');
 export const createGoogleDoc = (input: { gkind: GoogleKind; name?: string; segment: string; term?: number | null; class_id?: string | null; turma_label?: string | null }) =>
   rpc<{ id: string; link: string }>('createGoogleDoc', input);
 export const googleLink = (kind: GoogleKind, id: string) => `https://docs.google.com/${kind === 'form' ? 'forms' : kind}/d/${id}/edit`;
+export const listMailRecipients = () => rpc<{ id: string; name: string; email: string; role: string }[]>('listMailRecipients');
+export async function sendMail(mime: Blob) {
+  const res = await fetch('/api/google/send-mail', { method: 'POST', credentials: 'same-origin', headers: { 'x-scola': '1', 'content-type': 'message/rfc822' }, body: mime });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body?.error || 'Não consegui enviar o e-mail.');
+}

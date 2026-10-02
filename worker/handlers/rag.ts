@@ -12,7 +12,7 @@ const MAX_CHUNKS = 300;
 const MAX_CHUNK_CHARS = 1500;
 const dailyLimit = (ctx: Ctx) => Number(ctx.env.AI_DAILY_LIMIT) || 60; // limita o gasto da chave
 
-const embed = (ctx: Ctx, texts: string[]) => embedTexts(ctx.env, texts);
+const embed = (ctx: Ctx, texts: string[], type: 'query' | 'passage' = 'passage') => embedTexts(ctx.env, texts, type);
 
 /** Documentos que precisam ser (re)indexados e o andamento geral. */
 export async function ragStatus(ctx: Ctx) {
@@ -181,7 +181,7 @@ export async function ragAsk(ctx: Ctx, question: string, docIds?: string[]) {
   if (used >= dailyLimit(ctx)) fail(`Você usou as ${dailyLimit(ctx)} perguntas de hoje. Volte amanhã.`, 429);
   await ctx.env.FILES.put(key, String(used + 1), { expirationTtl: 86400 });
 
-  const [qv] = await embed(ctx, [q]);
+  const [qv] = await embed(ctx, [q], 'query');
   // Busca na escola toda e filtra a visibilidade aqui: é de todos, do seu papel, de você, ou foi você quem criou.
   const role = ctx.role === 'superadmin' || ctx.isAdmin ? 'gestor' : ctx.role;
   const allowed = new Set(['all', `role:${role}`, `user:${ctx.user.id}`]);

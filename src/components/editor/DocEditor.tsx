@@ -8,10 +8,11 @@ import { EditorContent, useEditor, useEditorState, type Editor, type JSONContent
 import StarterKit from '@tiptap/starter-kit';
 import {
   AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, Highlighter, ImagePlus, Italic, List, ListOrdered, Minus, Redo2, RemoveFormatting,
-  Strikethrough, Table2, Underline, Undo2,
+  Sparkles, Strikethrough, Table2, Underline, Undo2,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '../../lib/cn';
+import { AiWriterModal, useAiReady } from './AiWriter';
 
 /**
  * Editor de documento (tipo Docs) — TipTap, código aberto, roda no navegador.
@@ -106,6 +107,8 @@ function Toolbar({ editor }: { editor: Editor }) {
     }),
   });
   const [palette, setPalette] = useState<'color' | 'hl' | null>(null);
+  const [ai, setAi] = useState(false);
+  const aiReady = useAiReady();
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const close = () => setPalette(null);
@@ -116,6 +119,21 @@ function Toolbar({ editor }: { editor: Editor }) {
 
   return (
     <div className="sticky top-0 z-10 flex items-center gap-0.5 overflow-x-auto border-b border-border bg-card px-2 py-1.5 [scrollbar-width:thin]">
+      {aiReady ? (
+        <>
+          <button
+            type="button"
+            title="Escrever com IA: plano de aula, atividade, comunicado… ou melhorar o trecho selecionado"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setAi(true)}
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-sm font-semibold text-brand hover:bg-black"
+          >
+            <Sparkles size={15} /> IA
+          </button>
+          {ai ? <AiWriterModal editor={editor} onClose={() => setAi(false)} /> : null}
+          <Sep />
+        </>
+      ) : null}
       <Btn title="Desfazer (Ctrl+Z)" onClick={() => c().undo().run()} disabled={!st.undo}><Undo2 size={16} /></Btn>
       <Btn title="Refazer (Ctrl+Y)" onClick={() => c().redo().run()} disabled={!st.redo}><Redo2 size={16} /></Btn>
       <Sep />

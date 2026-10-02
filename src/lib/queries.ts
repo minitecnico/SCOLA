@@ -639,3 +639,13 @@ export const ragAsk = (question: string, docIds?: string[]) => rpc<RagAnswer>('r
 export const ragSync = () => rpc<{ remaining: number }>('ragSync');
 export const assistantInfo = () => rpc<{ label: string; provider: string; chatReady: boolean; embedReady: boolean; configured: boolean; canTest: boolean }>('assistantInfo');
 export const testAssistant = () => rpc<{ ok: boolean; reply: string; ms: number; label: string }>('testAssistant');
+
+/* ---------------------------------- IA ---------------------------------- */
+export type AiWriteAction = 'gerar' | 'melhorar' | 'corrigir' | 'resumir' | 'continuar' | 'simplificar' | 'topicos';
+export const aiStatus = () => rpc<{ ready: boolean; limit: number }>('aiStatus');
+export const aiWrite = (input: { action: AiWriteAction; prompt?: string; text?: string }) => rpc<{ markdown: string }>('aiWrite', input);
+export type ParecerInput = {
+  subject?: string; className?: string; period?: string; term?: number; tone?: string; extra?: string;
+  students: { n: number; terms?: (number | null)[]; final?: number | null; activities?: { name: string; score: number | null; max: number }[] }[];
+};
+export const aiPareceres = (input: ParecerInput) => rpc<{ items: { n: number; text: string }[] }>('aiPareceres', input);

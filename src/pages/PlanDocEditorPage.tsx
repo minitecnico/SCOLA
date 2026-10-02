@@ -247,7 +247,7 @@ function EditorShell({ meta, kind }: { meta: PlanDocMeta; kind: EditableKind }) 
   const close = () => navigate('/planejamento');
 
   return (
-    <div className="fixed inset-0 z-[70] flex flex-col bg-background text-foreground">
+    <div className="fixed inset-0 z-[55] flex flex-col bg-background text-foreground">
       {/* Cabeçalho */}
       <header className="flex items-center gap-2 border-b border-border bg-card px-2 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-3">
         <button onClick={close} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg hover:bg-muted" aria-label="Voltar ao planejamento" title="Voltar">

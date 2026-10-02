@@ -97,13 +97,24 @@ Já pronto no código: rota `/api/google/connect` → Google → `/api/google/ca
 Envio por e-mail: escopo `gmail.send` (sensível — sem verificação do Google, o app mostra o aviso "não verificado" e aceita até 100 usuários). O navegador monta o e-mail e o Worker repassa ao Gmail do próprio professor.
 Colunas `plan_docs.google_id` e `google_kind` reservadas para documentos que moram no Google. Sem os segredos, nada muda para quem usa hoje.
 
+## IA (NVIDIA)
+
+Em produção a IA usa a **NVIDIA** (build.nvidia.com), configurada só por segredos do Worker:
+`AI_PROVIDER=nvidia` e `AI_API_KEY=nvapi-…` (a mesma chave serve para respostas e busca). Padrões: respostas `openai/gpt-oss-20b`, busca `nvidia/llama-nemotron-embed-vl-1b-v2` (1024 dimensões). Para trocar, use `AI_MODEL` / `AI_EMBED_MODEL`. **Trocou a chave?** `npx wrangler secret put AI_API_KEY`. Não precisa de deploy.
+
+Onde aparece (some sozinho sem chave):
+- **Editor de documentos → botão IA:** cria texto novo (plano de aula, sequência didática, atividade com gabarito, projeto, comunicado, ata) ou trabalha o trecho selecionado (melhorar, corrigir português, resumir, simplificar, em tópicos, continuar). Mostra o resultado antes; a pessoa escolhe substituir ou inserir. A IA não escreve códigos da BNCC (costumam sair errados): deixa "Código BNCC: ____ (preencher)".
+- **Relatórios → Notas → Pareceres (IA):** um parecer curto por aluno a partir das notas na tela, editável, com Refazer, Copiar todos e Baixar Word. **Nomes não saem do SCOLA:** a IA recebe só números e notas; tendência e situação são calculadas no servidor (o modelo não compara números sozinho).
+- **Assistente** (abaixo).
+- Limite por pessoa por dia: `AI_DAILY_LIMIT` (padrão 60), contado à parte para o assistente e para a escrita/pareceres.
+
 ## Assistente (RAG)
 
 Botão **Assistente** em Planejamento: pergunta em português sobre documentos, avisos, calendário, planejamentos e provas, e responde citando as fontes. Notas, frequência e dados de alunos NÃO entram (dados em tabela pedem consulta exata, não busca por semelhança).
 
 **Está desligado até você configurar uma chave de IA** (nenhum modelo vem embutido). Dois modelos, todos por segredos do Worker (`npx wrangler secret put NOME`):
-- **Respostas:** `AI_PROVIDER` = `anthropic` ou `openai` (esta serve para qualquer API compatível: Gemini, Groq, OpenRouter...), `AI_API_KEY`, `AI_MODEL` (opcional) e, no `openai` com outro provedor, `AI_BASE_URL`.
-- **Busca (embeddings):** API compatível com OpenAI (`/embeddings`): `AI_EMBED_API_KEY` (se `AI_PROVIDER=openai` pode omitir), `AI_EMBED_BASE_URL`, `AI_EMBED_MODEL` (padrão `text-embedding-3-small`). O modelo precisa aceitar `dimensions: 1024`, que é o tamanho do índice. O Claude não gera embeddings: com `anthropic`, a busca usa outro provedor.
+- **Respostas:** `AI_PROVIDER` = `nvidia`, `anthropic` ou `openai` (esta serve para qualquer API compatível: Gemini, Groq, OpenRouter...), `AI_API_KEY`, `AI_MODEL` (opcional) e, no `openai` com outro provedor, `AI_BASE_URL`.
+- **Busca (embeddings):** API compatível com OpenAI (`/embeddings`): `AI_EMBED_API_KEY` (com `openai` ou `nvidia` pode omitir), `AI_EMBED_BASE_URL`, `AI_EMBED_MODEL` (padrão `text-embedding-3-small`). O modelo precisa aceitar `dimensions: 1024`, que é o tamanho do índice. O Claude não gera embeddings: com `anthropic`, a busca usa outro provedor.
 - **Trocou o modelo de busca?** Os vetores antigos deixam de servir. Apague e recrie o índice (`wrangler vectorize delete scola-rag` e `create scola-rag --dimensions=1024 --metric=cosine`, mais os índices de metadados `base_id` e `doc_id`) e rode no D1: `UPDATE plan_docs SET rag_at = NULL, rag_chunks = NULL; DELETE FROM rag_items;`.
 - O administrador tem **Testar motor** no rodapé do assistente. Com provedor externo, os trechos usados na pergunta saem do Cloudflare para ele. Cada pessoa tem 60 perguntas por dia (`AI_DAILY_LIMIT`), o que limita o gasto da chave.
 

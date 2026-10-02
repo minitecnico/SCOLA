@@ -5,8 +5,11 @@ GOOGLE_CLIENT_SECRET=GOCSPX-xxxx
 GOOGLE_TOKEN_KEY=troque-por-um-texto-longo-e-aleatorio
 
 # Assistente (opcional) — IA por chave de API. Sem isto o assistente fica desligado.
-# Respostas:
-# AI_PROVIDER=anthropic          # anthropic | openai
+# Mais simples: NVIDIA (uma chave nvapi-… serve para tudo)
+# AI_PROVIDER=nvidia
+# AI_API_KEY=nvapi-xxxx
+# Ou outro provedor — respostas:
+# AI_PROVIDER=anthropic          # nvidia | anthropic | openai
 # AI_API_KEY=sk-ant-xxxx
 # AI_MODEL=claude-haiku-4-5-20251001
 # AI_BASE_URL=                   # só "openai" com outro provedor (Gemini, Groq, OpenRouter...)

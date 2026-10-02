@@ -375,7 +375,7 @@ export function Modal({
   const maxW = size === 'xl' ? 'max-w-3xl' : 'max-w-lg';
   return (
     <Transition show={open} as={Fragment}>
-      <Dialog className="relative z-50" onClose={onClose}>
+      <Dialog className="relative z-[58]" onClose={onClose}>
         <TransitionChild
           as={Fragment}
           enter="ease-out duration-200"

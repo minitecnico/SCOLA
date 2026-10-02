@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
 import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
-import { BarChart3, Check, ChevronDown, Columns3, Eye, FileDown, Printer, Send } from 'lucide-react';
+import { BarChart3, Check, ChevronDown, Columns3, Eye, FileDown, Printer, Send, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useAiReady } from '../components/editor/AiWriter';
+import { ParecerModal } from '../components/ParecerModal';
 import { ReportView } from '../components/ReportView';
 import { ShareModal } from '../components/ShareModal';
 import { Button, EmptyState, FilterBar, FilterField, Loading, Modal, PageHeader, SegmentedField, fieldCls } from '../components/ui';
@@ -28,6 +30,8 @@ export function ReportsPage() {
   const [year, setYear] = useState(today.getFullYear());
   const [studentId, setStudentId] = useState('all');
   const [minPct, setMinPct] = useState(75);
+  const [pareceres, setPareceres] = useState(false);
+  const aiReady = useAiReady();
   const [onlyBelow, setOnlyBelow] = useState(false);
   const [notaTerm, setNotaTerm] = useState(0); // 0 = todos os trimestres
   const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
@@ -498,7 +502,17 @@ export function ReportsPage() {
                   onNone={clearAllFields}
                 />
               </div>
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 2xl:ml-auto 2xl:flex 2xl:items-center">
+              <div className={cn('grid grid-cols-3 gap-2 2xl:ml-auto 2xl:flex 2xl:items-center', aiReady && tipo === 'notas' ? 'sm:grid-cols-5' : 'sm:grid-cols-4')}>
+                {aiReady && tipo === 'notas' ? (
+                  <button
+                    onClick={() => setPareceres(true)}
+                    disabled={!payload?.notasRows?.length}
+                    title="A IA escreve um parecer descritivo para cada aluno a partir das notas"
+                    className="col-span-3 inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-neutral-900 px-3 text-sm font-semibold text-brand transition hover:bg-black disabled:opacity-40 sm:col-span-1"
+                  >
+                    <Sparkles size={16} /> Pareceres (IA)
+                  </button>
+                ) : null}
                 <ActionBtn icon={<Eye size={16} />} label="Visualizar" short="Prévia" onClick={() => setPreview(true)} disabled={!payload} />
                 <ActionBtn icon={<FileDown size={16} />} label="Excel" onClick={exportExcel} disabled={!payload} />
                 <ActionBtn icon={<Send size={16} />} label="Enviar link" short="Enviar" onClick={() => setShare(true)} disabled={!payload} />
@@ -530,6 +544,7 @@ export function ReportsPage() {
       </Modal>
 
       <ShareModal open={share} onClose={() => setShare(false)} payload={payload} />
+      {pareceres && payload?.kind === 'notas' ? <ParecerModal payload={payload} onClose={() => setPareceres(false)} /> : null}
     </div>
   );
 }

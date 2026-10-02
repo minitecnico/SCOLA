@@ -4,6 +4,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import BlurText from '../components/bits/BlurText';
+import ShinyText from '../components/bits/ShinyText';
 import { SEGMENTS } from '../components/PlanDocsCenter';
 import { cn } from '../lib/cn';
 import { ACCEPT, downloadDocx, ia, mdToHtml, prepareSchool, readAttachment, saveToPlanejamento, streamChat, useAi, type Attachment, type ChatMsg } from '../lib/ia';
@@ -220,7 +222,7 @@ export function IAPage() {
             ) : (
               <div className="py-4 text-center">
                 <span className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-neutral-900 text-brand"><Sparkles size={22} /></span>
-                <h1 className="text-2xl font-bold">Como posso ajudar?</h1>
+                <BlurText as="h1" text="Como posso ajudar?" delay={90} className="justify-center text-2xl font-bold" />
                 <p className="mt-1 text-sm text-muted-foreground">Pergunte qualquer coisa, peça provas e atividades ou arraste documentos e fotos para cá.</p>
                 <div className="mt-6 grid gap-2 text-left sm:grid-cols-2">
                   {SUGGESTIONS.map((s) => (
@@ -329,7 +331,7 @@ function Message({ m, streaming }: { m: ChatMsg; streaming: boolean }) {
       <div className="min-w-0 flex-1">
         {m.image ? <img src={m.image} alt="Imagem gerada" className="mb-3 max-h-96 w-auto max-w-full rounded-xl border border-border" /> : null}
         {html ? <div className={cn('scola-chat', m.error && 'text-red-700')} dangerouslySetInnerHTML={{ __html: html }} />
-          : streaming ? <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 size={14} className="animate-spin" /> Pensando…</p> : null}
+          : streaming ? <p className="flex items-center gap-2 text-sm"><Loader2 size={14} className="animate-spin text-muted-foreground" /> <ShinyText text="Pensando…" color="#737373" shineColor="#eab308" speed={1.6} /></p> : null}
         {m.sources?.length && !streaming ? (
           <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
             <span className="font-bold uppercase text-muted-foreground">Fontes:</span>

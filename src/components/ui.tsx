@@ -1,9 +1,11 @@
 import { Dialog, DialogPanel, DialogTitle, Menu, MenuButton, MenuItem, MenuItems, Transition, TransitionChild } from '@headlessui/react';
 import { Archive, ArrowLeft, Check, CheckSquare, ChevronDown, Lock, MoreVertical, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
-import { Fragment, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { Fragment, lazy, Suspense, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '../lib/cn';
 import { TONE, type Tone } from '../lib/tone';
+// Contagem animada carregada à parte (o motor de animação não pesa o app); começa em 0 enquanto carrega.
+const CountUp = lazy(() => import('./bits/CountUp'));
 
 /* --------------------------------- Botões -------------------------------------- */
 type Variant = 'primary' | 'ghost' | 'danger' | 'soft';
@@ -223,7 +225,7 @@ export function StatCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-[13px] font-semibold text-muted-foreground">{label}</p>
-          <p className="mt-2 text-3xl font-extrabold leading-none tracking-tight text-foreground tabular-nums">{value}</p>
+          <p className="mt-2 text-3xl font-extrabold leading-none tracking-tight text-foreground tabular-nums">{typeof value === 'number' ? <Suspense fallback={0}><CountUp to={value} duration={1} /></Suspense> : value}</p>
         </div>
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand text-neutral-900">{icon}</div>
       </div>

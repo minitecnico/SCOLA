@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '../../lib/cn';
-import { AiWriterModal, useAiReady } from './AiWriter';
+import { toDataUrl, useAi } from '../../lib/ia';
+import { AiWriterModal } from './AiWriter';
 
 /**
  * Editor de documento (tipo Docs) — TipTap, código aberto, roda no navegador.
@@ -41,17 +42,6 @@ export function useDocEditor({ editable, onChange }: { editable: boolean; onChan
     editorProps: { attributes: { class: 'scola-doc focus:outline-none' } },
     onUpdate: () => change.current(),
   });
-}
-
-/** Imagem colada/enviada: reduz para no máximo 1400 px (documento leve, salva rápido). */
-async function imageToDataUrl(file: File): Promise<string> {
-  const bmp = await createImageBitmap(file);
-  const s = Math.min(1, 1400 / Math.max(bmp.width, bmp.height));
-  const c = document.createElement('canvas');
-  c.width = Math.round(bmp.width * s);
-  c.height = Math.round(bmp.height * s);
-  c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
-  return c.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.85);
 }
 
 export function DocEditor({ editor, editable }: { editor: Editor | null; editable: boolean }) {
@@ -108,7 +98,7 @@ function Toolbar({ editor }: { editor: Editor }) {
   });
   const [palette, setPalette] = useState<'color' | 'hl' | null>(null);
   const [ai, setAi] = useState(false);
-  const aiReady = useAiReady();
+  const aiReady = useAi()?.ready;
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const close = () => setPalette(null);
@@ -213,7 +203,7 @@ function Toolbar({ editor }: { editor: Editor }) {
         onChange={async (e) => {
           const f = e.target.files?.[0];
           e.target.value = '';
-          if (f) c().setImage({ src: await imageToDataUrl(f) }).run();
+          if (f) c().setImage({ src: await toDataUrl(f) }).run();
         }}
       />
       <Btn title="Linha divisória" onClick={() => c().setHorizontalRule().run()}><Minus size={16} /></Btn>

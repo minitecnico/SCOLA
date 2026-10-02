@@ -4,8 +4,8 @@ import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
 import { BarChart3, Check, ChevronDown, Columns3, Eye, FileDown, Printer, Send, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useAiReady } from '../components/editor/AiWriter';
 import { ParecerModal } from '../components/ParecerModal';
+import { useAi } from '../lib/ia';
 import { ReportView } from '../components/ReportView';
 import { ShareModal } from '../components/ShareModal';
 import { Button, EmptyState, FilterBar, FilterField, Loading, Modal, PageHeader, SegmentedField, fieldCls } from '../components/ui';
@@ -31,7 +31,7 @@ export function ReportsPage() {
   const [studentId, setStudentId] = useState('all');
   const [minPct, setMinPct] = useState(75);
   const [pareceres, setPareceres] = useState(false);
-  const aiReady = useAiReady();
+  const aiReady = useAi()?.ready;
   const [onlyBelow, setOnlyBelow] = useState(false);
   const [notaTerm, setNotaTerm] = useState(0); // 0 = todos os trimestres
   const [selectedActivities, setSelectedActivities] = useState<string[]>([]);

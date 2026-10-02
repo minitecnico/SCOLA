@@ -1,5 +1,5 @@
 import { assertClassInBase, requireBase, requireRole, type Ctx, type Role } from '../auth';
-import { ragForget } from './rag';
+import { ragForget } from '../ia';
 import { all, fail, first, inList, json, now, parse, run, stmt, uid } from '../db';
 
 /* ------------------------------ Pessoas da base ---------------------------------- */

@@ -7,6 +7,7 @@ import { DocEditor, useDocEditor, type JSONContent } from '../components/editor/
 import { blankSheets, gridToSheets, SheetEditor, xlsxToSheets, type SheetData, type SheetEditorHandle } from '../components/editor/SheetEditor';
 import { Button, EmptyState, Loading, Modal } from '../components/ui';
 import { cn } from '../lib/cn';
+import { downloadBlob } from '../lib/ia';
 import { printDocument } from '../lib/print';
 import {
   getPlanDocMeta, listPlanDocVersions, loadDocContent, loadDocVersion, lockPlanDoc, saveDocContent, unlockPlanDoc, type EditableKind, type PlanDocMeta,
@@ -28,17 +29,6 @@ const kindOf = (m: PlanDocMeta): EditableKind | null => {
 const stripExt = (n: string) => n.replace(/\.(docx?|xlsx?|xlsm|csv|tsv|ods|odt)$/i, '');
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const dt = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-function triggerDownload(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-}
 
 export function PlanDocEditorPage() {
   const { id = '' } = useParams();
@@ -228,8 +218,8 @@ function EditorShell({ meta, kind }: { meta: PlanDocMeta; kind: EditableKind }) 
     const name = `${title || 'documento'}.${kind === 'doc' ? 'docx' : 'xlsx'}`;
     if (kind === 'doc' && editor) {
       const { docToDocx } = await import('../lib/docxConvert');
-      triggerDownload(await docToDocx(editor.getJSON(), title), name);
-    } else if (sheetRef.current) triggerDownload(await sheetRef.current.toXlsx(), name);
+      downloadBlob(await docToDocx(editor.getJSON(), title), name);
+    } else if (sheetRef.current) downloadBlob(await sheetRef.current.toXlsx(), name);
   }
 
   async function restore(vid: string) {

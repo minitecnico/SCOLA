@@ -4,17 +4,7 @@ GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-xxxx
 GOOGLE_TOKEN_KEY=troque-por-um-texto-longo-e-aleatorio
 
-# Assistente (opcional) — IA por chave de API. Sem isto o assistente fica desligado.
-# Mais simples: NVIDIA (uma chave nvapi-… serve para tudo)
-# AI_PROVIDER=nvidia
+# IA (opcional): chave da NVIDIA (build.nvidia.com). Motor externo (OpenRouter etc.) se configura no painel do administrador.
 # AI_API_KEY=nvapi-xxxx
-# Ou outro provedor — respostas:
-# AI_PROVIDER=anthropic          # nvidia | anthropic | openai
-# AI_API_KEY=sk-ant-xxxx
-# AI_MODEL=claude-haiku-4-5-20251001
-# AI_BASE_URL=                   # só "openai" com outro provedor (Gemini, Groq, OpenRouter...)
-# Busca (embeddings; API compatível com OpenAI, modelo que aceite dimensions=1024):
-# AI_EMBED_API_KEY=sk-xxxx       # se AI_PROVIDER=openai, pode omitir (usa AI_API_KEY)
-# AI_EMBED_BASE_URL=
-# AI_EMBED_MODEL=text-embedding-3-small
-# AI_DAILY_LIMIT=60              # perguntas por pessoa por dia
+# AI_DAILY_LIMIT=60          # pedidos de IA por pessoa por dia
+# AI_IMAGE_DAILY_LIMIT=30    # imagens por pessoa por dia

@@ -97,75 +97,42 @@ Já pronto no código: rota `/api/google/connect` → Google → `/api/google/ca
 Envio por e-mail: escopo `gmail.send` (sensível — sem verificação do Google, o app mostra o aviso "não verificado" e aceita até 100 usuários). O navegador monta o e-mail e o Worker repassa ao Gmail do próprio professor.
 Colunas `plan_docs.google_id` e `google_kind` reservadas para documentos que moram no Google. Sem os segredos, nada muda para quem usa hoje.
 
-## IA (NVIDIA)
+## IA
 
-Em produção a IA usa a **NVIDIA** (build.nvidia.com), configurada só por segredos do Worker:
-`AI_PROVIDER=nvidia` e `AI_API_KEY=nvapi-…` (a mesma chave serve para respostas e busca). Padrões: respostas `openai/gpt-oss-20b`, busca `nvidia/llama-nemotron-embed-vl-1b-v2` (1024 dimensões). Para trocar, use `AI_MODEL` / `AI_EMBED_MODEL`. **Trocou a chave?** `npx wrangler secret put AI_API_KEY`. Não precisa de deploy.
+Tudo de IA fica em **`worker/ia.ts`** (servidor) e **`src/lib/ia.ts`** (navegador). As telas são três: **página IA**, **botão IA do editor** e **Pareceres** nos relatórios.
 
-**Um modelo para cada tarefa, com troca automática.** Cada tarefa tem uma fila de modelos da NVIDIA:
-- texto: GPT-OSS 20B → Nemotron Super → Gemma 4 → Kimi K3;
-- visão (ler fotos): Gemma 4 → Llama 3.2 Vision → Nemotron Omni;
-- imagem: FLUX.1-dev → FLUX.2 Klein.
+**Motor**
+- **NVIDIA (gratuita):** segredo `AI_API_KEY` (`npx wrangler secret put AI_API_KEY`).
+- **Motor externo opcional:** em **Painel do administrador → Motor de IA**. Aceita qualquer API compatível com OpenAI: OpenRouter (`https://openrouter.ai/api/v1`, modelo `openrouter/auto`), OpenAI, ou um 9Router publicado num endereço https (`localhost` não funciona, o SCOLA roda na nuvem). O SCOLA testa antes de salvar e guarda a chave cifrada no KV (`cfg:ai-engine`).
+- **Filas de modelos por tarefa** (o motor externo vem primeiro):
+  - texto: GPT-OSS 20B → Nemotron Super → Gemma 4 → Kimi K3;
+  - visão: Gemma 4 → Llama Vision → Nemotron Omni;
+  - imagem: FLUX.1 → FLUX.2 Klein.
+- **Troca automática:** se um modelo falha ou não começa a responder em 25 s, o próximo assume. Quem falhou vai para o fim da fila por 10 minutos.
+- **Limites por pessoa por dia:** `AI_DAILY_LIMIT` (60 pedidos) e `AI_IMAGE_DAILY_LIMIT` (30 imagens).
 
-Se o modelo da vez demora, o próximo é chamado em paralelo e vale quem responder primeiro. Quem falha vai para o fim da fila por 10 minutos. `AI_MODEL`, `AI_VISION_MODEL` e `AI_IMAGE_MODEL` põem um modelo na frente. A NVIDIA gratuita varia muito de velocidade: espere de 10 s a 1 min.
+**Página IA (Pedagógico → IA)**
+- Conversa sobre qualquer assunto, com resposta em streaming e histórico por pessoa (tabela `ai_chats`).
+- **Anexos** por arrastar, colar ou clipe: Word, Excel, PowerPoint, PDF (o escaneado vai como imagem das 5 primeiras páginas), texto e imagens.
+- **Conteúdos da escola:** busca também em documentos, avisos, calendário, planejamentos e provas, respeitando quem pode ver, e cita as fontes. O botão **Perguntar à IA** do Planejamento abre a página já com essa opção ligada (e com os documentos selecionados).
+- **Em cada resposta:** Copiar, Word, **Salvar no Planejamento** e o nome do modelo que respondeu. Pedido de imagem gera a ilustração.
 
-Onde aparece (some sozinho sem chave):
-- **Editor de documentos → botão IA (campo inteligente):** um pedido só, e o SCOLA decide o que fazer:
-  - **Texto:** plano de aula, prova, atividade, comunicado…
-  - **Imagem:** ilustração ou desenho para colorir.
-  - **Texto + imagem:** "atividade ilustrada".
-  - **Imagem anexada, colada ou selecionada no documento:**
-    - transcrever a foto de uma prova para texto editável;
-    - criar questões a partir dela (a visão lê e o modelo de texto cria);
-    - mudar a imagem ("deixe em aquarela", "coloque um arco-íris").
-  - **Ajustes rápidos sem IA, no navegador:** girar, preto e branco, contraste e para colorir.
-  - **Também dá para trabalhar o trecho selecionado:** melhorar, corrigir, resumir, simplificar, tópicos, continuar.
-  - **Revisão do gabarito:** questões com gabarito passam por uma segunda passada que resolve cada questão e corrige o gabarito.
-  - **Limites:**
-    - A NVIDIA gratuita não edita a imagem enviada (só aceita as imagens de exemplo dela). Por isso "mudar a imagem" descreve a imagem e o FLUX a redesenha com a mudança: o resultado é parecido, não idêntico.
-    - Modelos de imagem escrevem mal, então as imagens saem sem palavras e os rótulos ficam no texto do documento.
-    - Não escreve códigos da BNCC (costumam sair errados).
-- **Relatórios → Notas → Pareceres (IA):** um parecer curto por aluno a partir das notas na tela, editável, com Refazer, Copiar todos e Baixar Word. **Nomes não saem do SCOLA:** a IA recebe só números e notas; tendência e situação são calculadas no servidor (o modelo não compara números sozinho).
-- **Assistente** (abaixo).
-- Limites por pessoa por dia: `AI_DAILY_LIMIT` (padrão 60; contado à parte para o assistente e para a escrita/pareceres) e `AI_IMAGE_DAILY_LIMIT` (padrão 30 imagens).
+**Botão IA do editor:** um pedido só, e o servidor decide entre texto, imagem, texto + imagem, ler foto ou mudar imagem. Também trabalha o trecho selecionado (melhorar, corrigir, resumir, simplificar, tópicos, continuar). Os ajustes de imagem sem IA (girar, P&B, contraste, para colorir) rodam no navegador.
 
-## Página IA (conversa geral)
+**Pareceres (Relatórios → Notas):** um parecer por aluno a partir das notas. Os nomes não saem do SCOLA: a IA recebe só números e notas; tendência e situação são calculadas no servidor.
 
-Menu **Pedagógico → IA**: conversa sobre qualquer assunto, como um ChatGPT, para gestão, professores e secretaria. As respostas aparecem enquanto são escritas.
+**Qualidade (aprendido nos testes)**
+- **Gabaritos:** questões com gabarito passam por uma revisão automática.
+- **Imagens anexadas:** a visão só transcreve, e quem responde é o modelo de texto (a visão erra contas). Com motor externo, as imagens vão direto para ele.
+- **Imagens geradas:** saem sem palavras; os rótulos ficam no texto do documento.
+- **Editar a imagem:** a NVIDIA gratuita não edita a imagem enviada. Por isso "mudar a imagem" descreve a imagem e o FLUX a redesenha com a mudança: o resultado é parecido, não idêntico.
+- **BNCC:** a IA não escreve códigos da BNCC, porque costumam sair errados.
+- **Matemática:** fórmulas em LaTeX viram texto (3/8, ×, √, ²).
+- **Streaming:** enviado como `text/event-stream` e sem gzip; com compressão, o texto chegava todo de uma vez.
 
-**Anexos:** arrastar e soltar, colar (Ctrl+V) ou clipe. Aceita Word, Excel/ODS, PowerPoint, PDF, texto e imagens. O navegador extrai o texto; PDF escaneado vai como imagem das 5 primeiras páginas.
-
-**Histórico:** cada pessoa vê só as próprias conversas (tabela `ai_chats`). As imagens anexadas não ficam guardadas, só o nome.
-
-**Cada resposta tem:**
-- Copiar e Word;
-- **Salvar no Planejamento**: vira documento editável no segmento escolhido;
-- o nome do modelo que respondeu.
-
-**Como funciona:**
-- **Pedido de imagem** ("crie uma ilustração…"): vai para o campo inteligente (FLUX).
-- **Rota:** `POST /api/ai/chat`, em streaming. Enviada como `text/event-stream` e **sem compressão**, porque com gzip o texto chegava todo de uma vez.
-- **Só NVIDIA:** a visão transcreve as imagens e o modelo de texto responde, porque os modelos de visão erram contas e gabaritos.
-- **Matemática:** as respostas em LaTeX são convertidas em texto (3/8, ×, √, ²).
-
-**Motor externo (Painel do administrador → Motor de IA):**
-- Endereço, chave e modelo de qualquer API compatível com OpenAI: OpenRouter (`https://openrouter.ai/api/v1`, `openrouter/auto`), OpenAI, ou um 9Router publicado num endereço https.
-- O SCOLA testa antes de salvar e guarda a chave cifrada no KV (`cfg:ai-engine`). Ela nunca volta para a tela.
-- Ele vira o primeiro da fila em toda a IA, com a NVIDIA de reserva automática.
-- `localhost` não funciona, porque o SCOLA roda na nuvem.
-
-## Assistente (RAG)
-
-Botão **Assistente** em Planejamento: pergunta em português sobre documentos, avisos, calendário, planejamentos e provas, e responde citando as fontes. Notas, frequência e dados de alunos NÃO entram (dados em tabela pedem consulta exata, não busca por semelhança).
-
-**Está desligado até você configurar uma chave de IA** (nenhum modelo vem embutido). Dois modelos, todos por segredos do Worker (`npx wrangler secret put NOME`):
-- **Respostas:** `AI_PROVIDER` = `nvidia`, `anthropic` ou `openai` (esta serve para qualquer API compatível: Gemini, Groq, OpenRouter...), `AI_API_KEY`, `AI_MODEL` (opcional) e, no `openai` com outro provedor, `AI_BASE_URL`.
-- **Busca (embeddings):** API compatível com OpenAI (`/embeddings`): `AI_EMBED_API_KEY` (com `openai` ou `nvidia` pode omitir), `AI_EMBED_BASE_URL`, `AI_EMBED_MODEL` (padrão `text-embedding-3-small`). O modelo precisa aceitar `dimensions: 1024`, que é o tamanho do índice. O Claude não gera embeddings: com `anthropic`, a busca usa outro provedor.
-- **Trocou o modelo de busca?** Os vetores antigos deixam de servir. Apague e recrie o índice (`wrangler vectorize delete scola-rag` e `create scola-rag --dimensions=1024 --metric=cosine`, mais os índices de metadados `base_id` e `doc_id`) e rode no D1: `UPDATE plan_docs SET rag_at = NULL, rag_chunks = NULL; DELETE FROM rag_items;`.
-- O administrador tem **Testar motor** no rodapé do assistente. Com provedor externo, os trechos usados na pergunta saem do Cloudflare para ele. Cada pessoa tem 60 perguntas por dia (`AI_DAILY_LIMIT`), o que limita o gasto da chave.
-
-**Como funciona:** o navegador extrai o texto (Word, Excel/ODS, PDF com texto, PPTX, TXT/CSV, Docs/Sheets/Slides do Google exportados) e divide em trechos; o Worker só embute e grava no **Vectorize** (índice `scola-rag`, 1024 dimensões, cosseno). PDF escaneado e imagem não entram. Avisos, calendários, planejamentos e provas são montados no servidor (`ragSync`, lotes de 10, só o que mudou, tabela `rag_items`).
-**Visibilidade** (metadados `vis` e `owner`, filtrados no Worker depois da busca): documentos e calendários são de toda a escola; avisos seguem o público e o autor sempre os vê; planejamentos e provas só o autor e a gestão.
+**Busca (Vectorize `scola-rag`, 1024 dimensões, embeddings da NVIDIA)**
+- O navegador extrai o texto dos documentos e o servidor monta o resto (`ragSync`, só o que mudou, tabela `rag_items`).
+- Corte de relevância: 0,15 ou 60% do melhor resultado.
 
 ## Documentos e planilhas no Planejamento (sem Google)
 

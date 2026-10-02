@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { NodeSelection } from '@tiptap/pm/state';
 import {
   ArrowDownToLine, Contrast, Download, ImagePlus, Loader2, Palette, Paperclip, RefreshCw, Replace, RotateCw, Sparkles, Wand2, X,
@@ -6,9 +5,7 @@ import {
 import { useEffect, useState } from 'react';
 import type { Editor } from '@tiptap/react';
 import { cn } from '../../lib/cn';
-import { applyTool, imageAspect, toDataUrl, type ImageTool } from '../../lib/imageTools';
-import { markdownToHtml } from '../../lib/markdown';
-import { aiSmart, aiStatus, aiWrite, type AiSmartMode, type AiWriteAction } from '../../lib/queries';
+import { applyTool, ia, imageAspect, mdToHtml, toDataUrl, useAi, type ImageTool, type SmartMode, type TrechoAction } from '../../lib/ia';
 import { Button, Modal } from '../ui';
 
 /**
@@ -27,14 +24,14 @@ const TEMPLATES: { label: string; prompt: string; needsImage?: boolean }[] = [
   { label: 'Transcrever foto', prompt: 'Transcreva o texto desta imagem para eu editar, mantendo questões e alternativas.', needsImage: true },
   { label: 'Questões sobre a imagem', prompt: 'Crie 5 questões para alunos sobre esta imagem, com gabarito.', needsImage: true },
 ];
-const MODES: { id: AiSmartMode; label: string; image: boolean | null }[] = [
+const MODES: { id: SmartMode; label: string; image: boolean | null }[] = [
   { id: 'auto', label: 'Automático', image: null },
   { id: 'texto', label: 'Texto', image: false },
   { id: 'imagem', label: 'Imagem', image: false },
   { id: 'ler', label: 'Ler a imagem', image: true },
   { id: 'editar', label: 'Mudar a imagem', image: true },
 ];
-const ACTIONS: { id: AiWriteAction; label: string }[] = [
+const ACTIONS: { id: TrechoAction; label: string }[] = [
   { id: 'melhorar', label: 'Melhorar a escrita' },
   { id: 'corrigir', label: 'Corrigir português' },
   { id: 'resumir', label: 'Resumir' },
@@ -49,22 +46,17 @@ const TOOLS: { id: ImageTool; label: string; icon: React.ReactNode }[] = [
   { id: 'colorir', label: 'Para colorir', icon: <Palette size={14} /> },
 ];
 
-export function useAiReady() {
-  const { data } = useQuery({ queryKey: ['ai-status'], queryFn: aiStatus, staleTime: 5 * 60_000, retry: false });
-  return data?.ready ?? false;
-}
-
 type Result = { html: string; image: string | null; used: string[]; replaceable: boolean };
 
 export function AiWriterModal({ editor, onClose }: { editor: Editor; onClose: () => void }) {
-  const { data: status } = useQuery({ queryKey: ['ai-status'], queryFn: aiStatus, staleTime: 5 * 60_000 });
+  const status = useAi();
   const sel = editor.state.selection;
   const { from, to, empty } = sel;
   const selectedImage = sel instanceof NodeSelection && sel.node.type.name === 'image' ? String(sel.node.attrs.src || '') : '';
   const selected = empty || selectedImage ? '' : editor.state.doc.textBetween(from, to, '\n\n');
   const [tab, setTab] = useState<'pedir' | 'trecho'>(selected.trim() ? 'trecho' : 'pedir');
   const [prompt, setPrompt] = useState('');
-  const [mode, setMode] = useState<AiSmartMode>('auto');
+  const [mode, setMode] = useState<SmartMode>('auto');
   const [attach, setAttach] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -99,19 +91,18 @@ export function AiWriterModal({ editor, onClose }: { editor: Editor; onClose: ()
   const runSmart = () =>
     exec('smart', async () => {
       const aspect = attach ? await imageAspect(attach).catch(() => 'paisagem' as const) : undefined;
-      const r = await aiSmart({
+      const r = await ia.smart({
         prompt: prompt.trim(), mode, image: attach, aspect,
         context: attach ? undefined : editor.getText({ blockSeparator: '\n' }).trim().slice(-5000),
       });
-      return { html: r.markdown ? markdownToHtml(r.markdown) : '', image: r.image ?? null, used: r.used, replaceable: !!selectedImage && !!r.image };
+      return { html: r.markdown ? mdToHtml(r.markdown) : '', image: r.image, used: r.used, replaceable: !!selectedImage && !!r.image };
     });
 
-  const runAction = (action: AiWriteAction) =>
+  const runAction = (action: TrechoAction) =>
     exec(action, async () => {
-      const docText = editor.getText({ blockSeparator: '\n' }).trim();
-      const text = action === 'continuar' && !selected.trim() ? docText.slice(-8000) : selected;
-      const r = await aiWrite({ action, prompt: prompt.trim(), text });
-      return { html: markdownToHtml(r.markdown), image: null, used: [], replaceable: !empty && action !== 'continuar' };
+      const text = action === 'continuar' && !selected.trim() ? editor.getText({ blockSeparator: '\n' }).trim().slice(-8000) : selected;
+      const r = await ia.smart({ action, prompt: prompt.trim(), text });
+      return { html: mdToHtml(r.markdown ?? ''), image: null, used: r.used, replaceable: !empty && action !== 'continuar' };
     });
 
   const runTool = (tool: ImageTool, src: string) =>

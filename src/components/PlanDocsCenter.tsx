@@ -10,7 +10,6 @@ import type { ClassRoom, PlanDoc, PlanFolder } from '../lib/types';
 import { Button, Modal, Select } from './ui';
 import { SendMailModal } from './SendMailModal';
 import { useSelection } from '../lib/useSelection';
-import { AssistantModal } from './AssistantModal';
 import { GoogleMenus } from './GoogleHub';
 import { Dropzone } from './Dropzone';
 import { PreviewModal } from './Attachments';
@@ -117,7 +116,6 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
   const [zipping, setZipping] = useState(false);
   const sel = useSelection();
   const [mailDocs, setMailDocs] = useState<PlanDoc[] | null>(null);
-  const [assistant, setAssistant] = useState(false);
   const { data: google } = useQuery({ queryKey: ['google-status'], queryFn: getGoogleStatus, retry: false });
   const createG = useMutation({
     mutationFn: ({ gkind }: { gkind: GoogleKind; win: Window | null }) =>
@@ -300,8 +298,12 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
           <button onClick={() => setNewFolder(true)} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold transition hover:bg-muted">
             <FolderPlus size={15} /> {folder ? 'Nova subpasta' : 'Nova pasta'}
           </button>
-          <button onClick={() => setAssistant(true)} className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900 transition hover:bg-amber-100">
-            <Sparkles size={15} /> Assistente
+          <button
+            onClick={() => navigate(`/ia?escola=1${sel.ids.size ? `&docs=${[...sel.ids].join(',')}` : ''}`)}
+            title="Perguntar à IA sobre os documentos (os selecionados, se houver)"
+            className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900 transition hover:bg-amber-100"
+          >
+            <Sparkles size={15} /> Perguntar à IA
           </button>
           <GoogleMenus
             available={!!google?.available}
@@ -415,7 +417,6 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
       )}
 
       {newFolder ? <NewFolderModal segment={segKey} parentId={folderId} classes={classes} folders={folders} onClose={() => setNewFolder(false)} onDone={(id) => { refreshFolders(); if (id) setFolderId(id); }} /> : null}
-      {assistant ? <AssistantModal selectedIds={[...sel.ids]} onClose={() => setAssistant(false)} /> : null}
       {mailDocs ? <SendMailModal docs={mailDocs} google={google} onClose={() => setMailDocs(null)} onSent={sel.clear} /> : null}
       {preview?.url ? <PreviewModal name={preview.name} url={preview.url} mime={preview.mime} onClose={() => setPreview(null)} /> : null}
       {editing ? <EditDocModal doc={editing} classes={classes} onClose={() => setEditing(null)} onSaved={invalidate} /> : null}

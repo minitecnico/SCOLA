@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cpu, Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import { aiEngineInfo, clearAiEngine, setAiEngine } from '../lib/queries';
+import { ia } from '../lib/ia';
 import { Button, Field, Input, Modal } from './ui';
 
 /**
@@ -17,7 +17,7 @@ const PRESETS = [
 
 export function AiEngineCard() {
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ['ai-engine'], queryFn: aiEngineInfo });
+  const { data } = useQuery({ queryKey: ['ai-engine'], queryFn: ia.engine });
   const [open, setOpen] = useState(false);
   const [preset, setPreset] = useState(0);
   const [form, setForm] = useState({ baseUrl: PRESETS[0].baseUrl, key: '', model: PRESETS[0].model, label: '' });
@@ -33,7 +33,7 @@ export function AiEngineCard() {
     setBusy(true);
     setError('');
     try {
-      await setAiEngine(form);
+      await ia.setEngine(form);
       setOpen(false);
       setForm((f) => ({ ...f, key: '' }));
       refresh();
@@ -55,7 +55,7 @@ export function AiEngineCard() {
         </p>
       </div>
       {data?.custom ? (
-        <Button variant="ghost" onClick={async () => { if (confirm('Desconectar o motor externo? A IA volta a usar só a NVIDIA.')) { await clearAiEngine(); refresh(); } }}>
+        <Button variant="ghost" onClick={async () => { if (confirm('Desconectar o motor externo? A IA volta a usar só a NVIDIA.')) { await ia.clearEngine(); refresh(); } }}>
           Desconectar
         </Button>
       ) : null}

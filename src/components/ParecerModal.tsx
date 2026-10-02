@@ -1,6 +1,6 @@
 import { Check, Copy, FileText, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { aiPareceres, type ParecerInput } from '../lib/queries';
+import { downloadDocx, ia, type ParecerInput } from '../lib/ia';
 import type { ReportPayload } from '../lib/types';
 import { Button, Modal, fieldCls } from './ui';
 
@@ -52,7 +52,7 @@ export function ParecerModal({ payload, onClose }: { payload: ReportPayload; onC
     for (let i = 0; i < all.length && !stop.current; i += BATCH) {
       setProgress({ done: i, total: all.length });
       try {
-        const r = await aiPareceres({ ...base(), students: all.slice(i, i + BATCH) });
+        const r = await ia.pareceres({ ...base(), students: all.slice(i, i + BATCH) });
         setRows((cur) => cur && cur.map((row, k) => {
           const hit = r.items.find((it) => it.n === k + 1);
           return hit?.text ? { ...row, text: hit.text } : row;
@@ -68,7 +68,7 @@ export function ParecerModal({ payload, onClose }: { payload: ReportPayload; onC
   async function redo(k: number) {
     setRows((cur) => cur && cur.map((r, i) => (i === k ? { ...r, busy: true } : r)));
     try {
-      const r = await aiPareceres({ ...base(), students: [studentsOf(payload)[k]] });
+      const r = await ia.pareceres({ ...base(), students: [studentsOf(payload)[k]] });
       setRows((cur) => cur && cur.map((row, i) => (i === k ? { ...row, text: r.items[0]?.text || row.text, busy: false } : row)));
     } catch (e) {
       setError((e as Error).message);
@@ -79,27 +79,11 @@ export function ParecerModal({ payload, onClose }: { payload: ReportPayload; onC
   const done = rows?.filter((r) => r.text) ?? [];
   const asText = () => done.map((r) => `${r.name}\n${r.text}`).join('\n\n');
 
-  async function downloadWord() {
-    const { docToDocx } = await import('../lib/docxConvert');
+  const downloadWord = () => {
     const title = `Pareceres — ${payload.className}${payload.subject ? ` — ${payload.subject}` : ''}`;
-    const json = {
-      type: 'doc',
-      content: [
-        { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: title }] },
-        { type: 'paragraph', content: [{ type: 'text', text: payload.period }] },
-        ...done.flatMap((r) => [
-          { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: r.name }] },
-          { type: 'paragraph', content: [{ type: 'text', text: r.text }] },
-        ]),
-      ],
-    };
-    const blob = await docToDocx(json, title);
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${title.replace(/[\\/:*?"<>|]/g, '-')}.docx`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  }
+    const esc = (t: string) => t.replace(/[&<>]/g, (c) => `&#${c.charCodeAt(0)};`);
+    return downloadDocx(title, `<h1>${esc(title)}</h1><p>${esc(payload.period)}</p>${done.map((r) => `<h3>${esc(r.name)}</h3><p>${esc(r.text)}</p>`).join('')}`);
+  };
 
   return (
     <Modal open onClose={() => { stop.current = true; onClose(); }} title="Pareceres com IA" size="xl">

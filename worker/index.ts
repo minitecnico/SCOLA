@@ -13,7 +13,6 @@ import * as cadastros from './handlers/cadastros';
 import * as editor from './handlers/editor';
 import * as folders from './handlers/folders';
 import * as google from './handlers/google';
-import * as ia from './handlers/ia';
 import { accessTokenFor, authUrl, exchangeCode, googleConfigured, sealToken } from './google';
 import * as chamadas from './handlers/chamadas';
 import * as comunicacao from './handlers/comunicacao';
@@ -22,14 +21,14 @@ import * as logs from './handlers/logs';
 import * as notas from './handlers/notas';
 import * as painel from './handlers/painel';
 import * as provas from './handlers/provas';
-import * as rag from './handlers/rag';
 import * as usuarios from './handlers/usuarios';
+import * as ia from './ia';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
 const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades', 'docInBase', 'folderInBase', 'canEditDoc', 'saveEditableContent', 'ragForget', 'chatStream']);
 const handlers: Record<string, Handler> = {};
-for (const mod of [alertas, anoletivo, cadastros, editor, folders, google, ia, chamadas, comunicacao, contas, logs, notas, painel, provas, rag, usuarios]) {
+for (const mod of [alertas, anoletivo, cadastros, editor, folders, google, ia, chamadas, comunicacao, contas, logs, notas, painel, provas, usuarios]) {
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn === 'function' && !INTERNAL.has(name)) handlers[name] = fn as Handler;
   }

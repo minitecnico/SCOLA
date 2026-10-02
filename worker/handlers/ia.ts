@@ -1,6 +1,8 @@
-import { requireRole, type Ctx } from '../auth';
-import { fail } from '../db';
-import { aiConfig, generate, modelLabel, nvChat, nvImage, type Part } from '../ai';
+import { requireAdmin, requireRole, type Ctx } from '../auth';
+import { all, fail, first, now, run, uid } from '../db';
+import {
+  aiConfig, CUSTOM_KV, customEngine, forgetCustomEngine, generate, modelLabel, nvChat, nvImage, sealSecret, streamChat, type Part, type RichMsg,
+} from '../ai';
 
 /**
  * IA para o dia a dia do professor: escrever no editor do Planejamento e redigir pareceres.
@@ -135,7 +137,11 @@ ${lines.join('\n')}`,
 /** Se a IA está disponível (para mostrar ou esconder os botões) e o que ela sabe fazer. */
 export async function aiStatus(ctx: Ctx) {
   const c = aiConfig(ctx.env);
-  return { ready: c.chatReady, images: c.chatReady && c.provider === 'nvidia', limit: dailyLimit(ctx), imageLimit: imageLimit(ctx) };
+  const custom = await customEngine(ctx.env);
+  return {
+    ready: c.chatReady || !!custom, images: c.chatReady && c.provider === 'nvidia', limit: dailyLimit(ctx), imageLimit: imageLimit(ctx),
+    engine: custom ? custom.label || custom.model : c.chatReady ? 'NVIDIA' : null,
+  };
 }
 
 /* -------------------------------- Campo inteligente -------------------------------- */
@@ -284,4 +290,191 @@ export async function aiSmart(ctx: Ctx, input: { prompt?: string; mode?: SmartMo
     : reviewed?.text;
   if (img) used.add(`${modelLabel(img.model)} (imagem)`);
   return { route: p.tarefa, markdown: text ?? null, image: img?.image ?? null, used: [...used] };
+}
+
+
+/* ------------------------------- Página "IA" (conversa) ------------------------------- */
+const CHAT_SYSTEM = `Você é a IA do SCOLA, uma assistente de inteligência artificial completa, como um ChatGPT, usada por professores e gestores de escolas brasileiras. Ajude com QUALQUER assunto: dúvidas gerais, explicações, textos, provas, atividades, planos de aula, correções, traduções, cálculos, ideias, e-mails, análise de documentos anexados. Responda em português do Brasil (a menos que peçam outro idioma), em Markdown (títulos, listas, tabelas, negrito quando ajudarem). Seja direta e útil, sem rodeios. Não use LaTeX nem cifrões para matemática: escreva contas em texto simples (ex.: 3/8, 2 × 4 = 8, x² + 1). Quando houver documentos anexados, use o conteúdo deles e cite de qual documento veio a informação. Em questões de múltipla escolha: exatamente uma alternativa correta, letra certa variando, e confira cada gabarito e cálculo antes de responder. Não invente códigos da BNCC: descreva a habilidade e deixe "Código BNCC: ________ (preencher)".`;
+
+type ChatPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
+type ChatIn = { role: 'user' | 'assistant'; content: string | ChatPart[] };
+
+/** Resposta em streaming (rota /api/ai/chat). Os documentos chegam já como texto (o navegador extrai). */
+export async function chatStream(ctx: Ctx, input: { messages?: ChatIn[] }) {
+  requireRole(ctx, 'gestor', 'professor', 'secretaria');
+  const list = (Array.isArray(input?.messages) ? input.messages : []).slice(-40);
+  if (!list.length || list[list.length - 1].role !== 'user') fail('Escreva a mensagem.');
+  let chars = 0;
+  let images = 0;
+  const msgs: RichMsg[] = [];
+  // Do fim para o começo: guarda o mais recente e corta o histórico antigo se passar de ~400 mil caracteres.
+  for (let i = list.length - 1; i >= 0; i--) {
+    const m = list[i];
+    const role = m.role === 'assistant' ? 'assistant' : 'user';
+    let content: string | Part[];
+    if (typeof m.content === 'string') {
+      content = m.content.slice(0, 300_000);
+      chars += content.length;
+    } else {
+      const parts: Part[] = [];
+      for (const p of m.content.slice(0, 12)) {
+        if (p?.type === 'text') {
+          const t = String(p.text ?? '').slice(0, 300_000);
+          chars += t.length;
+          parts.push({ type: 'text', text: t });
+        } else if (p?.type === 'image_url' && i === list.length - 1 && images < 6) {
+          const url = String(p.image_url?.url ?? '');
+          if (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(url) && url.length < 2_000_000) {
+            parts.push({ type: 'image_url', image_url: { url } });
+            images++;
+          }
+        }
+      }
+      content = parts;
+    }
+    if (chars > 400_000 && msgs.length) break;
+    msgs.unshift({ role, content });
+  }
+  await spend(ctx);
+  // Só NVIDIA: os modelos de visão leem bem mas raciocinam mal (erram contas e gabaritos).
+  // Então a visão transcreve/descreve as imagens e o modelo de texto responde em cima disso.
+  // Com um motor externo (ex.: OpenRouter), as imagens vão direto para ele.
+  let task: 'texto' | 'visao' = images ? 'visao' : 'texto';
+  let readBy = '';
+  if (images && !(await customEngine(ctx.env))) {
+    const last = msgs[msgs.length - 1];
+    const parts = Array.isArray(last.content) ? last.content : [];
+    const imgs = parts.filter((p): p is Extract<Part, { type: 'image_url' }> => p.type === 'image_url');
+    const read = await nvChat(ctx.env, 'visao', [{
+      role: 'user',
+      content: [
+        { type: 'text', text: `Para cada uma das ${imgs.length} imagem(ns), na ordem: transcreva fielmente TODO o texto (mantendo questões, alternativas, tabelas e números) e depois descreva em poucas linhas o que a imagem mostra. Comece cada uma com "Imagem N:". Não resolva nem responda nada.` } as Part,
+        ...imgs,
+      ],
+    }], 3000, 0.1);
+    readBy = modelLabel(read.model);
+    const text = parts.filter((p): p is Extract<Part, { type: 'text' }> => p.type === 'text').map((p) => p.text).join('\n');
+    msgs[msgs.length - 1] = { role: 'user', content: `${text}\n\n### Conteúdo das imagens anexadas (lido por IA de visão)\n${read.text}` };
+    task = 'texto';
+  }
+  const who = ctx.user.full_name ? ` Você está conversando com ${ctx.user.full_name}.` : '';
+  const { stream, model: answeredBy } = await streamChat(ctx.env, task, [
+    { role: 'system', content: `${CHAT_SYSTEM} Hoje é ${today()}.${who}` },
+    ...msgs,
+  ]);
+  const model = readBy ? `${readBy} (leitura) · ${answeredBy}` : answeredBy;
+  return new Response(readBy ? prefixModel(stream, model) : stream, {
+    // event-stream + sem compressão: com gzip a Cloudflare/navegador acumulam o texto e ele aparece todo de uma vez.
+    headers: {
+      'content-type': 'text/event-stream; charset=utf-8', 'content-encoding': 'identity', 'cache-control': 'no-store, no-transform',
+      'x-ai-model': encodeURIComponent(model), 'x-content-type-options': 'nosniff', 'x-accel-buffering': 'no',
+    },
+  });
+}
+
+/* Histórico: cada pessoa só vê as próprias conversas. */
+const MAX_CHAT = 900_000;
+
+export async function listAiChats(ctx: Ctx) {
+  return all<{ id: string; title: string; updated_at: string }>(ctx.db,
+    'SELECT id, title, updated_at FROM ai_chats WHERE user_id = ? ORDER BY updated_at DESC LIMIT 60', ctx.user.id);
+}
+
+export async function getAiChat(ctx: Ctx, id: string) {
+  const c = await first<{ id: string; title: string; messages: string; updated_at: string }>(ctx.db,
+    'SELECT id, title, messages, updated_at FROM ai_chats WHERE id = ? AND user_id = ?', id, ctx.user.id);
+  if (!c) fail('Conversa não encontrada.', 404);
+  return { ...c!, messages: JSON.parse(c!.messages) as unknown[] };
+}
+
+export async function saveAiChat(ctx: Ctx, input: { id?: string | null; title?: string; messages: unknown[] }) {
+  requireRole(ctx, 'gestor', 'professor', 'secretaria');
+  let json = JSON.stringify(Array.isArray(input?.messages) ? input.messages : []);
+  // Conversa enorme: guarda só as mensagens mais recentes que cabem.
+  if (json.length > MAX_CHAT) {
+    const msgs = [...(input.messages as unknown[])];
+    while (msgs.length > 2 && JSON.stringify(msgs).length > MAX_CHAT) msgs.shift();
+    json = JSON.stringify(msgs);
+    if (json.length > MAX_CHAT) fail('Conversa grande demais para salvar. Comece uma nova.');
+  }
+  const title = String(input.title || 'Nova conversa').trim().slice(0, 120) || 'Nova conversa';
+  const ts = now();
+  if (input.id) {
+    const r = await run(ctx.db, 'UPDATE ai_chats SET title = ?, messages = ?, updated_at = ? WHERE id = ? AND user_id = ?', title, json, ts, input.id, ctx.user.id);
+    if (r.meta.changes) return { id: input.id, updated_at: ts };
+  }
+  const id = uid();
+  await run(ctx.db, 'INSERT INTO ai_chats (id, user_id, base_id, title, messages, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    id, ctx.user.id, ctx.baseId ?? null, title, json, ts, ts);
+  return { id, updated_at: ts };
+}
+
+export async function deleteAiChat(ctx: Ctx, id: string) {
+  await run(ctx.db, 'DELETE FROM ai_chats WHERE id = ? AND user_id = ?', id, ctx.user.id);
+}
+
+/* ------------------- Motor externo (só o administrador da plataforma) ------------------- */
+export async function aiEngineInfo(ctx: Ctx) {
+  requireAdmin(ctx);
+  const c = aiConfig(ctx.env);
+  const custom = await customEngine(ctx.env);
+  return {
+    nvidia: c.chatReady && c.provider === 'nvidia',
+    custom: custom ? { baseUrl: custom.baseUrl, model: custom.model, label: custom.label, keyHint: `${custom.key.slice(0, 6)}…${custom.key.slice(-4)}` } : null,
+  };
+}
+
+/** Salva endereço + chave + modelo de uma API compatível com OpenAI, depois de testar de verdade. */
+export async function setAiEngine(ctx: Ctx, input: { baseUrl: string; key: string; model: string; label?: string }) {
+  requireAdmin(ctx);
+  let baseUrl = String(input?.baseUrl || '').trim().replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
+  if (!/^https:\/\/[^\s/]+\.[^\s]+$/.test(baseUrl)) fail('Endereço inválido. Use https://… (ex.: https://openrouter.ai/api/v1). Endereços "localhost" não funcionam: o SCOLA roda na nuvem.');
+  if (!/\/v\d+$/.test(baseUrl) && !/\/api\/v\d+$/.test(baseUrl)) baseUrl += '/v1';
+  const key = String(input?.key || '').trim();
+  const model = String(input?.model || '').trim();
+  if (key.length < 8) fail('Cole a chave da API.');
+  if (!model) fail('Informe o modelo (ex.: openrouter/auto).');
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    signal: AbortSignal.timeout(45_000),
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${key}`, 'HTTP-Referer': 'https://scola.app', 'X-Title': 'SCOLA' },
+    body: JSON.stringify({ model, messages: [{ role: 'user', content: 'Responda apenas: OK' }], max_tokens: 400 }),
+  }).catch((e) => fail(`Não consegui falar com ${baseUrl}: ${(e as Error)?.message || 'sem resposta'}.`, 400));
+  const body = await res.text().catch(() => '');
+  if (!res.ok) {
+    let msg = body.slice(0, 200);
+    try {
+      const j = JSON.parse(body) as { error?: { message?: string } | string; message?: string };
+      msg = (typeof j.error === 'string' ? j.error : j.error?.message) || j.message || msg;
+    } catch { /* texto puro */ }
+    fail(`O serviço recusou (${res.status}): ${msg}`, 400);
+  }
+  const label = String(input.label || '').trim().slice(0, 40) || (baseUrl.includes('openrouter') ? `OpenRouter · ${model}` : model);
+  await ctx.env.FILES.put(CUSTOM_KV, await sealSecret(ctx.env, JSON.stringify({ baseUrl, key, model, label })));
+  forgetCustomEngine();
+  return { ok: true, label };
+}
+
+export async function clearAiEngine(ctx: Ctx) {
+  requireAdmin(ctx);
+  await ctx.env.FILES.delete(CUSTOM_KV);
+  forgetCustomEngine();
+}
+
+/** Troca o cabeçalho "\u001e<modelo>\u001e" do fluxo para mostrar também quem leu as imagens. */
+function prefixModel(stream: ReadableStream<Uint8Array>, label: string) {
+  const dec = new TextDecoder();
+  const enc = new TextEncoder();
+  let head = '';
+  let done = false;
+  return stream.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, ctl) {
+      if (done) return ctl.enqueue(chunk);
+      head += dec.decode(chunk, { stream: true });
+      const m = head.match(/^\u001e([^\u001e]*)\u001e/);
+      if (!m) return;
+      done = true;
+      ctl.enqueue(enc.encode(`\u001e${label.includes(m[1]) ? label : `${label.split(' · ')[0]} · ${m[1]}`}\u001e${head.slice(m[0].length)}`));
+    },
+  }));
 }

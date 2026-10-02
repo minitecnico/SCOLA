@@ -129,6 +129,31 @@ Onde aparece (some sozinho sem chave):
 - **Assistente** (abaixo).
 - Limites por pessoa por dia: `AI_DAILY_LIMIT` (padrão 60; contado à parte para o assistente e para a escrita/pareceres) e `AI_IMAGE_DAILY_LIMIT` (padrão 30 imagens).
 
+## Página IA (conversa geral)
+
+Menu **Pedagógico → IA**: conversa sobre qualquer assunto, como um ChatGPT, para gestão, professores e secretaria. As respostas aparecem enquanto são escritas.
+
+**Anexos:** arrastar e soltar, colar (Ctrl+V) ou clipe. Aceita Word, Excel/ODS, PowerPoint, PDF, texto e imagens. O navegador extrai o texto; PDF escaneado vai como imagem das 5 primeiras páginas.
+
+**Histórico:** cada pessoa vê só as próprias conversas (tabela `ai_chats`). As imagens anexadas não ficam guardadas, só o nome.
+
+**Cada resposta tem:**
+- Copiar e Word;
+- **Salvar no Planejamento**: vira documento editável no segmento escolhido;
+- o nome do modelo que respondeu.
+
+**Como funciona:**
+- **Pedido de imagem** ("crie uma ilustração…"): vai para o campo inteligente (FLUX).
+- **Rota:** `POST /api/ai/chat`, em streaming. Enviada como `text/event-stream` e **sem compressão**, porque com gzip o texto chegava todo de uma vez.
+- **Só NVIDIA:** a visão transcreve as imagens e o modelo de texto responde, porque os modelos de visão erram contas e gabaritos.
+- **Matemática:** as respostas em LaTeX são convertidas em texto (3/8, ×, √, ²).
+
+**Motor externo (Painel do administrador → Motor de IA):**
+- Endereço, chave e modelo de qualquer API compatível com OpenAI: OpenRouter (`https://openrouter.ai/api/v1`, `openrouter/auto`), OpenAI, ou um 9Router publicado num endereço https.
+- O SCOLA testa antes de salvar e guarda a chave cifrada no KV (`cfg:ai-engine`). Ela nunca volta para a tela.
+- Ele vira o primeiro da fila em toda a IA, com a NVIDIA de reserva automática.
+- `localhost` não funciona, porque o SCOLA roda na nuvem.
+
 ## Assistente (RAG)
 
 Botão **Assistente** em Planejamento: pergunta em português sobre documentos, avisos, calendário, planejamentos e provas, e responde citando as fontes. Notas, frequência e dados de alunos NÃO entram (dados em tabela pedem consulta exata, não busca por semelhança).

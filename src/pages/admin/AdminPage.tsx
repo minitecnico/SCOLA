@@ -4,6 +4,7 @@ import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
+import { AiEngineCard } from '../../components/AiEngineCard';
 import { successToast } from '../../components/Feedback';
 import { CredentialsModal, TeamManager, type Credentials } from '../../components/TeamManager';
 import { Button, EmptyState, Field, Input, Loading, Modal, PageHeader, SearchInput, Segmented, Select, StatCard } from '../../components/ui';
@@ -84,6 +85,8 @@ export function AdminPage() {
         <StatCard icon={<UserCog size={18} />} value={stats?.users ?? '—'} label="Usuários" />
         <StatCard icon={<CalendarCheck size={18} />} value={stats?.sessions_30d ?? '—'} label="Chamadas (30 dias)" />
       </div>
+
+      <AiEngineCard />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar base ou cidade…" className="min-w-[14rem] flex-1" />

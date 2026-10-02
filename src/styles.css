@@ -172,3 +172,23 @@ a {
 .scola-doc .tableWrapper { overflow-x: auto; }
 .scola-doc p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: #9ca3af; float: left; height: 0; pointer-events: none; }
 .scola-doc mark { border-radius: 2px; padding: 0 1px; }
+
+/* Respostas da página IA */
+.scola-chat { font-size: 15px; line-height: 1.65; overflow-wrap: anywhere; }
+.scola-chat > * + * { margin-top: 0.75em; }
+.scola-chat h1 { font-size: 1.35em; font-weight: 700; margin-top: 1em; }
+.scola-chat h2 { font-size: 1.2em; font-weight: 700; margin-top: 1em; }
+.scola-chat h3, .scola-chat h4 { font-size: 1.05em; font-weight: 700; margin-top: 0.9em; }
+.scola-chat ul { list-style: disc; padding-left: 1.4em; }
+.scola-chat ol { list-style: decimal; padding-left: 1.4em; }
+.scola-chat li + li { margin-top: 0.25em; }
+.scola-chat strong { font-weight: 700; }
+.scola-chat a { text-decoration: underline; }
+.scola-chat code { font-family: ui-monospace, monospace; font-size: 0.9em; background: hsl(var(--muted)); padding: 0.1em 0.35em; border-radius: 4px; }
+.scola-chat pre { background: #111; color: #f5f5f5; padding: 0.9em 1em; border-radius: 10px; overflow-x: auto; }
+.scola-chat pre code { background: none; padding: 0; color: inherit; }
+.scola-chat blockquote { border-left: 3px solid #facc15; padding-left: 0.8em; color: hsl(var(--muted-foreground)); }
+.scola-chat table { display: block; overflow-x: auto; border-collapse: collapse; font-size: 0.92em; }
+.scola-chat th, .scola-chat td { border: 1px solid hsl(var(--border)); padding: 0.35em 0.6em; text-align: left; vertical-align: top; }
+.scola-chat th { background: hsl(var(--muted)); font-weight: 700; }
+.scola-chat hr { border-color: hsl(var(--border)); }

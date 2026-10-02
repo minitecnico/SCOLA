@@ -18,7 +18,7 @@ import { successToast } from './Feedback';
 import { cn } from '../lib/cn';
 
 /** Segmentos da escola — fácil de estender (basta adicionar aqui). */
-const SEGMENTS: { key: string; label: string; color: string }[] = [
+export const SEGMENTS: { key: string; label: string; color: string }[] = [
   { key: 'fund1', label: 'Fundamental I', color: '#2563eb' },
   { key: 'fund2', label: 'Fundamental II', color: '#7c3aed' },
 ];

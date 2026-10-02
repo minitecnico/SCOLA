@@ -94,8 +94,9 @@ const TIMING: Record<Task, { hedgeMs: number; perMs: number; totalMs: number }> 
  * em paralelo e fica com o primeiro que responder (os outros são cancelados). 401/403 (chave) para na hora.
  * A NVIDIA gratuita varia muito de velocidade: assim ninguém fica preso num modelo congestionado.
  */
-function withFallback<T>(env: Env, task: Task, attempt: (model: string, signal: AbortSignal) => Promise<T>): Promise<T & { model: string }> {
-  const models = chainFor(env, task);
+function withFallback<T>(
+  env: Env, task: Task, attempt: (model: string, signal: AbortSignal) => Promise<T>, models: string[] = chainFor(env, task),
+): Promise<T & { model: string }> {
   const { hedgeMs, perMs, totalMs } = TIMING[task];
   return new Promise((resolve, reject) => {
     let next = 0;
@@ -156,15 +157,61 @@ function withFallback<T>(env: Env, task: Task, attempt: (model: string, signal: 
   });
 }
 
-async function nvPost(env: Env, url: string, body: unknown, signal: AbortSignal) {
+/* ------------------- Motor externo (configurado pelo administrador) ------------------- */
+/**
+ * Qualquer API compatível com OpenAI (OpenRouter, um 9Router num servidor público, OpenAI…):
+ * endereço + chave + modelo, guardados cifrados no KV pelo painel do administrador.
+ * Quando existe, entra na frente da fila; a NVIDIA fica de reserva.
+ */
+export type CustomEngine = { baseUrl: string; key: string; model: string; label: string };
+let customCache: { at: number; v: CustomEngine | null } | null = null;
+export const CUSTOM_KV = 'cfg:ai-engine';
+export const forgetCustomEngine = () => (customCache = null);
+
+const aes = async (env: Env) => {
+  const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${env.GOOGLE_TOKEN_KEY || ''}|${env.AI_API_KEY || ''}|scola-ai`));
+  return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+};
+export async function sealSecret(env: Env, text: string) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await aes(env), new TextEncoder().encode(text)));
+  return `${btoa(String.fromCharCode(...iv))}.${btoa(String.fromCharCode(...ct))}`;
+}
+async function openSecret(env: Env, sealed: string) {
+  const [iv, ct] = sealed.split('.').map((x) => Uint8Array.from(atob(x), (c) => c.charCodeAt(0)));
+  return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, await aes(env), ct));
+}
+
+export async function customEngine(env: Env): Promise<CustomEngine | null> {
+  if (customCache && Date.now() - customCache.at < 60_000) return customCache.v;
+  let v: CustomEngine | null = null;
+  try {
+    const sealed = await env.FILES.get(CUSTOM_KV);
+    if (sealed) v = JSON.parse(await openSecret(env, sealed)) as CustomEngine;
+  } catch (e) {
+    console.error('ai: motor externo ilegível', e);
+  }
+  customCache = { at: Date.now(), v };
+  return v;
+}
+
+/** Fila de uma tarefa já com o motor externo na frente (prefixo "x:"). */
+async function fullChain(env: Env, task: 'texto' | 'visao') {
+  const custom = await customEngine(env);
+  return [...(custom ? [`x:${custom.model}`] : []), ...(aiConfig(env).chatReady ? chainFor(env, task) : [])];
+}
+
+async function nvPost(env: Env, url: string, body: unknown, signal: AbortSignal, key = env.AI_API_KEY) {
   const res = await fetch(url, {
     method: 'POST',
     signal,
-    headers: { 'content-type': 'application/json', accept: 'application/json', authorization: `Bearer ${env.AI_API_KEY}` },
+    headers: { 'content-type': 'application/json', accept: 'application/json', authorization: `Bearer ${key}`, 'HTTP-Referer': 'https://scola.app', 'X-Title': 'SCOLA' },
     body: JSON.stringify(body),
   }).catch((e) => {
     throw new Skip(`rede/tempo: ${(e as Error)?.message}`);
   });
+  // Chave do motor externo recusada: só pula para a NVIDIA (o administrador vê o erro no "Testar").
+  if ((res.status === 401 || res.status === 403) && key !== env.AI_API_KEY) throw new Skip(`motor externo recusou a chave (${res.status})`);
   if (res.status === 401 || res.status === 403) await providerError('nvidia', res);
   if (!res.ok) throw new Skip(`${res.status} ${(await res.text().catch(() => '')).slice(0, 200)}`);
   return res.json().catch(() => {
@@ -178,15 +225,103 @@ export type RichMsg = { role: 'system' | 'user' | 'assistant'; content: string |
 /** Conversa na NVIDIA escolhendo o modelo da tarefa (texto ou visão), com troca automática. */
 export async function nvChat(env: Env, task: 'texto' | 'visao', messages: RichMsg[], maxTokens = 1500, temperature?: number) {
   const c = aiConfig(env);
-  if (!c.chatReady) fail(NOT_CONFIGURED, 503);
+  const models = await fullChain(env, task);
+  if (!models.length) fail(NOT_CONFIGURED, 503);
+  const custom = await customEngine(env);
   return withFallback(env, task, async (model, signal) => {
+    const ext = model.startsWith('x:') && custom;
     // Modelos que "pensam" antes gastam parte dos tokens nisso: dá folga para a resposta não sair cortada.
-    const j = (await nvPost(env, `${c.baseUrl}/chat/completions`, {
-      model, messages, max_tokens: maxTokens + 800, ...(temperature != null ? { temperature } : {}),
-    }, signal)) as { choices?: { message?: { content?: string } }[] };
+    const j = (await nvPost(env, `${ext ? custom.baseUrl : c.baseUrl}/chat/completions`, {
+      model: ext ? custom.model : model, messages, max_tokens: maxTokens + 800, ...(temperature != null ? { temperature } : {}),
+    }, signal, ext ? custom.key : env.AI_API_KEY)) as { choices?: { message?: { content?: string } }[] };
     const text = clean(String(j.choices?.[0]?.message?.content ?? ''));
     if (!text) throw new Skip('resposta vazia');
     return { text };
+  }, models);
+}
+
+/**
+ * Conversa com a resposta chegando aos poucos (streaming). Tenta cada modelo da fila até um aceitar
+ * o pedido (o primeiro byte demora no máximo 25 s); depois repassa o texto conforme chega.
+ * O fluxo começa com "\u001e<modelo>\u001e" para a tela mostrar quem respondeu.
+ */
+export async function streamChat(env: Env, task: 'texto' | 'visao', messages: RichMsg[], maxTokens = 6000) {
+  const c = aiConfig(env);
+  const custom = await customEngine(env);
+  const models = await fullChain(env, task);
+  if (!models.length) fail(NOT_CONFIGURED, 503);
+  let last = '';
+  for (const model of models) {
+    const ext = model.startsWith('x:') && custom;
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 25_000);
+    try {
+      const res = await fetch(`${ext ? custom.baseUrl : c.baseUrl}/chat/completions`, {
+        method: 'POST',
+        signal: ac.signal,
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${ext ? custom.key : env.AI_API_KEY}`, 'HTTP-Referer': 'https://scola.app', 'X-Title': 'SCOLA' },
+        // GPT-OSS "pensa" calado antes de escrever: no chat, raciocínio curto (1º texto em ~1 s em vez de ~20 s).
+        body: JSON.stringify({ model: ext ? custom.model : model, messages, stream: true, max_tokens: maxTokens, ...(!ext && model.includes('gpt-oss') ? { reasoning_effort: 'low' } : {}) }),
+      });
+      clearTimeout(timer);
+      if (!res.ok || !res.body) {
+        last = `${model}: ${res.status} ${(await res.text().catch(() => '')).slice(0, 160)}`;
+        if (!ext && (res.status === 401 || res.status === 403)) await providerError('nvidia', res);
+        resting.set(model, Date.now() + 10 * 60_000);
+        console.error('ai stream fallback', last);
+        continue;
+      }
+      const label = ext ? custom.label || custom.model : modelLabel(model);
+      return { model: label, stream: res.body.pipeThrough(sseToText(label, ext ? custom.model : model)) };
+    } catch (e) {
+      clearTimeout(timer);
+      last = `${model}: ${(e as Error)?.message}`;
+      resting.set(model, Date.now() + 10 * 60_000);
+      console.error('ai stream fallback', last);
+    }
+  }
+  console.error('ai: nenhum modelo aceitou o streaming', last);
+  return fail('A IA está congestionada agora. Tente de novo em instantes.', 503);
+}
+
+/** Eventos SSE (formato OpenAI) → só o texto, aos poucos. Ignora o "raciocínio" dos modelos que pensam. */
+function sseToText(label: string, requested: string) {
+  const dec = new TextDecoder();
+  const enc = new TextEncoder();
+  let buf = '';
+  let started = false;
+  let realModel = '';
+  return new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, ctl) {
+      buf += dec.decode(chunk, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      let out = '';
+      for (const raw of lines) {
+        const line = raw.trim();
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (!data || data === '[DONE]') continue;
+        try {
+          const j = JSON.parse(data) as { model?: string; error?: { message?: string }; choices?: { delta?: { content?: string } }[] };
+          if (!realModel && j.model) realModel = j.model;
+          if (j.error) out += `\n\n_(A IA interrompeu a resposta: ${String(j.error.message || 'erro').slice(0, 120)})_`;
+          out += j.choices?.[0]?.delta?.content ?? '';
+        } catch {
+          /* linha quebrada: ignora */
+        }
+      }
+      if (!started && (out || realModel)) {
+        started = true;
+        // Roteadores (ex.: openrouter/auto) contam qual modelo respondeu de fato.
+        const who = realModel && realModel !== requested && !requested.endsWith(realModel) ? `${label} → ${realModel}` : label;
+        ctl.enqueue(enc.encode(`\u001e${who}\u001e`));
+      }
+      if (out) ctl.enqueue(enc.encode(out));
+    },
+    flush(ctl) {
+      if (!started) ctl.enqueue(enc.encode(`\u001e${label}\u001e`));
+    },
   });
 }
 

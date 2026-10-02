@@ -27,7 +27,7 @@ import * as usuarios from './handlers/usuarios';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
-const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades', 'docInBase', 'folderInBase', 'canEditDoc', 'saveEditableContent', 'ragForget']);
+const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades', 'docInBase', 'folderInBase', 'canEditDoc', 'saveEditableContent', 'ragForget', 'chatStream']);
 const handlers: Record<string, Handler> = {};
 for (const mod of [alertas, anoletivo, cadastros, editor, folders, google, ia, chamadas, comunicacao, contas, logs, notas, painel, provas, rag, usuarios]) {
   for (const [name, fn] of Object.entries(mod)) {
@@ -219,6 +219,16 @@ app.post('/api/rpc/:name', async (c) => {
     else if (spec || code === 403 || code >= 500) bg(c, insertLog(ctx.db, { ...entry, status, detail }));
     throw err;
   }
+});
+
+/* ------------------------------- IA: conversa em streaming ------------------------------- */
+app.post('/api/ai/chat', async (c) => {
+  const user = await userFromToken(c.env.DB, getCookie(c, SESSION_COOKIE));
+  if (!user) fail('Sessão expirada. Entre novamente.', 401);
+  if (user!.must_change_pw) fail('Troque a senha provisória para continuar.', 403);
+  const ctx = await buildCtx(c.env, user!);
+  const body = await c.req.json<{ messages?: never[] }>().catch(() => ({}));
+  return ia.chatStream(ctx, body);
 });
 
 /* ------------------------------------ Arquivos ------------------------------------ */

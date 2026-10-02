@@ -29,6 +29,7 @@ const DownloadPlanPage = lazyPage(() => import('../pages/DownloadPlanPage'), 'Do
 const SharedReportPage = lazyPage(() => import('../pages/SharedReportPage'), 'SharedReportPage');
 const AdminPage = lazyPage(() => import('../pages/admin/AdminPage'), 'AdminPage');
 const PlanDocEditorPage = lazyPage(() => import('../pages/PlanDocEditorPage'), 'PlanDocEditorPage');
+const IAPage = lazyPage(() => import('../pages/IAPage'), 'IAPage');
 const CorrigirLinkPage = lazyPage(() => import('../pages/CorrigirLinkPage'), 'CorrigirLinkPage');
 const AnoLetivoPage = lazyPage(() => import('../pages/AnoLetivoPage'), 'AnoLetivoPage');
 const LogsPage = lazyPage(() => import('../pages/admin/LogsPage'), 'LogsPage');
@@ -94,6 +95,7 @@ function Protected() {
               <Route path="/provas/:id" element={<Gate module="notas"><ProvaDetailPage /></Gate>} />
               <Route path="/planejamento" element={<Gate module="planejamentos"><PlanejamentoPage /></Gate>} />
               <Route path="/planejamento/editor/:id" element={<Gate module="planejamentos"><PlanDocEditorPage /></Gate>} />
+              <Route path="/ia" element={<Gate module="ia"><IAPage /></Gate>} />
               <Route path="/relatorios" element={<Gate module="relatorios"><ReportsPage /></Gate>} />
               <Route path="/avisos" element={<Gate module="avisos"><AvisosPage /></Gate>} />
               <Route path="/calendario" element={<Gate module="calendario"><CalendarPage /></Gate>} />

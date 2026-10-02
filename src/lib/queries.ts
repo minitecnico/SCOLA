@@ -642,7 +642,7 @@ export const testAssistant = () => rpc<{ ok: boolean; reply: string; ms: number;
 
 /* ---------------------------------- IA ---------------------------------- */
 export type AiWriteAction = 'gerar' | 'melhorar' | 'corrigir' | 'resumir' | 'continuar' | 'simplificar' | 'topicos';
-export const aiStatus = () => rpc<{ ready: boolean; images: boolean; limit: number; imageLimit: number }>('aiStatus');
+export const aiStatus = () => rpc<{ ready: boolean; images: boolean; limit: number; imageLimit: number; engine: string | null }>('aiStatus');
 export type AiSmartMode = 'auto' | 'texto' | 'imagem' | 'ler' | 'editar';
 export type AiSmartResult = { route: string; markdown?: string | null; image?: string | null; used: string[] };
 export const aiSmart = (input: { prompt: string; mode: AiSmartMode; image?: string | null; aspect?: 'paisagem' | 'retrato' | 'quadrado'; context?: string }) =>
@@ -653,3 +653,54 @@ export type ParecerInput = {
   students: { n: number; terms?: (number | null)[]; final?: number | null; activities?: { name: string; score: number | null; max: number }[] }[];
 };
 export const aiPareceres = (input: ParecerInput) => rpc<{ items: { n: number; text: string }[] }>('aiPareceres', input);
+
+/* ------------------------------ Página "IA" ------------------------------ */
+export type ChatMsg = {
+  role: 'user' | 'assistant';
+  content: string;
+  attachments?: { name: string; kind: 'doc' | 'image'; text?: string; image?: string }[];
+  image?: string | null;
+  model?: string;
+  error?: boolean;
+};
+export const listAiChats = () => rpc<{ id: string; title: string; updated_at: string }[]>('listAiChats');
+export const getAiChat = (id: string) => rpc<{ id: string; title: string; messages: ChatMsg[]; updated_at: string }>('getAiChat', id);
+export const saveAiChat = (input: { id?: string | null; title: string; messages: ChatMsg[] }) => rpc<{ id: string; updated_at: string }>('saveAiChat', input);
+export const deleteAiChat = (id: string) => rpc<void>('deleteAiChat', id);
+export const aiEngineInfo = () =>
+  rpc<{ nvidia: boolean; custom: { baseUrl: string; model: string; label: string; keyHint: string } | null }>('aiEngineInfo');
+export const setAiEngine = (input: { baseUrl: string; key: string; model: string; label?: string }) => rpc<{ ok: boolean; label: string }>('setAiEngine', input);
+export const clearAiEngine = () => rpc<void>('clearAiEngine');
+
+/** Conversa em streaming: chama onText a cada pedaço; devolve o texto completo e o modelo que respondeu. */
+export async function streamAiChat(
+  messages: { role: 'user' | 'assistant'; content: string | ({ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } })[] }[],
+  onText: (full: string, model: string) => void,
+  signal?: AbortSignal,
+) {
+  const res = await fetch('/api/ai/chat', {
+    method: 'POST', credentials: 'same-origin', signal,
+    headers: { 'content-type': 'application/json', 'x-scola': '1' },
+    body: JSON.stringify({ messages }),
+  });
+  if (!res.ok || !res.body) {
+    const j = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(j.error || `A IA não respondeu (${res.status}).`);
+  }
+  let model = decodeURIComponent(res.headers.get('x-ai-model') || '');
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let raw = '';
+  let text = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    raw += dec.decode(value, { stream: true });
+    // Cabeçalho "\u001e<modelo>\u001e" no começo do fluxo.
+    const m = raw.match(/^\u001e([^\u001e]*)\u001e/);
+    if (m) model = m[1];
+    text = raw.replace(/^\u001e[^\u001e]*\u001e/, '');
+    if (!raw.startsWith('\u001e') || m) onText(text, model);
+  }
+  return { text: text.trim(), model };
+}

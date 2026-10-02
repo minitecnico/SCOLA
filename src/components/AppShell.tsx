@@ -19,6 +19,7 @@ import {
   Megaphone,
   Menu,
   Settings,
+  Sparkles,
   UserCog,
   Users,
   X,
@@ -48,6 +49,7 @@ const groups: { title?: string; items: NavItem[] }[] = [
       { label: 'Central de Avaliações', to: '/avaliacoes', icon: <ClipboardList size={18} />, module: 'notas' },
       { label: 'Provas e correção', to: '/provas', icon: <ScanLine size={18} />, module: 'notas' },
       { label: 'Planejamento', to: '/planejamento', icon: <BookOpen size={18} />, module: 'planejamentos' },
+      { label: 'IA', to: '/ia', icon: <Sparkles size={18} />, module: 'ia' },
       { label: 'Relatórios', to: '/relatorios', icon: <BarChart3 size={18} />, module: 'relatorios' },
     ],
   },
@@ -486,7 +488,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             Você está sem internet. As alterações só serão salvas quando a conexão voltar.
           </div>
         ) : null}
-        <main className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <main className={pathname === '/ia' ? 'w-full' : 'mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8'}>
           <div key={pathname} className="animate-fade-up">
             {children}
           </div>

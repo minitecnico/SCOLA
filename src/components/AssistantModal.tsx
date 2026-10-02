@@ -58,7 +58,10 @@ export function AssistantModal({ selectedIds, onClose }: { selectedIds: string[]
   const scoped = selectedIds.length > 0;
   const [onlySel, setOnlySel] = useState(scoped);
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => end.current?.scrollIntoView({ behavior: 'smooth' }), [turns]);
+  // Chaves: scrollIntoView passou a devolver uma Promise e o React a trataria como limpeza (tela branca).
+  useEffect(() => {
+    end.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [turns]);
 
   const ask = useMutation({
     mutationFn: (q: string) => ragAsk(q, onlySel && scoped ? selectedIds : undefined),

@@ -188,8 +188,12 @@ export async function ragAsk(ctx: Ctx, question: string, docIds?: string[]) {
   const filter: VectorizeVectorMetadataFilter = { base_id: base };
   if (docIds?.length) filter.doc_id = { $in: docIds.slice(0, 50) };
   const found = await ctx.env.VECTORIZE.query(qv, { topK: 20, returnMetadata: 'all', filter });
+  // Cada modelo de busca tem sua escala: no da NVIDIA o trecho certo pontua ~0,2–0,35 e o resto ~0,1.
+  // Corte = piso do modelo ou 60% do melhor resultado (o que for maior).
+  const floor = aiConfig(ctx.env).embedTyped ? 0.15 : 0.3;
+  const top = Math.max(0, ...found.matches.map((m) => m.score));
   const hits = found.matches
-    .filter((m) => typeof m.metadata?.text === 'string' && m.score > 0.3)
+    .filter((m) => typeof m.metadata?.text === 'string' && m.score >= Math.max(floor, top * 0.6))
     .filter((m) => allowed.has(String(m.metadata!.vis ?? 'all')) || m.metadata!.owner === ctx.user.id)
     .slice(0, 8);
   if (!hits.length) return { answer: 'Não encontrei nada sobre isso. Tente outras palavras ou confira se o conteúdo já foi preparado.', sources: [] };

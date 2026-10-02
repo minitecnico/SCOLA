@@ -88,7 +88,7 @@ export function SettingsPage() {
             return (
               <button
                 key={t.key}
-                ref={active ? (el) => el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) : undefined}
+                ref={active ? (el) => { el?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } : undefined}
                 onClick={() => go(t.key)}
                 className={cn(
                   'flex shrink-0 items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition lg:py-2.5',

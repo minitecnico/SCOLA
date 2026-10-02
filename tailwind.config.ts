@@ -4,17 +4,17 @@ import animate from 'tailwindcss-animate';
 const hsl = (v: string) => `hsl(var(--${v}) / <alpha-value>)`;
 
 /**
- * Paleta SCOLA: branco, preto e amarelo.
+ * Paleta SCOLA: branco, preto e cinza (o amarelo fica só no logo).
  * As telas herdadas usam classes `emerald-*` como "cor de destaque". Em vez de reescrever
- * centenas de classes, a escala emerald foi redefinida: tons claros = amarelo suave
+ * centenas de classes, a escala emerald foi redefinida: tons claros = cinza suave
  * (fundos/realces) e tons fortes = preto (botões, textos de destaque, bordas de foco).
  */
 const accent = {
-  50: '#FEFCE8',
-  100: '#FEF9C3',
-  200: '#FDE68A',
-  300: '#FACC15',
-  400: '#EAB308',
+  50: '#F5F5F5',
+  100: '#EBEBEB',
+  200: '#D4D4D4',
+  300: '#A3A3A3',
+  400: '#737373',
   500: '#262626',
   600: '#171717',
   700: '#0A0A0A',

@@ -54,7 +54,7 @@ export function DownloadPlanPage() {
           </>
         ) : isError || !data?.files.length ? (
           <>
-            <FileWarning className="mx-auto text-amber-500" size={34} />
+            <FileWarning className="mx-auto text-neutral-500" size={34} />
             <h1 className="mt-3 text-lg font-black text-foreground">Anexos indisponíveis</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {isError

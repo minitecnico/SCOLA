@@ -240,7 +240,7 @@ export function WeeklyPlanView({ data }: { data: WeeklyPlanData }) {
                   ))}
                 </div>
               ))}
-              <div className="border-t border-l border-border bg-amber-50/40 px-3 py-2 wp-cell">
+              <div className="border-t border-l border-border bg-neutral-50 px-3 py-2 wp-cell">
                 <div className="text-[11px] font-black uppercase text-muted-foreground">Materiais / anotações</div>
                 <div className="mt-1 whitespace-pre-wrap text-foreground">{w.materials || '—'}</div>
               </div>

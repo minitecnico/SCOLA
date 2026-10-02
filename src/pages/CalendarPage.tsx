@@ -254,7 +254,7 @@ function CalendarCenter({
       </div>
 
       {isError ? (
-        <p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-700">
+        <p className="mb-4 rounded-xl bg-neutral-100 p-3 text-sm font-bold text-neutral-800">
           Não foi possível carregar. {error?.message}
         </p>
       ) : null}
@@ -980,7 +980,7 @@ function ImportSmartModal({
         {events && events.length > 0 ? (
           <div>
             {isDoc ? (
-              <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
+              <p className="mb-2 rounded-lg bg-neutral-100 px-3 py-2 text-xs font-bold text-neutral-800">
                 Leitura aproximada de PDF/Word. Confira datas e títulos no editor — alguns eventos podem faltar.
               </p>
             ) : null}

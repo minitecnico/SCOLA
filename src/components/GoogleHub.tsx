@@ -113,7 +113,7 @@ export function GoogleMenus({ available, connected, email, busy, message, onCrea
                 <button onClick={onDisconnect} className="font-bold underline">desconectar</button>
               </p>
             ) : null}
-            {message ? <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs font-bold text-amber-800">{message}</p> : null}
+            {message ? <p className="mt-2 rounded-lg bg-neutral-100 p-2 text-xs font-bold text-neutral-800">{message}</p> : null}
           </>
         )}
       </Menu>

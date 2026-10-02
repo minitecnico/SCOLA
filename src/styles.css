@@ -6,7 +6,7 @@
    Visual claro único. As classes semânticas (bg-background, bg-card,
    text-foreground, border-border, …) leem destes tokens. */
 :root {
-  /* SCOLA — branco, preto e amarelo */
+  /* SCOLA — branco, preto e cinza (o amarelo fica só no logo) */
   --background: 0 0% 97.5%;
   --foreground: 0 0% 9%;
   --card: 0 0% 100%;
@@ -15,10 +15,10 @@
   --muted-foreground: 0 0% 38%;
   --border: 0 0% 89%;
   --input: 0 0% 87%;
-  --ring: 48 96% 53%;
+  --ring: 0 0% 9%;
   --primary: 0 0% 9%;
   --primary-foreground: 0 0% 100%;
-  --brand: 48 96% 53%;
+  --brand: 0 0% 86%; /* destaque: cinza claro (menu ativo, selos, texto sobre fundo preto) */
   --brand-foreground: 0 0% 9%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
@@ -45,7 +45,7 @@ body {
 }
 
 ::selection {
-  background: hsl(var(--brand) / 0.45);
+  background: hsl(0 0% 9% / 0.15);
 }
 
 /* Scrollbars discretas e modernas */
@@ -161,13 +161,13 @@ a {
 .scola-doc a { color: #1d4ed8; text-decoration: underline; }
 .scola-doc hr { border: 0; border-top: 1px solid #d1d5db; margin: 1.2em 0; }
 .scola-doc img { max-width: 100%; height: auto; }
-.scola-doc img.ProseMirror-selectednode { outline: 2px solid #facc15; }
+.scola-doc img.ProseMirror-selectednode { outline: 2px solid #171717; }
 .scola-doc table { border-collapse: collapse; width: 100%; table-layout: fixed; margin: 0.8em 0; overflow: hidden; }
 .scola-doc td, .scola-doc th { border: 1px solid #9ca3af; padding: 4px 8px; vertical-align: top; position: relative; min-width: 2em; }
 .scola-doc th { background: #f1f5f9; font-weight: 700; text-align: left; }
 .scola-doc td > p, .scola-doc th > p { margin: 0; }
-.scola-doc .selectedCell::after { content: ''; position: absolute; inset: 0; background: rgba(250, 204, 21, 0.25); pointer-events: none; }
-.scola-doc .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: #facc15; pointer-events: none; }
+.scola-doc .selectedCell::after { content: ''; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.07); pointer-events: none; }
+.scola-doc .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: #a3a3a3; pointer-events: none; }
 .scola-doc.resize-cursor, .resize-cursor { cursor: col-resize; }
 .scola-doc .tableWrapper { overflow-x: auto; }
 .scola-doc p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: #9ca3af; float: left; height: 0; pointer-events: none; }
@@ -187,7 +187,7 @@ a {
 .scola-chat code { font-family: ui-monospace, monospace; font-size: 0.9em; background: hsl(var(--muted)); padding: 0.1em 0.35em; border-radius: 4px; }
 .scola-chat pre { background: #111; color: #f5f5f5; padding: 0.9em 1em; border-radius: 10px; overflow-x: auto; }
 .scola-chat pre code { background: none; padding: 0; color: inherit; }
-.scola-chat blockquote { border-left: 3px solid #facc15; padding-left: 0.8em; color: hsl(var(--muted-foreground)); }
+.scola-chat blockquote { border-left: 3px solid #d4d4d4; padding-left: 0.8em; color: hsl(var(--muted-foreground)); }
 .scola-chat table { display: block; overflow-x: auto; border-collapse: collapse; font-size: 0.92em; }
 .scola-chat th, .scola-chat td { border: 1px solid hsl(var(--border)); padding: 0.35em 0.6em; text-align: left; vertical-align: top; }
 .scola-chat th { background: hsl(var(--muted)); font-weight: 700; }

@@ -13,7 +13,7 @@ const variants: Record<Variant, string> = {
   // Ação principal: preto sólido, sóbrio
   primary: 'bg-neutral-900 text-white shadow-glow hover:bg-black active:scale-[.98]',
   // Destaque suave em amarelo
-  soft: 'bg-brand/15 text-neutral-900 ring-1 ring-inset ring-brand/50 hover:bg-brand/30 active:scale-[.98]',
+  soft: 'bg-brand/15 text-neutral-900 ring-1 ring-inset ring-neutral-300 hover:bg-brand/30 active:scale-[.98]',
   ghost: 'bg-card text-foreground ring-1 ring-inset ring-border shadow-soft hover:bg-muted active:scale-[.98]',
   danger: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-100 hover:bg-red-100 active:scale-[.98]',
 };
@@ -27,7 +27,7 @@ export function Button({
   return (
     <button
       className={cn(
-        'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/40 disabled:pointer-events-none disabled:opacity-50',
         variants[variant],
         className,
       )}
@@ -52,7 +52,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   return (
     <input
       className={cn(
-        'w-full rounded-lg border border-input bg-card px-3.5 py-2.5 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-brand/40',
+        'w-full rounded-lg border border-input bg-card px-3.5 py-2.5 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/15',
         className,
       )}
       {...props}
@@ -73,7 +73,7 @@ export function SearchInput({
   className?: string;
 }) {
   return (
-    <label className={cn('flex items-center gap-2 rounded-lg border border-input bg-card px-3.5 py-2.5 focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-brand/40', className)}>
+    <label className={cn('flex items-center gap-2 rounded-lg border border-input bg-card px-3.5 py-2.5 focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-neutral-900/15', className)}>
       <Search size={18} className="shrink-0 text-muted-foreground" />
       <input
         value={value}
@@ -89,7 +89,7 @@ export function Select({ className, children, ...props }: SelectHTMLAttributes<H
   return (
     <select
       className={cn(
-        'w-full rounded-lg border border-input bg-card px-3.5 py-2.5 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-brand/40',
+        'w-full rounded-lg border border-input bg-card px-3.5 py-2.5 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/15',
         className,
       )}
       {...props}
@@ -341,7 +341,7 @@ export function ActionsMenu({ onEdit, onArchive, onDelete }: { onEdit: () => voi
           <MenuItem>
             <button
               onClick={onArchive}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 font-bold text-amber-700 data-[focus]:bg-amber-50"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 font-bold text-neutral-800 data-[focus]:bg-neutral-100"
             >
               <Archive size={16} /> Arquivar
             </button>
@@ -454,7 +454,7 @@ export function FilterField({
 
 /** Classes de um campo compacto (select/input/date) dentro da FilterBar. */
 export const fieldCls =
-  'h-10 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-brand/40 disabled:bg-muted disabled:text-muted-foreground';
+  'h-10 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/15 disabled:bg-muted disabled:text-muted-foreground';
 
 /** Controle segmentado compacto, com a mesma altura dos campos (para filtros). */
 export function SegmentedField<T extends string | number>({
@@ -550,7 +550,7 @@ export function DropdownMenu({
         aria-label={label}
         title={iconOnly ? label : undefined}
         className={cn(
-          'inline-flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+          'inline-flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/40',
           iconOnly ? 'w-10' : 'px-3.5',
           variant === 'primary'
             ? 'bg-neutral-900 text-white hover:bg-black'

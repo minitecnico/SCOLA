@@ -321,7 +321,7 @@ function EditBaseModal({ base, onClose, onDone }: { base: OrgAdmin; onClose: () 
             name="notes"
             defaultValue={base.notes ?? ''}
             rows={3}
-            className="w-full rounded-lg border border-input bg-card px-3.5 py-2.5 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-brand/40"
+            className="w-full rounded-lg border border-input bg-card px-3.5 py-2.5 text-sm outline-none focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/15"
             placeholder="Contato, vencimento, combinados…"
           />
         </Field>

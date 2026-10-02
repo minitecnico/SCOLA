@@ -138,7 +138,7 @@ export function StudentsPage() {
       ) : (
         <>
       {orphans > 0 ? (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl bg-neutral-100 p-3 text-sm font-semibold text-neutral-800">
           {orphans} aluno(s) sem turma (turma excluída). Mova-os para uma turma (editar) ou exclua.
           <Button variant="ghost" className="ml-auto py-1.5" onClick={() => setClassFilter('none')}>
             Ver sem turma

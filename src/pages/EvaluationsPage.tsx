@@ -391,7 +391,7 @@ export function EvaluationsPage() {
                                     value={String(c.score).replace('.', ',')}
                                     onChange={(e) => setScore(s.id, k, e.target.value, a.max)}
                                     placeholder="nota"
-                                    className="h-8 w-11 rounded-lg border border-border bg-card text-center font-semibold tabular-nums text-foreground outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-brand/40"
+                                    className="h-8 w-11 rounded-lg border border-border bg-card text-center font-semibold tabular-nums text-foreground outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/15"
                                   />
                                 </div>
                               </td>
@@ -583,7 +583,7 @@ function ComposicaoAvaliacoesModal({
                     type="checkbox"
                     checked={!!a.credito}
                     onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, credito: e.target.checked } : x)))}
-                    className="h-4 w-4 rounded border-border text-neutral-900 focus:ring-brand"
+                    className="h-4 w-4 rounded border-border text-neutral-900 focus:ring-neutral-900/40"
                   />
                   Compõe o crédito variável
                 </label>

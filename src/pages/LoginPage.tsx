@@ -42,7 +42,7 @@ export function LoginPage() {
           </p>
         </div>
         <p className="text-xs text-neutral-600">© {new Date().getFullYear()} SCOLA</p>
-        <LogoMark className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 opacity-[0.06]" />
+        <LogoMark className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 opacity-[0.06] grayscale" />
       </aside>
 
       {/* Formulário */}
@@ -57,7 +57,7 @@ export function LoginPage() {
           <form onSubmit={onSubmit} className="mt-8 space-y-4">
             <label className="block">
               <span className="mb-1.5 block text-xs font-semibold text-neutral-700">E-mail</span>
-              <span className="flex items-center gap-2 rounded-lg border border-neutral-300 px-3.5 focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-brand/40">
+              <span className="flex items-center gap-2 rounded-lg border border-neutral-300 px-3.5 focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-neutral-900/15">
                 <Mail size={17} className="shrink-0 text-neutral-400" />
                 <input
                   type="email"
@@ -73,7 +73,7 @@ export function LoginPage() {
             </label>
             <label className="block">
               <span className="mb-1.5 block text-xs font-semibold text-neutral-700">Senha</span>
-              <span className="flex items-center gap-2 rounded-lg border border-neutral-300 px-3.5 focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-brand/40">
+              <span className="flex items-center gap-2 rounded-lg border border-neutral-300 px-3.5 focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-neutral-900/15">
                 <Lock size={17} className="shrink-0 text-neutral-400" />
                 <input
                   type={show ? 'text' : 'password'}

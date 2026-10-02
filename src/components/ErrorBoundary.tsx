@@ -30,7 +30,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 16, background: '#fff', color: '#111', fontFamily: 'system-ui, sans-serif' }}>
         <div style={{ maxWidth: 420, textAlign: 'center' }}>
-          <div style={{ width: 48, height: 48, margin: '0 auto 12px', borderRadius: 12, background: '#FACC15', display: 'grid', placeItems: 'center', fontWeight: 900, fontSize: 22 }}>!</div>
+          <div style={{ width: 48, height: 48, margin: '0 auto 12px', borderRadius: 12, background: '#171717', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 900, fontSize: 22 }}>!</div>
           <h1 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 6px' }}>Algo deu errado nesta tela</h1>
           <p style={{ fontSize: 14, color: '#555', margin: '0 0 16px' }}>Nada do que já foi salvo se perdeu. Recarregue a página para continuar.</p>
           <button

@@ -519,7 +519,7 @@ export function ReportsPage() {
                 <button
                   onClick={printPdf}
                   disabled={!payload}
-                  className="col-span-3 inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-neutral-950 px-4 sm:col-span-1 text-sm font-semibold text-white transition hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40"
+                  className="col-span-3 inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-neutral-950 px-4 sm:col-span-1 text-sm font-semibold text-white transition hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/40 disabled:opacity-40"
                 >
                   <Printer size={16} /> Imprimir / PDF
                 </button>
@@ -556,7 +556,7 @@ function ActionBtn({ icon, label, short, onClick, disabled }: { icon: ReactNode;
     <button
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-card px-3 text-sm font-semibold text-foreground ring-1 ring-inset ring-border transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40"
+      className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-card px-3 text-sm font-semibold text-foreground ring-1 ring-inset ring-border transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/40 disabled:opacity-40"
     >
       {icon}
       <span className="sm:hidden">{short ?? label}</span>
@@ -587,7 +587,7 @@ function ColumnsMenu({
 }) {
   return (
     <Popover className="relative">
-      <PopoverButton className="inline-flex h-10 items-center gap-2 rounded-lg bg-card px-3.5 text-sm font-semibold ring-1 ring-inset ring-border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+      <PopoverButton className="inline-flex h-10 items-center gap-2 rounded-lg bg-card px-3.5 text-sm font-semibold ring-1 ring-inset ring-border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/40">
         <Columns3 size={16} /> <span>Colunas</span>
         <span className="rounded bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">{count}/{total}</span>
         <ChevronDown size={15} className="opacity-60" />

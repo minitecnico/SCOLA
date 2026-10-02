@@ -105,11 +105,11 @@ export function ImportModal({
           <p className="mt-3 text-lg font-black text-foreground">{done.created} cadastrado(s)!</p>
           {done.note ? <p className="mt-1 text-sm text-muted-foreground">{done.note}</p> : null}
           {dups.length ? (
-            <div className="mt-4 rounded-xl bg-amber-50 p-3 text-left">
-              <p className="flex items-center gap-2 text-sm font-bold text-amber-800">
+            <div className="mt-4 rounded-xl bg-neutral-100 p-3 text-left">
+              <p className="flex items-center gap-2 text-sm font-bold text-neutral-800">
                 <AlertTriangle size={16} /> {dups.length} já cadastrado(s) — ignorado(s):
               </p>
-              <div className="mt-2 max-h-40 overflow-y-auto text-xs text-amber-700">
+              <div className="mt-2 max-h-40 overflow-y-auto text-xs text-neutral-800">
                 {dups.map((d, i) => (
                   <p key={i}>• {d}</p>
                 ))}
@@ -134,7 +134,7 @@ export function ImportModal({
           {contextSlot}
 
           {!ready ? (
-            <p className="rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-700">{notReadyHint}</p>
+            <p className="rounded-xl bg-neutral-100 p-3 text-sm font-semibold text-neutral-800">{notReadyHint}</p>
           ) : (
             <label
               onDragOver={(e) => {

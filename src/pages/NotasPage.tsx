@@ -471,7 +471,7 @@ export function NotasPage() {
                                 disabled={!editingGrades}
                                 placeholder="–"
                                 className={cn(
-                                  'h-10 w-14 rounded-lg border border-border bg-card text-center font-semibold tabular-nums outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-brand/40 disabled:cursor-default',
+                                  'h-10 w-14 rounded-lg border border-border bg-card text-center font-semibold tabular-nums outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/15 disabled:cursor-default',
                                   TONE[tone].text,
                                   tone === 'none' && 'text-muted-foreground',
                                   !editingGrades && 'border-transparent bg-transparent disabled:bg-transparent',
@@ -495,7 +495,7 @@ export function NotasPage() {
                                   disabled={!editingGrades}
                                   placeholder="–"
                                   className={cn(
-                                    'h-10 w-14 rounded-lg border text-center font-semibold tabular-nums outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-brand/40 disabled:cursor-default',
+                                    'h-10 w-14 rounded-lg border text-center font-semibold tabular-nums outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/15 disabled:cursor-default',
                                     isManual ? 'border-neutral-400 bg-card' : 'border-border bg-muted/60',
                                     shown !== '' ? TONE[gradeTone(Number(String(shown).replace(',', '.')))].text : 'text-muted-foreground',
                                     !editingGrades && 'border-transparent bg-transparent disabled:bg-transparent',
@@ -528,7 +528,7 @@ export function NotasPage() {
                                   disabled={!canEditRecovery}
                                   placeholder={hasAllPrimaryNotes(s.id) ? '–' : 'Preencha 3 notas'}
                                   className={cn(
-                                    'h-10 w-28 rounded-lg border border-border bg-card text-center font-semibold tabular-nums outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-brand/40 disabled:cursor-default',
+                                    'h-10 w-28 rounded-lg border border-border bg-card text-center font-semibold tabular-nums outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/15 disabled:cursor-default',
                                     val !== '' ? TONE[gradeTone(Number(val))].text : 'text-muted-foreground',
                                     !canEditRecovery && 'border-transparent bg-transparent text-xs text-muted-foreground',
                                   )}
@@ -551,7 +551,7 @@ export function NotasPage() {
                             disabled={!editingGrades}
                             placeholder={editingGrades ? 'Anotação…' : '–'}
                             className={cn(
-                              'h-10 w-full min-w-[150px] rounded-lg border px-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-brand/40',
+                              'h-10 w-full min-w-[150px] rounded-lg border px-2 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/15',
                               editingGrades ? 'border-border bg-card text-foreground' : 'border-transparent bg-transparent text-muted-foreground',
                             )}
                           />

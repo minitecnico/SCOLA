@@ -64,7 +64,7 @@ function AnimatedCheck() {
           cy="26"
           r="24"
           fill="none"
-          stroke="#FACC15"
+          stroke="#D4D4D4"
           strokeWidth="3"
         />
         <path

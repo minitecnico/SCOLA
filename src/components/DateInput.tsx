@@ -67,7 +67,7 @@ export function DateInput({
   return (
     <div
       className={cn(
-        'flex h-10 w-full items-center gap-1 rounded-lg border border-input bg-card pl-3 pr-1 text-sm transition focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-brand/40',
+        'flex h-10 w-full items-center gap-1 rounded-lg border border-input bg-card pl-3 pr-1 text-sm transition focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-neutral-900/15',
         disabled && 'bg-muted text-muted-foreground',
         className,
       )}
@@ -88,7 +88,7 @@ export function DateInput({
         <PopoverButton
           disabled={disabled}
           aria-label="Abrir calendário"
-          className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/40"
         >
           <CalendarDays size={16} />
         </PopoverButton>
@@ -145,7 +145,7 @@ function MonthGrid({ value, min, max, onPick }: { value: string; min?: string; m
               className={cn(
                 'h-8 rounded-md text-sm tabular-nums transition disabled:cursor-not-allowed disabled:opacity-30',
                 iso === value ? 'bg-neutral-950 font-semibold text-white' : 'text-foreground hover:bg-muted',
-                iso === today && iso !== value && 'font-bold ring-1 ring-inset ring-brand',
+                iso === today && iso !== value && 'font-bold ring-1 ring-inset ring-neutral-900',
               )}
             >
               {Number(iso.slice(8, 10))}

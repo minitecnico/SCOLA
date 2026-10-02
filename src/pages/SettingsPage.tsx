@@ -579,7 +579,7 @@ function PlanSection({ baseId }: { baseId: string }) {
               onChange={(e) => set('notes', e.target.value)}
               rows={4}
               placeholder="Ex.: contrato anual, vence em 03/2027. Falar com a coordenadora Ana."
-              className="w-full rounded-lg border border-input bg-card px-3.5 py-2.5 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-brand/40"
+              className="w-full rounded-lg border border-input bg-card px-3.5 py-2.5 text-sm outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/15"
             />
           </div>
         </Group>

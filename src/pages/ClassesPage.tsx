@@ -117,7 +117,7 @@ export function ClassesPage() {
                 <div className="mt-2 flex flex-wrap gap-2">
                   <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">{c.shift}</span>
                   {c.year ? <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-bold text-muted-foreground">{c.year}</span> : null}
-                  {c.does_exams === false ? <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">Sem prova</span> : null}
+                  {c.does_exams === false ? <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-bold text-neutral-800">Sem prova</span> : null}
                 </div>
               </div>
               <ActionsMenu

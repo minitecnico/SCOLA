@@ -18,8 +18,8 @@ import { cn } from '../lib/cn';
 
 /** Segmentos da escola — fácil de estender (basta adicionar aqui). */
 export const SEGMENTS: { key: string; label: string; color: string }[] = [
-  { key: 'fund1', label: 'Fundamental I', color: '#2563eb' },
-  { key: 'fund2', label: 'Fundamental II', color: '#7c3aed' },
+  { key: 'fund1', label: 'Fundamental I', color: '#171717' },
+  { key: 'fund2', label: 'Fundamental II', color: '#171717' },
 ];
 const TERMS = [1, 2, 3];
 /** Abre no editor do SCOLA? (documentos e planilhas; o resto baixa/visualiza). */
@@ -70,7 +70,7 @@ export function PlanDocsCenter() {
   return (
     <div className="space-y-4">
       {isError ? (
-        <p className="rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-700">
+        <p className="rounded-xl bg-neutral-100 p-3 text-sm font-bold text-neutral-800">
           Não foi possível carregar. {(error as Error).message}
         </p>
       ) : null}
@@ -301,7 +301,7 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
           <button
             onClick={() => navigate(`/ia?escola=1${sel.ids.size ? `&docs=${[...sel.ids].join(',')}` : ''}`)}
             title="Perguntar à IA sobre os documentos (os selecionados, se houver)"
-            className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900 transition hover:bg-amber-100"
+            className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-neutral-100 px-3 py-2 text-sm font-bold text-neutral-800 transition hover:bg-neutral-200"
           >
             <Sparkles size={15} /> Perguntar à IA
           </button>
@@ -330,7 +330,7 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
       {sel.size > 0 ? (
         <div className="sticky top-2 z-10 flex flex-wrap items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-white shadow-lg">
           <span className="text-sm font-black">{sel.size} selecionado{sel.size > 1 ? 's' : ''}</span>
-          <button onClick={() => setMailDocs(docs.filter((d) => sel.has(d.id)))} className="inline-flex items-center gap-1.5 rounded-lg bg-yellow-400 px-3 py-1.5 text-xs font-black text-slate-900">
+          <button onClick={() => setMailDocs(docs.filter((d) => sel.has(d.id)))} className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-black text-neutral-900">
             <Mail size={14} /> Enviar por e-mail
           </button>
           <select
@@ -358,7 +358,7 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
             <span key={f.id} className="flex min-w-0 items-center gap-1">
               <span className="text-muted-foreground">/</span>
               {i === arr.length - 1 ? (
-                <span className="flex min-w-0 items-center gap-1.5 font-black"><Folder size={16} className="shrink-0 text-amber-500" /><span className="truncate">{f.name}</span></span>
+                <span className="flex min-w-0 items-center gap-1.5 font-black"><Folder size={16} className="shrink-0 text-neutral-500" /><span className="truncate">{f.name}</span></span>
               ) : (
                 <button onClick={() => { setFolderId(f.id); sel.clear(); }} className="max-w-[10rem] truncate rounded-lg px-1.5 py-1 font-bold text-muted-foreground hover:bg-muted">{f.name}</button>
               )}
@@ -476,10 +476,10 @@ function SortHead({ label, k, sort, onSort }: { label: string; k: SortKey; sort:
 
 function FolderRow({ folder, items, canManage, onOpen, onRename, onDelete }: { folder: PlanFolder; items: number; canManage: boolean; onOpen: () => void; onRename: () => void; onDelete: () => void }) {
   return (
-    <div className={cn(COLS, 'items-center gap-3 px-3 py-2 transition hover:bg-amber-50 sm:px-4')}>
+    <div className={cn(COLS, 'items-center gap-3 px-3 py-2 transition hover:bg-neutral-100 sm:px-4')}>
       <span className="w-4" />
       <button onClick={onOpen} className="flex min-w-0 items-center gap-3 text-left">
-        <span className="grid h-10 w-10 shrink-0 place-items-center"><Folder size={26} className="fill-amber-200 text-amber-500" /></span>
+        <span className="grid h-10 w-10 shrink-0 place-items-center"><Folder size={26} className="fill-neutral-200 text-neutral-500" /></span>
         <span className="min-w-0">
           <span className="block truncate text-sm font-bold">{folder.name}</span>
           <span className="text-[11px] text-muted-foreground md:hidden">{items} {items === 1 ? 'item' : 'itens'}</span>
@@ -528,7 +528,7 @@ function FileRow({
   const open = gLink ? openExternal : onOpenEditor ?? (canPrev ? onPreview : openExternal);
 
   return (
-    <div className={cn(COLS, 'items-center gap-3 px-3 py-2 transition hover:bg-muted sm:px-4', selected && 'bg-amber-50')}>
+    <div className={cn(COLS, 'items-center gap-3 px-3 py-2 transition hover:bg-muted sm:px-4', selected && 'bg-neutral-100')}>
       <input type="checkbox" checked={selected} onChange={onToggle} aria-label={`Selecionar ${doc.name}`} className="h-4 w-4 shrink-0 accent-slate-900" />
       <div className="flex min-w-0 items-center gap-3">
       <button

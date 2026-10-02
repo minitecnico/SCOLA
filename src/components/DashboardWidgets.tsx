@@ -84,7 +84,7 @@ function MonthGrid({ y, m, move, marks }: { y: number; m: number; move: (n: numb
                 className={cn(
                   'grid h-8 w-8 place-items-center rounded-full text-[13px] tabular-nums transition',
                   mk ? mk.cls : 'text-foreground',
-                  iso === today && 'ring-2 ring-brand ring-offset-1 ring-offset-card',
+                  iso === today && 'ring-2 ring-neutral-900 ring-offset-1 ring-offset-card',
                   mk?.onClick && 'hover:brightness-95',
                 )}
               >

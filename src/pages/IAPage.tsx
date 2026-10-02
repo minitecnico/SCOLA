@@ -145,7 +145,7 @@ export function IAPage() {
   if (status && !status.ready) {
     return (
       <div className="mx-auto max-w-xl px-4 py-16 text-center">
-        <Sparkles className="mx-auto mb-3 text-brand" />
+        <Sparkles className="mx-auto mb-3 text-muted-foreground" />
         <h1 className="text-xl font-bold">A IA ainda não está ligada</h1>
         <p className="mt-2 text-sm text-muted-foreground">O administrador da plataforma precisa conectar o motor de IA no painel do administrador.</p>
       </div>
@@ -331,7 +331,7 @@ function Message({ m, streaming }: { m: ChatMsg; streaming: boolean }) {
       <div className="min-w-0 flex-1">
         {m.image ? <img src={m.image} alt="Imagem gerada" className="mb-3 max-h-96 w-auto max-w-full rounded-xl border border-border" /> : null}
         {html ? <div className={cn('scola-chat', m.error && 'text-red-700')} dangerouslySetInnerHTML={{ __html: html }} />
-          : streaming ? <p className="flex items-center gap-2 text-sm"><Loader2 size={14} className="animate-spin text-muted-foreground" /> <ShinyText text="Pensando…" color="#737373" shineColor="#eab308" speed={1.6} /></p> : null}
+          : streaming ? <p className="flex items-center gap-2 text-sm"><Loader2 size={14} className="animate-spin text-muted-foreground" /> <ShinyText text="Pensando…" color="#737373" shineColor="#e5e5e5" speed={1.6} /></p> : null}
         {m.sources?.length && !streaming ? (
           <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
             <span className="font-bold uppercase text-muted-foreground">Fontes:</span>

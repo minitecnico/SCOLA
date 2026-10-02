@@ -123,7 +123,7 @@ function Toolbar({ editor }: { editor: Editor }) {
         <>
           <button
             type="button"
-            title="Escrever com IA: plano de aula, atividade, comunicado… ou melhorar o trecho selecionado"
+            title="IA do SCOLA: textos, provas, atividades, imagens, ler fotos e melhorar o trecho ou a imagem selecionada"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setAi(true)}
             className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-sm font-semibold text-brand hover:bg-black"

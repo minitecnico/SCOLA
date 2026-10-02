@@ -642,7 +642,11 @@ export const testAssistant = () => rpc<{ ok: boolean; reply: string; ms: number;
 
 /* ---------------------------------- IA ---------------------------------- */
 export type AiWriteAction = 'gerar' | 'melhorar' | 'corrigir' | 'resumir' | 'continuar' | 'simplificar' | 'topicos';
-export const aiStatus = () => rpc<{ ready: boolean; limit: number }>('aiStatus');
+export const aiStatus = () => rpc<{ ready: boolean; images: boolean; limit: number; imageLimit: number }>('aiStatus');
+export type AiSmartMode = 'auto' | 'texto' | 'imagem' | 'ler' | 'editar';
+export type AiSmartResult = { route: string; markdown?: string | null; image?: string | null; used: string[] };
+export const aiSmart = (input: { prompt: string; mode: AiSmartMode; image?: string | null; aspect?: 'paisagem' | 'retrato' | 'quadrado'; context?: string }) =>
+  rpc<AiSmartResult>('aiSmart', input);
 export const aiWrite = (input: { action: AiWriteAction; prompt?: string; text?: string }) => rpc<{ markdown: string }>('aiWrite', input);
 export type ParecerInput = {
   subject?: string; className?: string; period?: string; term?: number; tone?: string; extra?: string;

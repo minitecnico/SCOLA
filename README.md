@@ -102,11 +102,32 @@ Colunas `plan_docs.google_id` e `google_kind` reservadas para documentos que mor
 Em produção a IA usa a **NVIDIA** (build.nvidia.com), configurada só por segredos do Worker:
 `AI_PROVIDER=nvidia` e `AI_API_KEY=nvapi-…` (a mesma chave serve para respostas e busca). Padrões: respostas `openai/gpt-oss-20b`, busca `nvidia/llama-nemotron-embed-vl-1b-v2` (1024 dimensões). Para trocar, use `AI_MODEL` / `AI_EMBED_MODEL`. **Trocou a chave?** `npx wrangler secret put AI_API_KEY`. Não precisa de deploy.
 
+**Um modelo para cada tarefa, com troca automática.** Cada tarefa tem uma fila de modelos da NVIDIA:
+- texto: GPT-OSS 20B → Nemotron Super → Gemma 4 → Kimi K3;
+- visão (ler fotos): Gemma 4 → Llama 3.2 Vision → Nemotron Omni;
+- imagem: FLUX.1-dev → FLUX.2 Klein.
+
+Se o modelo da vez demora, o próximo é chamado em paralelo e vale quem responder primeiro. Quem falha vai para o fim da fila por 10 minutos. `AI_MODEL`, `AI_VISION_MODEL` e `AI_IMAGE_MODEL` põem um modelo na frente. A NVIDIA gratuita varia muito de velocidade: espere de 10 s a 1 min.
+
 Onde aparece (some sozinho sem chave):
-- **Editor de documentos → botão IA:** cria texto novo (plano de aula, sequência didática, atividade com gabarito, projeto, comunicado, ata) ou trabalha o trecho selecionado (melhorar, corrigir português, resumir, simplificar, em tópicos, continuar). Mostra o resultado antes; a pessoa escolhe substituir ou inserir. A IA não escreve códigos da BNCC (costumam sair errados): deixa "Código BNCC: ____ (preencher)".
+- **Editor de documentos → botão IA (campo inteligente):** um pedido só, e o SCOLA decide o que fazer:
+  - **Texto:** plano de aula, prova, atividade, comunicado…
+  - **Imagem:** ilustração ou desenho para colorir.
+  - **Texto + imagem:** "atividade ilustrada".
+  - **Imagem anexada, colada ou selecionada no documento:**
+    - transcrever a foto de uma prova para texto editável;
+    - criar questões a partir dela (a visão lê e o modelo de texto cria);
+    - mudar a imagem ("deixe em aquarela", "coloque um arco-íris").
+  - **Ajustes rápidos sem IA, no navegador:** girar, preto e branco, contraste e para colorir.
+  - **Também dá para trabalhar o trecho selecionado:** melhorar, corrigir, resumir, simplificar, tópicos, continuar.
+  - **Revisão do gabarito:** questões com gabarito passam por uma segunda passada que resolve cada questão e corrige o gabarito.
+  - **Limites:**
+    - A NVIDIA gratuita não edita a imagem enviada (só aceita as imagens de exemplo dela). Por isso "mudar a imagem" descreve a imagem e o FLUX a redesenha com a mudança: o resultado é parecido, não idêntico.
+    - Modelos de imagem escrevem mal, então as imagens saem sem palavras e os rótulos ficam no texto do documento.
+    - Não escreve códigos da BNCC (costumam sair errados).
 - **Relatórios → Notas → Pareceres (IA):** um parecer curto por aluno a partir das notas na tela, editável, com Refazer, Copiar todos e Baixar Word. **Nomes não saem do SCOLA:** a IA recebe só números e notas; tendência e situação são calculadas no servidor (o modelo não compara números sozinho).
 - **Assistente** (abaixo).
-- Limite por pessoa por dia: `AI_DAILY_LIMIT` (padrão 60), contado à parte para o assistente e para a escrita/pareceres.
+- Limites por pessoa por dia: `AI_DAILY_LIMIT` (padrão 60; contado à parte para o assistente e para a escrita/pareceres) e `AI_IMAGE_DAILY_LIMIT` (padrão 30 imagens).
 
 ## Assistente (RAG)
 

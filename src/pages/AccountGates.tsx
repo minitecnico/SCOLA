@@ -27,7 +27,7 @@ export function ChangePasswordGate() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (pwd.length < 6) return setError('A senha precisa de pelo menos 6 caracteres.');
+    if (pwd.length < 8) return setError('A senha precisa de pelo menos 8 caracteres.');
     if (pwd !== pwd2) return setError('As senhas não conferem.');
     setBusy(true);
     try {

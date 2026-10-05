@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import {
-  assertNotLocked, buildCtx, clearFailures, createSession, destroySession, hashPassword, iterationsFor, needsRehash,
+  assertNotLocked, buildCtx, burnPasswordCheck, clearFailures, createSession, destroySession, hashPassword, iterationsFor, needsRehash,
   recordFailure, requireBase, requireRole, SESSION_COOKIE, userFromToken, verifyPassword, type Ctx, type UserRow,
 } from './auth';
 import { ACTIONS, deviceOf, insertLog, labelOf, type LogEntry, type Refs } from './audit';
@@ -95,7 +95,7 @@ app.post('/api/auth/login', async (c) => {
   if (!email || !password) fail('Informe e-mail e senha.');
   const db = c.env.DB;
   try {
-    await assertNotLocked(db, email);
+    await assertNotLocked(db, email, origin(c).ip);
   } catch (err) {
     bg(c, insertLog(db, { email, action: 'login_bloqueado', category: 'acesso', summary: 'Login bloqueado por excesso de tentativas', status: 'negado', ...origin(c) }));
     throw err;
@@ -107,8 +107,9 @@ app.post('/api/auth/login', async (c) => {
     if (await verifyPassword(password, user.password_hash)) matched = password;
     else if (password.trim() !== password && (await verifyPassword(password.trim(), user.password_hash))) matched = password.trim();
   }
+  if (!user) await burnPasswordCheck(c.env, password);
   if (!matched) {
-    await recordFailure(db, email);
+    await recordFailure(db, email, origin(c).ip);
     bg(c, insertLog(db, {
       email, userId: user?.id ?? null, action: 'login_falhou', category: 'acesso', summary: 'Tentativa de login falhou', status: 'negado',
       detail: user ? 'Senha incorreta' : 'E-mail não cadastrado',

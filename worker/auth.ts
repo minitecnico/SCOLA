@@ -72,8 +72,9 @@ export const needsRehash = (stored: string, iterations: number) =>
 
 export function validatePassword(pw: string) {
   if (typeof pw !== 'string' || pw.trim() !== pw) fail('A senha não pode começar nem terminar com espaço.');
-  if (pw.length < 6) fail('A senha precisa de pelo menos 6 caracteres.');
+  if (pw.length < 8) fail('A senha precisa de pelo menos 8 caracteres.');
   if (pw.length > 200) fail('Senha longa demais.');
+  if (/^(.)\1+$/.test(pw) || /^(12345678|123456789|1234567890|87654321|qwertyui|password|senha123|senha1234|abcd1234|escola123|scola123)/i.test(pw)) fail('Essa senha é fácil de adivinhar. Escolha outra.');
 }
 
 /** Senha provisória legível (sem caracteres ambíguos). */
@@ -204,20 +205,31 @@ export function requireAdmin(ctx: Ctx) {
   if (!ctx.isAdmin) fail('Apenas o administrador do sistema.', 403);
 }
 
+let dummyHash: Promise<string> | null = null;
+/** Gasta o mesmo tempo de uma senha de verdade quando o e-mail não existe (não deixa descobrir quem tem conta pelo tempo de resposta). */
+export async function burnPasswordCheck(env: Env, password: string) {
+  dummyHash ??= hashPassword('scola-sem-conta', iterationsFor(env));
+  await verifyPassword(password, await dummyHash);
+}
+
 /* ------------------------- Proteção contra força bruta ---------------------------- */
 const MAX_FAILURES = 8;
 const WINDOW_MIN = 15;
 
-export async function assertNotLocked(db: D1Database, email: string) {
+const MAX_FAILURES_IP = 30;
+
+/** Bloqueia por e-mail (8 erros) e por endereço (30 erros em 15 min, em qualquer e-mail). */
+export async function assertNotLocked(db: D1Database, email: string, ip?: string | null) {
   const since = new Date(Date.now() - WINDOW_MIN * 60_000).toISOString();
-  const row = await first<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM login_failures WHERE email = ? AND at > ?', email, since);
-  if ((row?.n ?? 0) >= MAX_FAILURES) fail(`Muitas tentativas. Aguarde ${WINDOW_MIN} minutos e tente de novo.`, 429);
+  const row = await first<{ n: number; by_ip: number }>(db,
+    'SELECT SUM(email = ?) AS n, SUM(ip IS NOT NULL AND ip = ?) AS by_ip FROM login_failures WHERE at > ? AND (email = ? OR ip = ?)', email, ip ?? '', since, email, ip ?? '');
+  if ((row?.n ?? 0) >= MAX_FAILURES || (row?.by_ip ?? 0) >= MAX_FAILURES_IP) fail(`Muitas tentativas. Aguarde ${WINDOW_MIN} minutos e tente de novo.`, 429);
 }
 
-export async function recordFailure(db: D1Database, email: string) {
+export async function recordFailure(db: D1Database, email: string, ip?: string | null) {
   const old = new Date(Date.now() - 86400_000).toISOString();
   await db.batch([
-    db.prepare('INSERT INTO login_failures (email, at) VALUES (?, ?)').bind(email, now()),
+    db.prepare('INSERT INTO login_failures (email, at, ip) VALUES (?, ?, ?)').bind(email, now(), ip ?? null),
     db.prepare('DELETE FROM login_failures WHERE at < ?').bind(old),
   ]);
 }

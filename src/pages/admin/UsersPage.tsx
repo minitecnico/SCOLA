@@ -287,11 +287,11 @@ function UserModal({ user, onClose }: { user: AdminUser; onClose: () => void }) 
               className="flex flex-1 gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (pw.length >= 6) setPassword.mutate(false);
+                if (pw.length >= 8) setPassword.mutate(false);
               }}
             >
               <Input type="text" value={pw} onChange={(e) => setPw(e.target.value)} placeholder={self ? 'Nova senha (mín. 6)' : 'ou digite uma senha (mín. 6)'} autoComplete="new-password" className="flex-1" />
-              <Button type="submit" disabled={pw.length < 6 || setPassword.isPending}>
+              <Button type="submit" disabled={pw.length < 8 || setPassword.isPending}>
                 Definir
               </Button>
             </form>

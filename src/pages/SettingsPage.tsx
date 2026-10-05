@@ -303,7 +303,7 @@ function SecuritySection() {
   const [pwd2, setPwd2] = useState('');
   const [show, setShow] = useState(false);
   const rules = [
-    { ok: pwd.length >= 6, label: 'Pelo menos 6 caracteres' },
+    { ok: pwd.length >= 8, label: 'Pelo menos 8 caracteres' },
     { ok: !!pwd && pwd.trim() === pwd, label: 'Sem espaço no começo ou no fim' },
     { ok: !!pwd && pwd === pwd2, label: 'As duas senhas conferem' },
   ];

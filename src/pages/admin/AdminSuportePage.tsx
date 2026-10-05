@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CheckCircle2, Inbox, LogIn, RotateCcw } from 'lucide-react';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import { SupportChat, when } from '../../components/SupportChat';
 import { Button, EmptyState, Loading, PageHeader, SearchInput, Segmented } from '../../components/ui';
@@ -21,7 +21,13 @@ export function AdminSuportePage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user, switchOrg } = useAuth();
-  const [filter, setFilter] = useState<SupportFilter>('atender');
+  const [params] = useSearchParams();
+  const f0 = params.get('f');
+  const [filter, setFilter] = useState<SupportFilter>(f0 === 'respondidas' || f0 === 'resolvidas' || f0 === 'todas' ? f0 : 'atender');
+  useEffect(() => {
+    setFilter(f0 === 'respondidas' || f0 === 'resolvidas' || f0 === 'todas' ? f0 : 'atender');
+    setSel(null);
+  }, [f0]);
   const [q, setQ] = useState('');
   const [sel, setSel] = useState<string | null>(null);
   const { data, isLoading } = useQuery({ queryKey: ['support-admin', filter, q], queryFn: () => suporte.admin.list({ filter, q }), refetchInterval: 60_000 });

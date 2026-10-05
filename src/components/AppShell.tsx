@@ -18,7 +18,11 @@ import {
   LogOut,
   Megaphone,
   Menu,
+  CheckCircle2,
+  Cpu,
   LifeBuoy,
+  MessageSquare,
+  Plus,
   ScrollText,
   type LucideIcon,
   Settings,
@@ -154,7 +158,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       {isSuperadmin && !inBase ? (
         <div className="px-3 pb-3">
           <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500">Administrador</p>
-          {ADMIN_NAV.map((it) => (
+          {ADMIN_NAV.flatMap((g) => (g.items ? g.items.map((it) => ({ ...it, end: false })) : [{ to: g.to!, label: g.title, icon: g.icon, end: !!g.end }])).map((it) => (
             <NavLink key={it.to} to={it.to} end={it.end} onClick={onNavigate} className={linkCls}>
               <it.icon size={18} />
               <span>{it.label}</span>
@@ -397,13 +401,30 @@ function HeaderBaseSwitcher() {
   );
 }
 
-/** Menu do administrador (só aparece fora de uma escola). */
-const ADMIN_NAV: { to: string; label: string; end: boolean; icon: LucideIcon }[] = [
-  { to: '/admin', label: 'Visão geral', end: true, icon: LayoutGrid },
-  { to: '/admin/escolas', label: 'Escolas', end: false, icon: Building2 },
-  { to: '/admin/suporte', label: 'Atendimento', end: false, icon: LifeBuoy },
-  { to: '/admin/usuarios', label: 'Usuários', end: false, icon: UserCog },
-  { to: '/admin/logs', label: 'Logs', end: false, icon: ScrollText },
+/** Menu do administrador (só aparece fora de uma escola): grupos que abrem ao passar o mouse. */
+type AdminItem = { to: string; label: string; icon: LucideIcon };
+const ADMIN_NAV: { to?: string; title: string; end?: boolean; icon: LucideIcon; prefix?: string; items?: AdminItem[] }[] = [
+  { to: '/admin', title: 'Visão geral', end: true, icon: LayoutGrid },
+  {
+    title: 'Escolas', icon: Building2, prefix: '/admin/escolas',
+    items: [{ to: '/admin/escolas', label: 'Todas as escolas', icon: Building2 }, { to: '/admin/escolas?novo=1', label: 'Cadastrar escola', icon: Plus }],
+  },
+  {
+    title: 'Usuários', icon: UserCog, prefix: '/admin/usuarios',
+    items: [{ to: '/admin/usuarios', label: 'Todos os usuários', icon: UserCog }, { to: '/admin/usuarios?novo=1', label: 'Cadastrar usuário', icon: Plus }],
+  },
+  {
+    title: 'Atendimento', icon: LifeBuoy, prefix: '/admin/suporte',
+    items: [
+      { to: '/admin/suporte', label: 'Para responder', icon: LifeBuoy },
+      { to: '/admin/suporte?f=respondidas', label: 'Respondidas', icon: MessageSquare },
+      { to: '/admin/suporte?f=resolvidas', label: 'Resolvidas', icon: CheckCircle2 },
+    ],
+  },
+  {
+    title: 'Sistema', icon: ScrollText, prefix: '/admin/logs',
+    items: [{ to: '/admin/logs', label: 'Central de logs', icon: ScrollText }, { to: '/admin#motor-ia', label: 'Motor de IA', icon: Cpu }],
+  },
 ];
 
 const topCls = (active: boolean) =>
@@ -413,7 +434,7 @@ const topCls = (active: boolean) =>
   );
 
 /** Grupo do menu: abre ao passar o mouse (e ao clicar/tocar), fecha ao sair, com Esc ou ao escolher um item. */
-function HoverGroup({ title, active, count, children }: { title: string; active: boolean; count: number; children: (close: () => void) => ReactNode }) {
+function HoverGroup({ title, icon, active, count, children }: { title: string; icon?: ReactNode; active: boolean; count: number; children: (close: () => void) => ReactNode }) {
   const [open, setOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const show = () => {
@@ -427,6 +448,7 @@ function HoverGroup({ title, active, count, children }: { title: string; active:
   return (
     <div className="relative" onMouseEnter={show} onMouseLeave={hide} onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setOpen(false)} onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
       <button type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)} className={cn(topCls(active), open && 'text-white')}>
+        {icon}
         {title}
         {count ? <span className="grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[10px] font-bold text-neutral-950">{count > 9 ? '9+' : count}</span> : null}
         <ChevronDown size={14} className={cn('opacity-60 transition-transform', open && 'rotate-180')} />
@@ -459,12 +481,24 @@ function TopNav() {
     <nav className="bg-neutral-950">
       <div className="mx-auto flex max-w-[1440px] items-center justify-center gap-1 px-6">
         {isSuperadmin && !inBase
-          ? ADMIN_NAV.map((it) => (
-              <NavLink key={it.to} to={it.to} end={it.end} className={({ isActive: a }) => topCls(a)}>
-                <it.icon size={16} /> {it.label}
-                {it.to === '/admin/suporte' && adminUnread > 0 ? <span className="ml-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">{adminUnread}</span> : null}
-              </NavLink>
-            ))
+          ? ADMIN_NAV.map((g) =>
+              g.items ? (
+                <HoverGroup key={g.title} title={g.title} icon={<g.icon size={16} />} active={pathname.startsWith(g.prefix!)} count={g.title === 'Atendimento' ? adminUnread : 0}>
+                  {(close) =>
+                    g.items!.map((it) => (
+                      <NavLink key={it.to} to={it.to} onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-foreground hover:bg-muted focus-visible:bg-muted focus-visible:outline-none">
+                        <span className="text-muted-foreground"><it.icon size={16} /></span>
+                        <span className="flex-1">{it.label}</span>
+                      </NavLink>
+                    ))
+                  }
+                </HoverGroup>
+              ) : (
+                <NavLink key={g.to} to={g.to!} end={g.end} className={({ isActive: a }) => topCls(a)}>
+                  <g.icon size={16} /> {g.title}
+                </NavLink>
+              ),
+            )
           : null}
         {visible.map((g) => {
           if (!g.title || g.items.length === 1) {

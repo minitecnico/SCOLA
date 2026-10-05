@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Building2, CalendarCheck, ChevronRight, LifeBuoy, LogIn, Plus, ScrollText, ShieldAlert, UserCog, Users } from 'lucide-react';
-import { useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import { AiEngineCard } from '../../components/AiEngineCard';
 import { Button, Card, Loading, PageHeader, StatCard } from '../../components/ui';
@@ -78,6 +78,11 @@ export function AdminOverviewPage() {
     await switchOrg(b.id);
     navigate('/');
   }
+
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash === '#motor-ia' && !isLoading) document.getElementById('motor-ia')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [hash, isLoading]);
 
   if (isLoading) return <Loading />;
 
@@ -213,7 +218,7 @@ export function AdminOverviewPage() {
         </Card>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-4 scroll-mt-32" id="motor-ia">
         <AiEngineCard />
       </div>
     </>

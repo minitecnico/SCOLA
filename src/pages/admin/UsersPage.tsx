@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, Building2, ChevronRight, KeyRound, LogOut, Mail, Phone, Plus, ShieldCheck, Trash2, UserCog, UserRound } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import { successToast } from '../../components/Feedback';
 import { CredentialsModal, type Credentials } from '../../components/TeamManager';
@@ -26,7 +27,8 @@ export function UsersPage() {
   const [filter, setFilter] = useState<Filter>('todos');
   const [school, setSchool] = useState('');
   const [role, setRole] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const [creating, setCreating] = useState(params.get('novo') === '1');
   const [creds, setCreds] = useState<Credentials | null>(null);
   const qc = useQueryClient();
   const { data: schools = [] } = useQuery({ queryKey: ['admin-bases'], queryFn: listOrgAdmin });
@@ -131,7 +133,7 @@ export function UsersPage() {
       {creating ? (
         <NewUserModal
           schools={schools.filter((b) => b.active)}
-          onClose={() => setCreating(false)}
+          onClose={() => { setCreating(false); if (params.has('novo')) setParams({}, { replace: true }); }}
           onDone={(c) => {
             qc.invalidateQueries({ queryKey: ['admin-users'] });
             qc.invalidateQueries({ queryKey: ['admin-bases'] });

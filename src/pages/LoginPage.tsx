@@ -1,7 +1,8 @@
-import { ArrowRight, ChevronDown, Eye, EyeOff, KeyRound, Lock, Mail } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, Lock, Mail } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { Logo, LogoMark } from '../components/Logo';
+import { apiPost } from '../lib/api';
 
 export function LoginPage() {
   const { signIn } = useAuth();
@@ -51,6 +52,8 @@ export function LoginPage() {
           <div className="mb-10 lg:hidden">
             <Logo compact height={36} />
           </div>
+          {forgot ? <Recover initialEmail={email} onBack={() => setForgot(false)} /> : null}
+          <div className={forgot ? 'hidden' : undefined}>
           <h2 className="text-2xl font-extrabold tracking-tight text-neutral-950">Entrar</h2>
           <p className="mt-1.5 text-sm text-neutral-500">Use o e-mail e a senha que você recebeu da sua escola.</p>
 
@@ -101,39 +104,68 @@ export function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 border-t border-neutral-200 pt-5">
-            <button
-              type="button"
-              onClick={() => setForgot((v) => !v)}
-              aria-expanded={forgot}
-              className="flex w-full items-center justify-between rounded-lg px-1 py-1 text-sm font-semibold text-neutral-700 transition hover:text-neutral-950"
-            >
-              <span className="flex items-center gap-2"><KeyRound size={16} /> Esqueci minha senha</span>
-              <ChevronDown size={16} className={`transition-transform ${forgot ? 'rotate-180' : ''}`} />
+          <div className="mt-6 border-t border-neutral-200 pt-5 text-center">
+            <button type="button" onClick={() => { setForgot(true); setError(''); }} className="inline-flex items-center gap-2 text-sm font-semibold text-neutral-700 underline-offset-4 hover:text-neutral-950 hover:underline">
+              <KeyRound size={16} /> Esqueci minha senha
             </button>
-            {forgot ? (
-              <div className="mt-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-soft">
-                <p className="text-sm font-semibold text-neutral-900">Como recuperar o acesso</p>
-                <ol className="mt-3 space-y-3 text-sm text-neutral-600">
-                  {[
-                    <>Fale com a <b className="text-neutral-900">gestão da sua escola</b>.</>,
-                    <>Peça uma <b className="text-neutral-900">senha provisória</b>: ela é gerada em <b className="text-neutral-900">Equipe</b>, no sistema.</>,
-                    <>Entre com a senha provisória e <b className="text-neutral-900">crie sua senha nova</b> no primeiro acesso.</>,
-                  ].map((t, i) => (
-                    <li key={i} className="flex gap-3">
-                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-neutral-950 text-xs font-bold text-white">{i + 1}</span>
-                      <span className="pt-0.5">{t}</span>
-                    </li>
-                  ))}
-                </ol>
-                <p className="mt-4 rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-600">
-                  É gestor ou professor sem escola vinculada? Fale com o suporte do SCOLA.
-                </p>
-              </div>
-            ) : null}
+          </div>
           </div>
         </div>
       </main>
     </div>
+  );
+}
+
+/** "Esqueci minha senha": pede o e-mail e manda o link para criar uma senha nova. */
+function Recover({ initialEmail, onBack }: { initialEmail: string; onBack: () => void }) {
+  const [email, setEmail] = useState(initialEmail);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      await apiPost('/api/auth/forgot', { email: email.trim() });
+      setSent(true);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (sent) {
+    return (
+      <div>
+        <span className="grid h-12 w-12 place-items-center rounded-full bg-neutral-950 text-white"><CheckCircle2 size={24} /></span>
+        <h2 className="mt-5 text-2xl font-extrabold tracking-tight text-neutral-950">Confira seu e-mail</h2>
+        <p className="mt-2 text-sm leading-relaxed text-neutral-600">
+          Se <b className="text-neutral-900">{email}</b> estiver cadastrado, enviamos um link para criar uma nova senha. Ele vale por 1 hora e só pode ser usado uma vez.
+        </p>
+        <p className="mt-3 rounded-lg bg-neutral-100 px-3 py-2.5 text-xs text-neutral-600">Não chegou? Veja a pasta de spam ou lixo eletrônico. Se o e-mail não estiver cadastrado, fale com a gestão da sua escola.</p>
+        <button onClick={onBack} className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-neutral-700 hover:text-neutral-950"><ArrowLeft size={16} /> Voltar para o login</button>
+      </div>
+    );
+  }
+  return (
+    <form onSubmit={submit}>
+      <h2 className="text-2xl font-extrabold tracking-tight text-neutral-950">Esqueci minha senha</h2>
+      <p className="mt-1.5 text-sm text-neutral-500">Informe o e-mail da sua conta. Enviaremos um link para você criar uma nova senha.</p>
+      <label className="mt-8 block">
+        <span className="mb-1.5 block text-xs font-semibold text-neutral-700">E-mail</span>
+        <span className="flex items-center gap-2 rounded-lg border border-neutral-300 px-3.5 focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-neutral-900/15">
+          <Mail size={17} className="shrink-0 text-neutral-400" />
+          <input type="email" required autoFocus autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-transparent py-3 text-sm outline-none" placeholder="voce@escola.com.br" />
+        </span>
+      </label>
+      {error ? <p className="mt-4 rounded-lg bg-red-50 px-3 py-2.5 text-sm font-medium text-red-700">{error}</p> : null}
+      <button type="submit" disabled={busy} className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-neutral-950 py-3 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60">
+        {busy ? 'Enviando…' : 'Enviar link por e-mail'}
+      </button>
+      <button type="button" onClick={onBack} className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-neutral-700 hover:text-neutral-950"><ArrowLeft size={16} /> Voltar para o login</button>
+    </form>
   );
 }

@@ -29,6 +29,7 @@ const DownloadPlanPage = lazyPage(() => import('../pages/DownloadPlanPage'), 'Do
 const SharedReportPage = lazyPage(() => import('../pages/SharedReportPage'), 'SharedReportPage');
 const AdminSuportePage = lazyPage(() => import('../pages/admin/AdminSuportePage'), 'AdminSuportePage');
 const SuportePage = lazyPage(() => import('../pages/SuportePage'), 'SuportePage');
+const ResetPasswordPage = lazyPage(() => import('../pages/ResetPasswordPage'), 'ResetPasswordPage');
 const AdminOverviewPage = lazyPage(() => import('../pages/admin/AdminOverviewPage'), 'AdminOverviewPage');
 const AdminPage = lazyPage(() => import('../pages/admin/AdminPage'), 'AdminPage');
 const PlanDocEditorPage = lazyPage(() => import('../pages/PlanDocEditorPage'), 'PlanDocEditorPage');
@@ -125,6 +126,7 @@ function Root() {
   return (
     <Routes>
       <Route path="/r/:id" element={<Suspense fallback={<Spinner />}><SharedReportPage /></Suspense>} />
+      <Route path="/redefinir-senha" element={<Suspense fallback={<Spinner />}><ResetPasswordPage /></Suspense>} />
       <Route path="/login" element={loading ? <Spinner /> : session ? <AfterLogin /> : <LoginPage />} />
       <Route path="/*" element={<Protected />} />
     </Routes>

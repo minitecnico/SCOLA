@@ -24,6 +24,7 @@ import * as provas from './handlers/provas';
 import * as usuarios from './handlers/usuarios';
 import * as ia from './ia';
 import * as suporte from './handlers/suporte';
+import { confirmReset, requestReset } from './recovery';
 export { SupportHub } from './hub';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
@@ -142,6 +143,18 @@ app.post('/api/auth/login', async (c) => {
       action: 'login', category: 'acesso', summary: user!.must_change_pw ? 'Entrou com senha provisória' : 'Entrou no sistema', ...origin(c),
     });
   })());
+  return c.json({ ok: true });
+});
+
+/** Recuperação de senha (sem login): pedido do link por e-mail e criação da senha nova. */
+app.post('/api/auth/forgot', async (c) => {
+  const body = await c.req.json<{ email?: string }>().catch(() => ({}) as { email?: string });
+  await requestReset(c.env, { email: String(body.email ?? ''), ip: origin(c).ip, origin: new URL(c.req.url).origin, device: origin(c).device });
+  return c.json({ ok: true });
+});
+app.post('/api/auth/reset', async (c) => {
+  const body = await c.req.json<{ token?: string; password?: string }>().catch(() => ({}) as { token?: string; password?: string });
+  await confirmReset(c.env, { token: String(body.token ?? ''), password: String(body.password ?? ''), ip: origin(c).ip, device: origin(c).device });
   return c.json({ ok: true });
 });
 

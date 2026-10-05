@@ -1,3 +1,4 @@
+import { resetStatus } from '../recovery';
 import {
   hashPassword, iterationsFor, requireAdmin, tempPassword, validatePassword, verifyPassword,
   type Ctx, type Role,
@@ -137,6 +138,12 @@ export async function listOrgAdmin(ctx: Ctx) {
             (SELECT MAX(u.last_login_at) FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.base_id = b.id) AS last_login
        FROM bases b ORDER BY b.name COLLATE NOCASE`);
   return rows.map((r) => ({ ...r, active: !!r.active, logo_url: undefined, has_logo: !!r.logo_url }));
+}
+
+/** Recuperação de senha por e-mail: está ativa? (precisa do Gmail do administrador conectado) */
+export async function passwordResetStatus(ctx: Ctx) {
+  requireAdmin(ctx);
+  return resetStatus(ctx.env);
 }
 
 export async function hqStats(ctx: Ctx) {

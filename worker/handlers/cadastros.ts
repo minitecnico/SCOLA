@@ -59,7 +59,9 @@ export async function saveClass(ctx: Ctx, input: { id?: string; name: string; sh
     await run(ctx.db, 'INSERT INTO classes (id, base_id, name, shift, year, does_exams) VALUES (?, ?, ?, ?, ?, ?)',
       id, base, name, input.shift ?? 'Manhã', input.year ?? null, input.does_exams ?? true);
   }
-  return mapClass((await first(ctx.db, 'SELECT * FROM classes WHERE id = ?', id))!);
+  const saved = await first(ctx.db, 'SELECT * FROM classes WHERE id = ? AND base_id = ?', id, base);
+  if (!saved) fail('Turma não encontrada.', 404);
+  return mapClass(saved!);
 }
 
 export async function deleteClass(ctx: Ctx, id: string) {
@@ -127,7 +129,9 @@ export async function saveStudent(ctx: Ctx, input: {
       'INSERT INTO students (id, base_id, class_id, full_name, registration, guardian_name, guardian_phone, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       id, base, classId, name, reg, input.guardian_name ?? null, input.guardian_phone ?? null, input.active ?? true);
   }
-  return mapStudent((await first(ctx.db, 'SELECT * FROM students WHERE id = ?', id))!);
+  const saved = await first(ctx.db, 'SELECT * FROM students WHERE id = ? AND base_id = ?', id, base);
+  if (!saved) fail('Aluno não encontrado.', 404);
+  return mapStudent(saved!);
 }
 
 export async function deleteStudent(ctx: Ctx, id: string) {

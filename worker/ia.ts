@@ -1,6 +1,6 @@
 import { requireAdmin, requireBase, requireRole, type Ctx } from './auth';
 import { all, fail, first, inList, now, parse, run, stmt, uid, type Env } from './db';
-import { docInBase } from './handlers/editor';
+import { canEditDoc, docInBase } from './handlers/editor';
 
 /**
  * Central de IA do SCOLA (tudo de IA do servidor está aqui).
@@ -713,6 +713,7 @@ export async function ragStatus(ctx: Ctx) {
 export async function ragIndexDoc(ctx: Ctx, docId: string, chunks: string[]) {
   requireRole(ctx, 'gestor', 'professor', 'secretaria');
   const d = await docInBase(ctx, docId);
+  if (!canEditDoc(ctx, d)) fail('Só quem criou o documento ou a gestão pode indexá-lo.', 403);
   const list = (Array.isArray(chunks) ? chunks : []).map((c) => String(c).trim().slice(0, 1500)).filter((c) => c.length > 20).slice(0, 300);
   await dropVectors(ctx.env, ids(d.id, d.rag_chunks ?? 0));
   if (list.length) {

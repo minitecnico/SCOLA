@@ -307,7 +307,9 @@ app.get('/api/files/:id', async (c) => {
   if (!allowed) fail('Sem acesso a este arquivo.', 403);
   const body = await c.env.FILES.get(`f:${id}`, 'arrayBuffer');
   if (!body) fail('Arquivo não encontrado.', 404);
-  const download = c.req.query('download') === '1';
+  // HTML, SVG e XML nunca abrem na página: sempre baixam (evita página falsa sob o domínio do SCOLA).
+  const risky = /^(text\/html|image\/svg|application\/(xhtml|xml)|text\/xml)/i.test(meta!.mime ?? '') || /\.(x?html?|svg|xml)$/i.test(meta!.name);
+  const download = risky || c.req.query('download') === '1';
   return new Response(body, {
     headers: {
       'Content-Type': meta!.mime || 'application/octet-stream',

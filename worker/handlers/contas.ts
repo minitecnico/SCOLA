@@ -110,6 +110,11 @@ export async function resetMemberPassword(ctx: Ctx, baseId: string, userId: stri
   assertCanManage(ctx, baseId);
   const m = await first(ctx.db, 'SELECT id FROM memberships WHERE user_id = ? AND base_id = ?', userId, baseId);
   if (!m) fail('Pessoa não pertence a esta base.', 404);
+  // Conta compartilhada com outra escola: só o administrador do sistema redefine (senão um gestor assumiria a conta alheia).
+  if (!ctx.isAdmin) {
+    const other = await first<{ n: number }>(ctx.db, 'SELECT COUNT(*) AS n FROM memberships WHERE user_id = ? AND base_id <> ?', userId, baseId);
+    if ((other?.n ?? 0) > 0) fail('Esta pessoa também tem acesso a outra escola. Peça para ela usar "Esqueci minha senha" ou fale com o administrador do SCOLA.', 403);
+  }
   const target = await first<{ is_admin: number }>(ctx.db, 'SELECT is_admin FROM users WHERE id = ?', userId);
   if (target?.is_admin) fail('Não é possível redefinir a senha do administrador.');
   const password = tempPassword();

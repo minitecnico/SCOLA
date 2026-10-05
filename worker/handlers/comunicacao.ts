@@ -5,10 +5,13 @@ import { all, fail, first, inList, json, now, parse, run, stmt, uid } from '../d
 /* ------------------------------ Pessoas da base ---------------------------------- */
 export async function listOrgPeople(ctx: Ctx) {
   const base = requireBase(ctx);
-  return all<{ user_id: string; full_name: string | null; role: Role; email: string | null; phone: string | null }>(ctx.db,
+  const rows = await all<{ user_id: string; full_name: string | null; role: Role; email: string | null; phone: string | null }>(ctx.db,
     `SELECT u.id AS user_id, u.full_name, m.role, u.email, u.phone
        FROM memberships m JOIN users u ON u.id = m.user_id
       WHERE m.base_id = ? ORDER BY u.full_name COLLATE NOCASE`, base);
+  // Contato (e-mail e telefone) só para gestão e secretaria; professores veem nome e papel.
+  const seesContacts = ctx.role === 'superadmin' || ctx.role === 'gestor' || ctx.role === 'secretaria';
+  return seesContacts ? rows : rows.map((r) => (r.user_id === ctx.user.id ? r : { ...r, email: null, phone: null }));
 }
 
 /* ------------------------------------ Arquivos ----------------------------------- */
@@ -66,7 +69,8 @@ export async function deleteNotice(ctx: Ctx, id: string) {
 }
 
 export async function markNoticeRead(ctx: Ctx, id: string) {
-  requireBase(ctx);
+  const base = requireBase(ctx);
+  if (!(await first(ctx.db, 'SELECT 1 AS ok FROM notices WHERE id = ? AND base_id = ?', id, base))) return;
   await run(ctx.db, 'INSERT OR IGNORE INTO notice_reads (notice_id, user_id) VALUES (?, ?)', id, ctx.user.id);
 }
 

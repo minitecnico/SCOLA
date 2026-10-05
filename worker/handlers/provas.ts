@@ -189,11 +189,12 @@ export async function deleteExamAnswer(ctx: Ctx, examId: string, studentId: stri
   const base = requireRole(ctx, ...PEDAGOGICO);
   const e = await examInBase(ctx, base, examId);
   await assertClassInBase(ctx, base, e.class_id);
+  if (!(await first(ctx.db, 'SELECT 1 AS ok FROM students WHERE id = ? AND base_id = ? AND class_id = ?', studentId, base, e.class_id))) fail('Aluno não encontrado nesta turma.', 404);
   await run(ctx.db, 'DELETE FROM exam_answers WHERE exam_id = ? AND student_id = ?', examId, studentId);
   // Correção apagada: tira também a nota que ela tinha lançado no diário.
   if (e.grade_term && e.grade_key && !/["\\]/.test(e.grade_key)) {
-    await run(ctx.db, 'UPDATE term_grades SET scores = json_remove(scores, ?), updated_at = ? WHERE student_id = ? AND year = ? AND term = ?',
-      `$."${e.grade_key}"`, now(), studentId, e.grade_year, e.grade_term);
+    await run(ctx.db, 'UPDATE term_grades SET scores = json_remove(scores, ?), updated_at = ? WHERE student_id = ? AND base_id = ? AND year = ? AND term = ?',
+      `$."${e.grade_key}"`, now(), studentId, base, e.grade_year, e.grade_term);
   }
 }
 

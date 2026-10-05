@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { Fragment, useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { cn } from '../lib/cn';
@@ -412,6 +412,34 @@ const topCls = (active: boolean) =>
     active ? 'text-brand after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand' : 'text-neutral-300 hover:text-white',
   );
 
+/** Grupo do menu: abre ao passar o mouse (e ao clicar/tocar), fecha ao sair, com Esc ou ao escolher um item. */
+function HoverGroup({ title, active, count, children }: { title: string; active: boolean; count: number; children: (close: () => void) => ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const show = () => {
+    clearTimeout(timer.current);
+    setOpen(true);
+  };
+  const hide = () => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setOpen(false), 140); // tolera o mouse cruzando o vão entre o botão e a lista
+  };
+  return (
+    <div className="relative" onMouseEnter={show} onMouseLeave={hide} onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && setOpen(false)} onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
+      <button type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)} className={cn(topCls(active), open && 'text-white')}>
+        {title}
+        {count ? <span className="grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[10px] font-bold text-neutral-950">{count > 9 ? '9+' : count}</span> : null}
+        <ChevronDown size={14} className={cn('opacity-60 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open ? (
+        <div role="menu" className="absolute left-0 top-full z-50 w-64 animate-fade-in rounded-xl border border-border bg-card p-1.5 text-sm shadow-lift">
+          {children(() => setOpen(false))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function TopNav() {
   const { role, activeBase, isSuperadmin } = useAuth();
   const { pathname } = useLocation();
@@ -449,30 +477,25 @@ function TopNav() {
           const active = g.items.some((it) => isActive(it.to));
           const count = g.items.reduce((n, it) => n + badge(it.to), 0);
           return (
-            <HMenu as="div" key={g.title} className="relative">
-              <MenuButton className={cn(topCls(active), 'data-[open]:text-white')}>
-                {g.title}
-                {count ? <span className="grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[10px] font-bold text-neutral-950">{count > 9 ? '9+' : count}</span> : null}
-                <ChevronDown size={14} className="opacity-60" />
-              </MenuButton>
-              <MenuItems anchor="bottom start" className="z-50 w-64 rounded-xl border border-border bg-card p-1.5 text-sm shadow-lift focus:outline-none [--anchor-gap:4px]">
-                {g.items.map((it) => (
-                  <MenuItem key={it.to}>
-                    <NavLink
-                      to={it.to}
-                      className={cn(
-                        'flex items-center gap-3 rounded-lg px-3 py-2.5 data-[focus]:bg-muted',
-                        isActive(it.to) ? 'bg-muted font-semibold text-foreground' : 'text-foreground',
-                      )}
-                    >
-                      <span className="text-muted-foreground">{it.icon}</span>
-                      <span className="flex-1">{it.label}</span>
-                      {badge(it.to) ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1.5 text-[11px] font-bold text-neutral-950">{badge(it.to)}</span> : null}
-                    </NavLink>
-                  </MenuItem>
-                ))}
-              </MenuItems>
-            </HMenu>
+            <HoverGroup key={g.title} title={g.title!} active={active} count={count}>
+              {(close) =>
+                g.items.map((it) => (
+                  <NavLink
+                    key={it.to}
+                    to={it.to}
+                    onClick={close}
+                    className={cn(
+                      'flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-muted focus-visible:bg-muted focus-visible:outline-none',
+                      isActive(it.to) ? 'bg-muted font-semibold text-foreground' : 'text-foreground',
+                    )}
+                  >
+                    <span className="text-muted-foreground">{it.icon}</span>
+                    <span className="flex-1">{it.label}</span>
+                    {badge(it.to) ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1.5 text-[11px] font-bold text-neutral-950">{badge(it.to)}</span> : null}
+                  </NavLink>
+                ))
+              }
+            </HoverGroup>
           );
         })}
       </div>

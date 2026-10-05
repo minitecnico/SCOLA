@@ -214,7 +214,7 @@ export function ImportAttendanceModal({ open, onClose, classes, defaultClassId }
               ) : null}
 
               {parsed.warnings.length ? (
-                <details className="rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-900 ring-1 ring-inset ring-orange-200">
+                <details className="rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-800 ring-1 ring-inset ring-neutral-300">
                   <summary className="cursor-pointer font-semibold">{parsed.warnings.length} linha(s) com data não reconhecida (ignoradas)</summary>
                   <ul className="mt-1 list-disc pl-4">
                     {parsed.warnings.map((w) => (
@@ -225,7 +225,7 @@ export function ImportAttendanceModal({ open, onClose, classes, defaultClassId }
               ) : null}
 
               {useSheetTurma && parsed.turmas.some((t) => !turmaMap.has(t)) ? (
-                <p className="flex gap-2 rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-900 ring-1 ring-inset ring-orange-200">
+                <p className="flex gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-800 ring-1 ring-inset ring-neutral-300">
                   <AlertTriangle size={14} className="mt-0.5 shrink-0" /> Turmas da planilha sem correspondente no sistema (ignoradas): {parsed.turmas.filter((t) => !turmaMap.has(t)).join(', ')}
                 </p>
               ) : null}
@@ -238,7 +238,7 @@ export function ImportAttendanceModal({ open, onClose, classes, defaultClassId }
                   {parsed.values.map((v) => {
                     const cur = mapped(v.value);
                     return (
-                      <div key={v.value || '__vazio'} className={cn('flex items-center gap-3 px-3 py-2', !cur && 'bg-orange-50')}>
+                      <div key={v.value || '__vazio'} className={cn('flex items-center gap-3 px-3 py-2', !cur && 'bg-neutral-100')}>
                         <span className="min-w-[4.5rem] rounded-md bg-muted px-2 py-1 text-center font-mono text-sm font-bold">{v.value || '(vazio)'}</span>
                         <span className="flex-1 text-xs text-muted-foreground">{v.count} vez(es)</span>
                         <Select value={cur ?? ''} onChange={(e) => setMap((m) => ({ ...m, [v.value]: e.target.value as Mapped }))} className="w-52 py-1.5 text-sm" aria-label={`Significado de ${v.value || 'vazio'}`}>
@@ -297,7 +297,7 @@ export function ImportAttendanceModal({ open, onClose, classes, defaultClassId }
               </section>
 
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-                {pending.length ? <p className="mr-auto text-xs font-semibold text-orange-700">Diga o que significa: {pending.map((v) => v.value || '(vazio)').join(', ')}</p> : null}
+                {pending.length ? <p className="mr-auto text-xs font-semibold text-neutral-800">Diga o que significa: {pending.map((v) => v.value || '(vazio)').join(', ')}</p> : null}
                 <Button variant="ghost" onClick={close}>
                   Cancelar
                 </Button>
@@ -316,7 +316,7 @@ export function ImportAttendanceModal({ open, onClose, classes, defaultClassId }
 function Stat({ label, value, hint, tone }: { label: string; value: string | number; hint?: string; tone?: 'ok' | 'warn' }) {
   return (
     <div className="rounded-lg border border-border bg-card p-2.5">
-      <p className={cn('text-lg font-extrabold tabular-nums leading-tight', tone === 'warn' && 'text-orange-700', tone === 'ok' && 'text-green-700')}>{value}</p>
+      <p className={cn('text-lg font-extrabold tabular-nums leading-tight', tone === 'warn' && 'text-neutral-800', tone === 'ok' && 'text-green-700')}>{value}</p>
       <p className="text-[11px] text-muted-foreground">{label}</p>
       {hint ? <p className="text-[10px] text-muted-foreground">{hint}</p> : null}
     </div>

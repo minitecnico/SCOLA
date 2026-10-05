@@ -4,19 +4,19 @@ import type { GoogleKind } from '../lib/queries';
 import { cn } from '../lib/cn';
 
 const CREATE: { kind: GoogleKind; label: string; icon: LucideIcon; color: string }[] = [
-  { kind: 'document', label: 'Documento', icon: FileText, color: 'bg-blue-600' },
-  { kind: 'spreadsheet', label: 'Planilha', icon: FileSpreadsheet, color: 'bg-green-600' },
-  { kind: 'presentation', label: 'Apresentação', icon: Presentation, color: 'bg-yellow-500' },
-  { kind: 'form', label: 'Formulário', icon: ClipboardList, color: 'bg-purple-600' },
+  { kind: 'document', label: 'Documento', icon: FileText, color: 'bg-neutral-900' },
+  { kind: 'spreadsheet', label: 'Planilha', icon: FileSpreadsheet, color: 'bg-neutral-900' },
+  { kind: 'presentation', label: 'Apresentação', icon: Presentation, color: 'bg-neutral-900' },
+  { kind: 'form', label: 'Formulário', icon: ClipboardList, color: 'bg-neutral-900' },
 ];
 
 /** Atalhos: só abrem o app do Google em outra aba (não precisam de permissão). */
 const APPS: { label: string; href: string; icon: LucideIcon; color: string }[] = [
   { label: 'Gmail', href: 'https://mail.google.com', icon: Mail, color: 'text-red-600' },
-  { label: 'Drive', href: 'https://drive.google.com', icon: HardDrive, color: 'text-emerald-600' },
-  { label: 'Agenda', href: 'https://calendar.google.com', icon: CalendarDays, color: 'text-blue-600' },
-  { label: 'Meet', href: 'https://meet.google.com', icon: Video, color: 'text-teal-600' },
-  { label: 'Classroom', href: 'https://classroom.google.com', icon: GraduationCap, color: 'text-green-700' },
+  { label: 'Drive', href: 'https://drive.google.com', icon: HardDrive, color: 'text-neutral-800' },
+  { label: 'Agenda', href: 'https://calendar.google.com', icon: CalendarDays, color: 'text-neutral-800' },
+  { label: 'Meet', href: 'https://meet.google.com', icon: Video, color: 'text-neutral-800' },
+  { label: 'Classroom', href: 'https://classroom.google.com', icon: GraduationCap, color: 'text-neutral-800' },
   { label: 'YouTube', href: 'https://www.youtube.com', icon: Youtube, color: 'text-red-600' },
 ];
 

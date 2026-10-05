@@ -106,7 +106,7 @@ export function QuickGrade({
                 ))}
               </Select>
             )}
-            {done.has(studentId) ? <p className="mt-0.5 text-xs text-orange-700">Já corrigida. Ao salvar, a correção anterior é substituída.</p> : null}
+            {done.has(studentId) ? <p className="mt-0.5 text-xs text-neutral-800">Já corrigida. Ao salvar, a correção anterior é substituída.</p> : null}
           </div>
           <div className="text-right">
             <p className={cn('text-3xl font-extrabold tabular-nums leading-none', TONE[gradeTone(r.score, exam.points)].text)}>

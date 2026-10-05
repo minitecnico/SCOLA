@@ -271,7 +271,7 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
             {form.grade_term ? (
               <Field label="Coluna de notas">
                 {!loadingTargets && !targets.length ? (
-                  <p className="flex h-11 items-center rounded-lg bg-orange-50 px-3 text-xs text-orange-900 ring-1 ring-inset ring-orange-200">
+                  <p className="flex h-11 items-center rounded-lg bg-neutral-100 px-3 text-xs text-neutral-800 ring-1 ring-inset ring-neutral-300">
                     Esta turma ainda não tem colunas de notas neste trimestre. Configure em Notas.
                   </p>
                 ) : (
@@ -311,7 +311,7 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
         <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
           {key.map((k, q) => (
             <div key={q} className="flex items-center gap-2 py-1">
-              <span className={cn('w-7 text-right text-sm font-bold tabular-nums', k ? 'text-foreground' : 'text-orange-600')}>{String(q + 1).padStart(2, '0')}</span>
+              <span className={cn('w-7 text-right text-sm font-bold tabular-nums', k ? 'text-foreground' : 'text-neutral-800')}>{String(q + 1).padStart(2, '0')}</span>
               <div className="flex gap-1">
                 {letters.map((l) => (
                   <button
@@ -330,7 +330,7 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
               <button
                 type="button"
                 onClick={() => setKey(q, 'X')}
-                className={cn('ml-auto rounded-md px-2 py-1 text-[11px] font-semibold', k === 'X' ? 'bg-orange-100 text-orange-800' : 'text-muted-foreground hover:bg-muted')}
+                className={cn('ml-auto rounded-md px-2 py-1 text-[11px] font-semibold', k === 'X' ? 'bg-neutral-100 text-neutral-800' : 'text-muted-foreground hover:bg-muted')}
               >
                 {k === 'X' ? 'Anulada' : 'Anular'}
               </button>
@@ -438,7 +438,7 @@ function SheetsTab({ data }: { data: ExamDetail }) {
             </li>
           </ol>
           {!ready ? (
-            <p className="rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-900 ring-1 ring-inset ring-orange-200">Complete o gabarito para usar este QR.</p>
+            <p className="rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-800 ring-1 ring-inset ring-neutral-300">Complete o gabarito para usar este QR.</p>
           ) : null}
           <div className="flex flex-wrap gap-2">
             <Button variant="ghost" onClick={() => void printKeyCard({ ...info, key: exam.answer_key, points: exam.points })} disabled={!ready}>
@@ -460,7 +460,7 @@ function SheetsTab({ data }: { data: ExamDetail }) {
             </div>
           </div>
           {!ready ? (
-            <p className="rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-900 ring-1 ring-inset ring-orange-200">
+            <p className="rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-800 ring-1 ring-inset ring-neutral-300">
               Dá para imprimir antes, mas complete o gabarito antes de corrigir.
             </p>
           ) : null}
@@ -649,7 +649,7 @@ function ResultsTab({ data, onScan }: { data: ExamDetail; onScan: () => void }) 
                     <span className="w-10 text-right tabular-nums text-muted-foreground">{it.k === 'X' ? 'anul.' : `${it.pct}%`}</span>
                   </div>
                   {it.suspicious ? (
-                    <p className="ml-8 mt-0.5 text-orange-700">
+                    <p className="ml-8 mt-0.5 text-neutral-800">
                       A maioria marcou {it.top} (gabarito: {it.k}). Confira o gabarito.
                     </p>
                   ) : null}
@@ -818,7 +818,7 @@ function PropriaQrTab({ data, onScan }: { data: ExamDetail; onScan: () => void }
   return (
     <div className="space-y-5">
       {!ready ? (
-        <p className="rounded-lg bg-orange-50 px-3 py-2 text-sm text-orange-900 ring-1 ring-inset ring-orange-200">
+        <p className="rounded-lg bg-neutral-100 px-3 py-2 text-sm text-neutral-800 ring-1 ring-inset ring-neutral-300">
           Complete o gabarito (aba 1) para corrigir. O QR já pode ser impresso.
         </p>
       ) : null}

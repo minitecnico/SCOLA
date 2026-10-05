@@ -63,7 +63,7 @@ export function AnoLetivoPage() {
             const ended = y < currentYear;
             const late = y === currentYear && Number(data.today.slice(5, 7)) >= 11;
             return (
-              <section key={y} className={cn('rounded-xl border bg-card p-4 shadow-soft sm:p-5', ended ? 'border-orange-300' : 'border-border')}>
+              <section key={y} className={cn('rounded-xl border bg-card p-4 shadow-soft sm:p-5', ended ? 'border-neutral-300' : 'border-border')}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-2xl font-extrabold tabular-nums">{y}</p>
@@ -72,7 +72,7 @@ export function AnoLetivoPage() {
                     </p>
                   </div>
                   {ended ? (
-                    <span className="shrink-0 whitespace-nowrap rounded-full bg-orange-100 px-2.5 py-1 text-[11px] font-bold text-orange-800">Ano terminou</span>
+                    <span className="shrink-0 whitespace-nowrap rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-bold text-neutral-800">Ano terminou</span>
                   ) : late ? (
                     <span className="shrink-0 whitespace-nowrap rounded-full bg-brand/25 px-2.5 py-1 text-[11px] font-bold text-neutral-900">Fim de ano</span>
                   ) : (
@@ -284,7 +284,7 @@ function CloseWizard({ data, year, onExit }: { data: YearOverview; year: number;
             })}
           </ul>
           {warnings.length ? (
-            <p className="flex gap-2 rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-900 ring-1 ring-inset ring-orange-200">
+            <p className="flex gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-800 ring-1 ring-inset ring-neutral-300">
               <AlertTriangle size={14} className="mt-0.5 shrink-0" />
               <span>
                 {warnings.map((w) => w.name).join(', ')}: ainda falta{warnings.length > 1 ? 'm' : ''} nota em algum trimestre. Dá para encerrar assim mesmo e, se precisar, reabrir o ano depois.

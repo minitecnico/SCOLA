@@ -47,7 +47,7 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 const pad2 = (n: number) => String(n).padStart(2, "0");
 /** Paleta categórica de alto contraste: matizes bem espaçados no círculo cromático
  *  para que cores vizinhas (na lista e no calendário) nunca se confundam ao bater o olho. */
-const CAT_PALETTE = ["#2563EB", "#DC2626", "#16A34A", "#9333EA", "#0D9488", "#DB2777", "#CA8A04", "#475569", "#4338CA", "#65A30D", "#BE123C", "#1E293B"];
+const CAT_PALETTE = ["#000000", "#262626", "#404040", "#595959", "#737373", "#8C8C8C", "#171717", "#333333", "#4D4D4D", "#666666", "#808080", "#0A0A0A"];
 
 function hexToRgb(hex: string) {
   let h = hex.replace("#", "");
@@ -99,12 +99,12 @@ const SEED: CalendarData = {
   title: "Calendário 2026",
   year: 2026,
   categories: [
-    { id: "feriado", label: "Feriado", color: "#DC2626" },
-    { id: "avaliacao", label: "Avaliação", color: "#0D9488" },
-    { id: "pedagogico", label: "Pedagógico", color: "#2563EB" },
-    { id: "evento", label: "Evento & Cultura", color: "#16A34A" },
-    { id: "recuperacao", label: "Recuperação Paralela", color: "#9333EA" },
-    { id: "comemorativa", label: "Data comemorativa", color: "#DB2777" },
+    { id: "feriado", label: "Feriado", color: "#000000" },
+    { id: "avaliacao", label: "Avaliação", color: "#404040" },
+    { id: "pedagogico", label: "Pedagógico", color: "#262626" },
+    { id: "evento", label: "Evento & Cultura", color: "#595959" },
+    { id: "recuperacao", label: "Recuperação Paralela", color: "#737373" },
+    { id: "comemorativa", label: "Data comemorativa", color: "#8C8C8C" },
     { id: "marco", label: "Marco do período", color: "#475569" },
   ],
   periods: [

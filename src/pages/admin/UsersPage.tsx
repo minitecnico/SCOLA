@@ -93,7 +93,7 @@ export function UsersPage() {
                     ))}
                   </span>
                 ) : !u.is_admin ? (
-                  <span className="mt-1 block text-[11px] text-orange-700">Sem base: não consegue usar o sistema</span>
+                  <span className="mt-1 block text-[11px] text-neutral-800">Sem base: não consegue usar o sistema</span>
                 ) : null}
               </span>
               <span className="hidden shrink-0 text-right text-xs text-muted-foreground sm:block">
@@ -254,7 +254,7 @@ function UserModal({ user, onClose }: { user: AdminUser; onClose: () => void }) 
                 <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required />
               </Field>
               {emailChanged ? (
-                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-orange-700">
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-neutral-800">
                   <Mail size={13} /> Avise a pessoa: o próximo login será com {form.email.trim().toLowerCase() || '…'}.
                 </p>
               ) : null}
@@ -328,7 +328,7 @@ function UserModal({ user, onClose }: { user: AdminUser; onClose: () => void }) 
                   </button>
                 </li>
               ))}
-              {!user.bases.length ? <li className="px-3 py-3 text-sm text-orange-700">Nenhuma base. Vincule abaixo para a pessoa conseguir usar o sistema.</li> : null}
+              {!user.bases.length ? <li className="px-3 py-3 text-sm text-neutral-800">Nenhuma base. Vincule abaixo para a pessoa conseguir usar o sistema.</li> : null}
             </ul>
             {available.length ? (
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">

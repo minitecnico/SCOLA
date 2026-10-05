@@ -135,25 +135,25 @@ export interface NoticeAttachment {
 export type EventAudience = 'all' | 'role' | 'user';
 
 export const EVENT_CATEGORIES: { key: string; label: string; color: string }[] = [
-  { key: 'evento', label: 'Evento', color: '#2563eb' },
-  { key: 'atividade', label: 'Atividade', color: '#059669' },
-  { key: 'gincana', label: 'Gincana', color: '#d97706' },
+  { key: 'evento', label: 'Evento', color: '#171717' },
+  { key: 'atividade', label: 'Atividade', color: '#404040' },
+  { key: 'gincana', label: 'Gincana', color: '#737373' },
   { key: 'prova', label: 'Semana de provas', color: '#dc2626' },
-  { key: 'reuniao', label: 'Reunião', color: '#7c3aed' },
-  { key: 'outro', label: 'Outro', color: '#475569' },
+  { key: 'reuniao', label: 'Reunião', color: '#262626' },
+  { key: 'outro', label: 'Outro', color: '#595959' },
 ];
-export const eventColor = (cat: string) => EVENT_CATEGORIES.find((c) => c.key === cat)?.color ?? '#64748b';
+export const eventColor = (cat: string) => EVENT_CATEGORIES.find((c) => c.key === cat)?.color ?? '#737373';
 export const eventCatLabel = (cat: string) => EVENT_CATEGORIES.find((c) => c.key === cat)?.label ?? cat;
 export const eventSoftColor = (cat: string) => {
   const map: Record<string, string> = {
-    evento: '#eff6ff',
-    atividade: '#ecfdf5',
-    gincana: '#fffbeb',
-    prova: '#fef2f2',
-    reuniao: '#f5f3ff',
-    outro: '#f8fafc',
+    evento: '#f5f5f5',
+    atividade: '#f5f5f5',
+    gincana: '#f5f5f5',
+    prova: '#f5f5f5',
+    reuniao: '#f5f5f5',
+    outro: '#f5f5f5',
   };
-  return map[cat] ?? '#f8fafc';
+  return map[cat] ?? '#f5f5f5';
 };
 
 /* --------------------- Construtor de calendário (visual) ---------------------
@@ -210,7 +210,7 @@ export type PlanStatus = 'rascunho' | 'enviado' | 'aprovado' | 'devolvido';
 
 export const PLAN_STATUS: Record<PlanStatus, { label: string; cls: string }> = {
   rascunho: { label: 'Rascunho', cls: 'bg-slate-100 text-slate-600' },
-  enviado: { label: 'Enviado', cls: 'bg-blue-100 text-blue-700' },
+  enviado: { label: 'Enviado', cls: 'bg-neutral-200 text-neutral-800' },
   aprovado: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700' },
   devolvido: { label: 'Devolvido', cls: 'bg-red-100 text-red-700' },
 };

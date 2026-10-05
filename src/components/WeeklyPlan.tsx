@@ -231,7 +231,7 @@ export function WeeklyPlanView({ data }: { data: WeeklyPlanData }) {
             <div className="grid" style={{ gridTemplateColumns: `repeat(${w.days.length}, 1fr) 1fr` }}>
               {w.days.map((day) => (
                 <div key={day.id} className="border-t border-border px-3 py-2 wp-cell">
-                  <div className="font-black text-rose-600">{day.label}{day.date ? ` — ${day.date}` : ''}{day.lessons ? ` (${day.lessons})` : ''}</div>
+                  <div className="font-black text-neutral-900">{day.label}{day.date ? ` — ${day.date}` : ''}{day.lessons ? ` (${day.lessons})` : ''}</div>
                   {day.blocks.filter((b) => b.turma || b.items).map((b) => (
                     <div key={b.id} className="mt-1.5">
                       {b.turma ? <div className="font-black text-foreground">{`>>> ${b.turma} <<<`}</div> : null}
@@ -246,7 +246,7 @@ export function WeeklyPlanView({ data }: { data: WeeklyPlanData }) {
               </div>
             </div>
             {w.homework ? (
-              <div className="border-t border-border bg-fuchsia-50/40 px-3 py-2">
+              <div className="border-t border-border bg-neutral-100 px-3 py-2">
                 <span className="text-[11px] font-black uppercase text-muted-foreground">Prazer de casa: </span>
                 <span className="whitespace-pre-wrap font-bold text-foreground">{w.homework}</span>
               </div>

@@ -150,9 +150,9 @@ export function LogsPage() {
       {o && (o.suspicious.length || idle.length) ? (
         <div className="mb-4 grid gap-3 lg:grid-cols-2">
           {o.suspicious.length ? (
-            <section className="rounded-xl border border-orange-200 bg-card p-4">
+            <section className="rounded-xl border border-neutral-300 bg-card p-4">
               <h2 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-foreground">
-                <ShieldAlert size={16} className="text-orange-600" /> Tentativas de login suspeitas (24h)
+                <ShieldAlert size={16} className="text-neutral-800" /> Tentativas de login suspeitas (24h)
               </h2>
               <ul className="divide-y divide-border">
                 {o.suspicious.map((s) => (
@@ -267,7 +267,7 @@ function LogItem({ r, onBase, onUser }: { r: LogRow; onBase: (id: string) => voi
   const Icon = cat.icon;
   const problem = r.status !== 'ok';
   return (
-    <li className={cn('flex gap-3 px-4 py-3', r.status === 'erro' && 'bg-red-50/40', r.status === 'negado' && 'bg-orange-50/40')}>
+    <li className={cn('flex gap-3 px-4 py-3', r.status === 'erro' && 'bg-red-50/40', r.status === 'negado' && 'bg-neutral-100/40')}>
       <span className="w-11 shrink-0 pt-0.5 text-xs font-semibold tabular-nums text-muted-foreground">{time(r.at)}</span>
       <span className={cn('mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg', problem ? 'bg-card ring-1 ring-inset ring-border' : 'bg-muted')}>
         <Icon size={14} className="text-foreground" />

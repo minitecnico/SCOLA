@@ -243,7 +243,7 @@ function EditorShell({ meta, kind }: { meta: PlanDocMeta; kind: EditableKind }) 
         <button onClick={close} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg hover:bg-muted" aria-label="Voltar ao planejamento" title="Voltar">
           <ArrowLeft size={18} />
         </button>
-        <span className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-lg', kind === 'doc' ? 'bg-blue-600 text-white' : 'bg-green-600 text-white')}>
+        <span className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-lg', kind === 'doc' ? 'bg-neutral-900 text-white' : 'bg-neutral-900 text-white')}>
           {kind === 'doc' ? <FileText size={18} /> : <FileSpreadsheet size={18} />}
         </span>
         <div className="min-w-0 flex-1">
@@ -347,7 +347,7 @@ function Banner({ icon, tone = 'info', children, onClose }: { icon: React.ReactN
     <div
       className={cn(
         'flex items-center gap-2 border-b px-4 py-2 text-xs',
-        tone === 'bad' ? 'border-red-200 bg-red-50 text-red-800' : tone === 'warn' ? 'border-orange-200 bg-orange-50 text-orange-900' : 'border-border bg-muted text-muted-foreground',
+        tone === 'bad' ? 'border-red-200 bg-red-50 text-red-800' : tone === 'warn' ? 'border-neutral-300 bg-neutral-100 text-neutral-800' : 'border-border bg-muted text-muted-foreground',
       )}
     >
       <span className="shrink-0">{icon}</span>

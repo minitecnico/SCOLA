@@ -4,7 +4,7 @@ import animate from 'tailwindcss-animate';
 const hsl = (v: string) => `hsl(var(--${v}) / <alpha-value>)`;
 
 /**
- * Paleta SCOLA: branco, preto e cinza (o amarelo fica só no logo).
+ * Paleta SCOLA: branco e preto (cinzas só como apoio) (o amarelo fica só no logo).
  * As telas herdadas usam classes `emerald-*` como "cor de destaque". Em vez de reescrever
  * centenas de classes, a escala emerald foi redefinida: tons claros = cinza suave
  * (fundos/realces) e tons fortes = preto (botões, textos de destaque, bordas de foco).

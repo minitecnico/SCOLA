@@ -1050,7 +1050,7 @@ function BoletimModal({
               </Button>
             </div>
             {nothingSelected ? (
-              <p className="text-xs font-semibold text-orange-600">Selecione ao menos uma coluna ou campo para gerar o relatório.</p>
+              <p className="text-xs font-semibold text-neutral-800">Selecione ao menos uma coluna ou campo para gerar o relatório.</p>
             ) : (
               <p className="text-xs text-muted-foreground">Visualizar abre a prévia; em PDF, escolha "Salvar como PDF" na impressão.</p>
             )}

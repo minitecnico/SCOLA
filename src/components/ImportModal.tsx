@@ -179,7 +179,7 @@ function ParsedSummary({ parsed, columns }: { parsed: ParseResult; columns: Colu
   const shown = columns.filter((c) => rows.some((r) => r[c.key]));
   if (onlyExample) {
     return (
-      <div className="rounded-xl bg-orange-50 p-4 text-sm text-orange-900 ring-1 ring-inset ring-orange-200">
+      <div className="rounded-xl bg-neutral-100 p-4 text-sm text-neutral-800 ring-1 ring-inset ring-neutral-300">
         <p className="flex items-center gap-2 font-bold">
           <AlertTriangle size={16} /> A planilha só tem a linha de exemplo
         </p>

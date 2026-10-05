@@ -6,12 +6,12 @@
    Visual claro único. As classes semânticas (bg-background, bg-card,
    text-foreground, border-border, …) leem destes tokens. */
 :root {
-  /* SCOLA — branco, preto e cinza (o amarelo fica só no logo) */
-  --background: 0 0% 97.5%;
+  /* SCOLA — branco e preto (o amarelo fica só no logo) */
+  --background: 0 0% 100%;
   --foreground: 0 0% 9%;
   --card: 0 0% 100%;
   --card-foreground: 0 0% 9%;
-  --muted: 0 0% 95%;
+  --muted: 0 0% 96%;
   --muted-foreground: 0 0% 38%;
   --border: 0 0% 89%;
   --input: 0 0% 87%;

@@ -535,7 +535,7 @@ function FileRow({
         onClick={open}
         className={cn(
           'grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg',
-          ek === 'doc' || doc.google_kind === 'document' ? 'bg-blue-600 text-white' : ek === 'sheet' || doc.google_kind === 'spreadsheet' ? 'bg-green-600 text-white' : doc.google_kind === 'presentation' ? 'bg-yellow-500 text-white' : doc.google_kind === 'form' ? 'bg-purple-600 text-white' : 'bg-muted text-muted-foreground',
+          ek === 'doc' || doc.google_kind === 'document' ? 'bg-neutral-900 text-white' : ek === 'sheet' || doc.google_kind === 'spreadsheet' ? 'bg-neutral-900 text-white' : doc.google_kind === 'presentation' ? 'bg-neutral-900 text-white' : doc.google_kind === 'form' ? 'bg-neutral-900 text-white' : 'bg-muted text-muted-foreground',
         )}
         aria-label="Abrir"
       >
@@ -562,7 +562,7 @@ function FileRow({
           {doc.term ? <><span>{doc.term}º tri</span><span>·</span></> : null}
           <span className="md:hidden">{typeLabel(doc)} · {fmtSize(doc.size)} · {fmtRel(doc.updated_at ?? doc.created_at)}</span>
           {lockedByOther ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-1.5 py-0.5 font-semibold text-orange-800">
+            <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-1.5 py-0.5 font-semibold text-neutral-800">
               <Lock size={10} /> em edição
             </span>
           ) : null}

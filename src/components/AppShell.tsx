@@ -310,6 +310,13 @@ function TopHeader({ onMenu }: { onMenu: () => void }) {
                 <p className="truncate font-semibold text-foreground">{name}</p>
                 <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
               </div>
+              {isSuperadmin ? (
+                <MenuItem>
+                  <NavLink to="/admin" end className="flex items-center gap-2.5 rounded-lg px-3 py-2 data-[focus]:bg-muted">
+                    <LayoutGrid size={15} /> Painel do administrador
+                  </NavLink>
+                </MenuItem>
+              ) : null}
               {activeBase ? (
                 <MenuItem>
                   <NavLink to="/configuracoes" className="flex items-center gap-2.5 rounded-lg px-3 py-2 data-[focus]:bg-muted">
@@ -383,9 +390,6 @@ function TopNav() {
       <div className="mx-auto flex max-w-[1440px] items-center justify-center gap-1 px-6">
         {isSuperadmin ? (
           <>
-            <NavLink to="/admin" end className={({ isActive: a }) => topCls(a)}>
-              <LayoutGrid size={16} /> Administrador
-            </NavLink>
             <NavLink to="/admin/usuarios" className={({ isActive: a }) => topCls(a)}>
               <UserCog size={16} /> Usuários
             </NavLink>

@@ -29,6 +29,15 @@ export type ParecerInput = {
   students: { n: number; terms?: (number | null)[]; final?: number | null; activities?: { name: string; score: number | null; max: number }[] }[];
 };
 
+export type EngineMode = 'auto' | 'rapido' | 'prioridade';
+export type EngineHealth = { calls: number; successRate: number | null; avgMs: number | null; streak: number; lastError: string | null; lastOkAt: string | null; lastFailAt: string | null; restingUntil: number | null };
+export type EngineInfo = {
+  nvidia: boolean;
+  mode: EngineMode;
+  engines: ({ id: string; label: string; baseUrl: string; model: string; keyHint: string; enabled: boolean } & EngineHealth)[];
+  models: ({ id: string; label: string; task: 'texto' | 'visao' | 'imagem'; enabled: boolean } & EngineHealth)[];
+};
+
 export const ia = {
   status: () => rpc<AiStatus>('aiStatus'),
   smart: (input: { prompt?: string; mode?: SmartMode; image?: string | null; aspect?: Aspect; context?: string; action?: TrechoAction; text?: string }) => rpc<SmartResult>('aiSmart', input),
@@ -37,9 +46,11 @@ export const ia = {
   chat: (id: string) => rpc<{ id: string; title: string; messages: ChatMsg[] }>('getAiChat', id),
   saveChat: (input: { id?: string | null; title: string; messages: ChatMsg[] }) => rpc<{ id: string }>('saveAiChat', input),
   deleteChat: (id: string) => rpc<null>('deleteAiChat', id),
-  engine: () => rpc<{ nvidia: boolean; custom: { baseUrl: string; model: string; label: string; keyHint: string } | null }>('aiEngineInfo'),
-  setEngine: (input: { baseUrl: string; key: string; model: string; label?: string }) => rpc<{ label: string }>('setAiEngine', input),
-  clearEngine: () => rpc<null>('clearAiEngine'),
+  engine: () => rpc<EngineInfo>('aiEngineInfo'),
+  setEngine: (input: { id?: string; baseUrl: string; key?: string; model: string; label?: string }) => rpc<{ id: string; label: string; ms: number }>('setAiEngine', input),
+  setConfig: (input: { mode?: EngineMode; enabled?: Record<string, boolean>; order?: string[] }) => rpc<null>('setAiConfig', input),
+  testEngine: (id: string) => rpc<{ ok: boolean; ms: number; error?: string }>('testAiEngine', id),
+  clearEngine: (id?: string) => rpc<null>('clearAiEngine', id),
 };
 
 /** A IA está ligada? (para mostrar ou esconder os botões) */

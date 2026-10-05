@@ -28,44 +28,118 @@ const LABELS: Record<string, string> = {
   'moonshotai/kimi-k3': 'Kimi K3', 'meta/llama-3.2-90b-vision-instruct': 'Llama Vision', 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning': 'Nemotron Omni',
   'black-forest-labs/flux.1-dev': 'FLUX.1', 'black-forest-labs/flux.2-klein-4b': 'FLUX.2 Klein',
 };
-const resting = new Map<string, number>(); // modelo que falhou → até quando vai para o fim da fila
-const rest = (id: string) => resting.set(id, Date.now() + 10 * 60_000);
-
 type Engine = { id: string; url: string; key: string; model: string; label: string; ext?: boolean };
-type Custom = { baseUrl: string; key: string; model: string; label: string };
-const ENGINE_KV = 'cfg:ai-engine';
-let customCache: { at: number; v: Custom | null } | null = null;
+type Ext = { id: string; baseUrl: string; key: string; model: string; label: string; enabled: boolean };
+type Mode = 'auto' | 'rapido' | 'prioridade';
+type Config = { engines: Ext[]; off: string[]; mode: Mode };
+const CONFIG_KV = 'cfg:ai-config';
+const LEGACY_KV = 'cfg:ai-engine'; // versão antiga: um motor só
+let configCache: { at: number; v: Config } | null = null;
 
-/** Chave do motor externo cifrada no KV (AES-GCM com os segredos do Worker). */
+/** Chaves do motor externo cifradas no KV (AES-GCM com os segredos do Worker). */
 const aes = async (env: Env) =>
   crypto.subtle.importKey('raw', await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${env.GOOGLE_TOKEN_KEY || ''}|${env.AI_API_KEY || ''}|scola-ai`)), 'AES-GCM', false, ['encrypt', 'decrypt']);
 const b64 = (u: Uint8Array) => btoa(String.fromCharCode(...u));
 const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
-
-async function custom(env: Env): Promise<Custom | null> {
-  if (customCache && Date.now() - customCache.at < 60_000) return customCache.v;
-  let v: Custom | null = null;
-  try {
-    const sealed = await env.FILES.get(ENGINE_KV);
-    if (sealed) {
-      const [iv, ct] = sealed.split('.').map(unb64);
-      v = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, await aes(env), ct)));
-    }
-  } catch (e) {
-    console.error('ia: motor externo ilegível', e);
-  }
-  customCache = { at: Date.now(), v };
-  return v;
+async function unseal<T>(env: Env, key: string): Promise<T | null> {
+  const sealed = await env.FILES.get(key);
+  if (!sealed) return null;
+  const [iv, ct] = sealed.split('.').map(unb64);
+  return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, await aes(env), ct))) as T;
+}
+async function seal(env: Env, key: string, v: unknown) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await aes(env), new TextEncoder().encode(JSON.stringify(v))));
+  await env.FILES.put(key, `${b64(iv)}.${b64(ct)}`);
+  configCache = null;
 }
 
-/** Fila da tarefa: motor externo primeiro, depois a NVIDIA (quem falhou há pouco vai para o fim). */
-async function engines(env: Env, task: Task): Promise<Engine[]> {
-  const c = task === 'imagem' ? null : await custom(env);
-  const nv = env.AI_API_KEY ? CHAINS[task].map((m) => ({ id: m, url: task === 'imagem' ? NV_IMAGE : NV_CHAT, key: env.AI_API_KEY!, model: m, label: LABELS[m] ?? m })) : [];
-  const t = Date.now();
-  const list = [...(c ? [{ id: `x:${c.model}`, url: c.baseUrl, key: c.key, model: c.model, label: c.label || c.model, ext: true }] : []), ...nv];
+async function config(env: Env): Promise<Config> {
+  if (configCache && Date.now() - configCache.at < 60_000) return configCache.v;
+  let v: Config = { engines: [], off: [], mode: 'auto' };
+  try {
+    const c = await unseal<Partial<Config>>(env, CONFIG_KV);
+    if (c) v = { engines: c.engines ?? [], off: c.off ?? [], mode: c.mode === 'rapido' || c.mode === 'prioridade' ? c.mode : 'auto' };
+    else {
+      const old = await unseal<{ baseUrl: string; key: string; model: string; label: string }>(env, LEGACY_KV);
+      if (old) v.engines = [{ id: 'x1', ...old, enabled: true }];
+    }
+  } catch (e) {
+    console.error('ia: configuração ilegível', e);
+  }
+  configCache = { at: Date.now(), v };
+  return v;
+}
+const hasExternal = async (env: Env) => (await config(env)).engines.some((e) => e.enabled);
+
+/* ---- Saúde dos motores: taxa de acerto, latência e descanso progressivo (tabela ai_engine_stats) ---- */
+type Stat = { engine_id: string; ok: number; fail: number; streak: number; ewma_ms: number | null; last_error: string | null; last_ok_at: string | null; last_fail_at: string | null; rest_until: number };
+let statCache: { at: number; v: Map<string, Stat> } | null = null;
+async function stats(env: Env, fresh = false) {
+  if (!fresh && statCache && Date.now() - statCache.at < 20_000) return statCache.v;
+  const v = new Map<string, Stat>();
+  try {
+    for (const r of await all<Stat>(env.DB, 'SELECT * FROM ai_engine_stats')) v.set(r.engine_id, r);
+  } catch (e) {
+    console.error('ia: estatísticas', (e as Error)?.message);
+  }
+  statCache = { at: Date.now(), v };
+  return v;
+}
+/** Registra o resultado de uma chamada. Falhas seguidas dobram o descanso (2 min, 4, 8… até 1 h). */
+async function record(env: Env, id: string, ok: boolean, ms: number, error?: string) {
+  const cur = statCache?.v.get(id);
+  const streak = ok ? 0 : (cur?.streak ?? 0) + 1;
+  const restUntil = ok ? 0 : Date.now() + Math.min(3600, 120 * 2 ** Math.min(streak - 1, 5)) * 1000;
+  const at = now();
+  const next: Stat = {
+    engine_id: id, ok: (cur?.ok ?? 0) + (ok ? 1 : 0), fail: (cur?.fail ?? 0) + (ok ? 0 : 1), streak,
+    ewma_ms: ok ? (cur?.ewma_ms == null ? ms : cur.ewma_ms * 0.7 + ms * 0.3) : cur?.ewma_ms ?? null,
+    last_error: ok ? cur?.last_error ?? null : (error ?? 'falha').slice(0, 200), last_ok_at: ok ? at : cur?.last_ok_at ?? null, last_fail_at: ok ? cur?.last_fail_at ?? null : at, rest_until: restUntil,
+  };
+  if (next.ok + next.fail > 400) { next.ok = Math.round(next.ok / 2); next.fail = Math.round(next.fail / 2); } // janela móvel: o passado pesa menos
+  statCache?.v.set(id, next);
+  await run(env.DB, `INSERT INTO ai_engine_stats (engine_id, ok, fail, streak, ewma_ms, last_error, last_ok_at, last_fail_at, rest_until, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(engine_id) DO UPDATE SET ok = excluded.ok, fail = excluded.fail, streak = excluded.streak, ewma_ms = excluded.ewma_ms, last_error = excluded.last_error,
+      last_ok_at = excluded.last_ok_at, last_fail_at = excluded.last_fail_at, rest_until = excluded.rest_until, updated_at = excluded.updated_at`,
+    id, next.ok, next.fail, next.streak, next.ewma_ms, next.last_error, next.last_ok_at, next.last_fail_at, next.rest_until, at).catch((e) => console.error('ia: registrar', e?.message));
+}
+
+/** Peso do pedido: perguntas curtas vão para modelos rápidos; contas, análises e textos longos, para os mais fortes. */
+function weight(messages: Msg[]): 'leve' | 'normal' | 'pesado' {
+  const text = messages.filter((m) => m.role !== 'system').map((m) => (typeof m.content === 'string' ? m.content : m.content.map((p) => (p.type === 'text' ? p.text : '')).join(' '))).join('\n');
+  if (text.length > 12_000 || (text.length > 600 && /resolva|calcule|demonstre|passo a passo|c[oó]digo|algoritmo|analise|compare|gabarito|plano de aula|parecer|racioc/i.test(text))) return 'pesado';
+  return text.length < 400 && !text.includes('\n') ? 'leve' : 'normal';
+}
+const HEAVY_FIRST = ['nvidia/nemotron-3-super-120b-a12b', 'moonshotai/kimi-k3'];
+
+/**
+ * Fila da tarefa. Automático: motores externos primeiro, depois a NVIDIA reordenada pelo peso do pedido;
+ * quem anda falhando ou lento desce. Rápido: ordena pela latência medida. Prioridade: ordem fixa.
+ * Quem está em descanso (falhas seguidas) vai para o fim, mas ainda é tentado se for o último recurso.
+ */
+async function engines(env: Env, task: Task, messages: Msg[] = []): Promise<Engine[]> {
+  const cfg = await config(env);
+  const st = await stats(env);
+  const ext: Engine[] = task === 'imagem' ? [] : cfg.engines.filter((e) => e.enabled).map((e) => ({ id: e.id, url: e.baseUrl, key: e.key, model: e.model, label: e.label || e.model, ext: true }));
+  let chain = CHAINS[task].filter((m) => !cfg.off.includes(m));
+  if (cfg.mode === 'auto' && task === 'texto') {
+    const w = weight(messages);
+    if (w === 'pesado') chain = [...chain.filter((m) => HEAVY_FIRST.includes(m)), ...chain.filter((m) => !HEAVY_FIRST.includes(m))];
+    else if (w === 'leve') chain = [...chain.filter((m) => m === 'openai/gpt-oss-20b'), ...chain.filter((m) => m !== 'openai/gpt-oss-20b')];
+  }
+  const nv: Engine[] = env.AI_API_KEY ? chain.map((m) => ({ id: m, url: task === 'imagem' ? NV_IMAGE : NV_CHAT, key: env.AI_API_KEY!, model: m, label: LABELS[m] ?? m })) : [];
+  const list = [...ext, ...nv];
   if (!list.length) fail('A IA ainda não foi configurada. Fale com o administrador.', 503);
-  return [...list.filter((e) => (resting.get(e.id) ?? 0) < t), ...list.filter((e) => (resting.get(e.id) ?? 0) >= t)];
+  const t = Date.now();
+  const rank = (e: Engine, i: number) => {
+    const s = st.get(e.id);
+    const resting = (s?.rest_until ?? 0) > t ? 1000 : 0;
+    if (cfg.mode === 'rapido') return resting + (s?.ewma_ms ?? 3000) / 1000 + i * 0.01;
+    if (cfg.mode === 'prioridade') return resting + i;
+    return resting + i + (s?.streak ?? 0) * 2 + ((s?.ewma_ms ?? 0) > 12_000 ? 2 : 0);
+  };
+  return list.map((e, i) => ({ e, r: rank(e, i) })).sort((a, b) => a.r - b.r).map((x) => x.e);
 }
 
 const HEADERS = (key: string) => ({ 'content-type': 'application/json', accept: 'application/json', authorization: `Bearer ${key}`, 'HTTP-Referer': 'https://scola.app', 'X-Title': 'SCOLA' });
@@ -75,8 +149,9 @@ const HEADERS = (key: string) => ({ 'content-type': 'application/json', accept: 
  * Chave da NVIDIA recusada é erro de configuração (para na hora); o resto troca de modelo.
  */
 async function* attempts(env: Env, task: 'texto' | 'visao', messages: Msg[], maxTokens: number, opts: { temperature?: number; fast?: boolean }) {
-  for (const e of await engines(env, task)) {
+  for (const e of await engines(env, task, messages)) {
     const ac = new AbortController();
+    const t0 = Date.now();
     const timer = setTimeout(() => ac.abort(), 25_000);
     try {
       const res = await fetch(`${e.url}/chat/completions`, {
@@ -90,18 +165,20 @@ async function* attempts(env: Env, task: 'texto' | 'visao', messages: Msg[], max
       });
       clearTimeout(timer);
       if (res.ok && res.body) {
+        void record(env, e.id, true, Date.now() - t0);
         yield { res, e };
         continue;
       }
       const detail = (await res.text().catch(() => '')).slice(0, 200);
+      await record(env, e.id, false, Date.now() - t0, `HTTP ${res.status} ${detail}`);
       if (!e.ext && (res.status === 401 || res.status === 403)) fail('A chave de IA da NVIDIA foi recusada. Fale com o administrador.', 503);
       console.error('ia: troca de modelo', e.id, res.status, detail);
     } catch (err) {
       clearTimeout(timer);
       if (err instanceof Error && 'status' in err) throw err;
       console.error('ia: troca de modelo', e.id, (err as Error)?.message);
+      await record(env, e.id, false, Date.now() - t0, (err as Error)?.name === 'AbortError' ? 'demorou mais de 25 s' : (err as Error)?.message);
     }
-    rest(e.id);
   }
 }
 
@@ -151,7 +228,7 @@ async function ask(env: Env, task: 'texto' | 'visao', messages: Msg[], maxTokens
   for await (const { res, e } of attempts(env, task, messages, maxTokens, { temperature })) {
     const text = clean(await new Response(res.body!.pipeThrough(sse(e.label, e.model, false))).text());
     if (text) return { text, model: e.label };
-    rest(e.id);
+    await record(env, e.id, false, 0, 'resposta vazia');
   }
   return fail('A IA está congestionada agora. Tente de novo em instantes.', 503);
 }
@@ -169,6 +246,7 @@ const SIZES: Record<Aspect, { width: number; height: number }> = { paisagem: { w
 async function image(env: Env, prompt: string, aspect: Aspect = 'paisagem') {
   if (!env.AI_API_KEY) fail('Imagens com IA precisam da NVIDIA configurada.', 503);
   for (const e of await engines(env, 'imagem')) {
+    const t0 = Date.now();
     const klein = e.model.includes('klein');
     const res = await fetch(`${e.url}/${e.model}`, {
       method: 'POST', signal: AbortSignal.timeout(klein ? 25_000 : 40_000), headers: HEADERS(e.key),
@@ -176,9 +254,9 @@ async function image(env: Env, prompt: string, aspect: Aspect = 'paisagem') {
     }).catch(() => null);
     const a = res?.ok ? ((await res.json().catch(() => ({}))) as { artifacts?: { base64?: string; finishReason?: string }[] }).artifacts?.[0] : undefined;
     if (a?.finishReason === 'CONTENT_FILTERED') fail('O pedido de imagem foi bloqueado pelo filtro de conteúdo. Tente descrever de outro jeito.', 422);
-    if (a?.base64) return { image: `data:image/jpeg;base64,${a.base64}`, model: e.label };
+    if (a?.base64) { void record(env, e.id, true, Date.now() - t0); return { image: `data:image/jpeg;base64,${a.base64}`, model: e.label }; }
     console.error('ia: troca de modelo de imagem', e.id, res?.status ?? 'tempo esgotado');
-    rest(e.id);
+    await record(env, e.id, false, Date.now() - t0, `imagem: ${res?.status ?? 'tempo esgotado'}`);
   }
   return fail('Os modelos de imagem estão congestionados agora. Tente de novo em instantes.', 503);
 }
@@ -425,7 +503,7 @@ export async function chatStream(ctx: Ctx, input: { messages?: ChatIn[]; escola?
   const last = msgs[msgs.length - 1];
   const head: string[] = [];
   // Imagens: motor externo (modelos fortes) recebe direto; só NVIDIA, a visão lê e o texto responde.
-  if (imgs.length && (await custom(ctx.env))) {
+  if (imgs.length && (await hasExternal(ctx.env))) {
     last.content = [{ type: 'text', text: String(last.content) || 'Analise a imagem.' }, ...imgs.map((url) => ({ type: 'image_url' as const, image_url: { url } }))];
   } else if (imgs.length) {
     const read = await readImages(ctx.env, imgs);
@@ -495,49 +573,120 @@ export async function saveAiChat(ctx: Ctx, input: { id?: string | null; title?: 
 
 export const deleteAiChat = (ctx: Ctx, id: string) => run(ctx.db, 'DELETE FROM ai_chats WHERE id = ? AND user_id = ?', id, ctx.user.id).then(() => null);
 
-/* ============================ Status e motor externo ============================ */
+/* ============================ Status e painel do motor ============================ */
 export async function aiStatus(ctx: Ctx) {
-  const c = await custom(ctx.env);
-  const nv = !!ctx.env.AI_API_KEY;
-  return { ready: nv || !!c, images: nv, school: nv, engine: c ? c.label || c.model : nv ? 'NVIDIA' : null, limit: dailyLimit(ctx.env), imageLimit: imageLimit(ctx.env) };
+  const cfg = await config(ctx.env);
+  const ext = cfg.engines.find((e) => e.enabled);
+  const nv = !!ctx.env.AI_API_KEY && CHAINS.texto.some((m) => !cfg.off.includes(m));
+  const nvImg = !!ctx.env.AI_API_KEY && CHAINS.imagem.some((m) => !cfg.off.includes(m));
+  return { ready: nv || !!ext, images: nvImg, school: !!ctx.env.AI_API_KEY, engine: ext ? ext.label || ext.model : nv ? 'NVIDIA' : null, limit: dailyLimit(ctx.env), imageLimit: imageLimit(ctx.env) };
 }
 
+const hint = (k: string) => `${k.slice(0, 6)}…${k.slice(-4)}`;
+
+/** Tudo para o painel do administrador: motores, modelos, modo e saúde de cada um. */
 export async function aiEngineInfo(ctx: Ctx) {
   requireAdmin(ctx);
-  const c = await custom(ctx.env);
-  return { nvidia: !!ctx.env.AI_API_KEY, custom: c ? { baseUrl: c.baseUrl, model: c.model, label: c.label, keyHint: `${c.key.slice(0, 6)}…${c.key.slice(-4)}` } : null };
+  const cfg = await config(ctx.env);
+  const st = await stats(ctx.env, true);
+  const t = Date.now();
+  const view = (id: string) => {
+    const s = st.get(id);
+    const total = (s?.ok ?? 0) + (s?.fail ?? 0);
+    return { calls: total, successRate: total ? Math.round(((s?.ok ?? 0) / total) * 100) : null, avgMs: s?.ewma_ms != null ? Math.round(s.ewma_ms) : null, streak: s?.streak ?? 0, lastError: s?.last_error ?? null, lastOkAt: s?.last_ok_at ?? null, lastFailAt: s?.last_fail_at ?? null, restingUntil: (s?.rest_until ?? 0) > t ? s!.rest_until : null };
+  };
+  const nvidia = !!ctx.env.AI_API_KEY;
+  return {
+    nvidia,
+    mode: cfg.mode,
+    engines: cfg.engines.map((e) => ({ id: e.id, label: e.label, baseUrl: e.baseUrl, model: e.model, keyHint: hint(e.key), enabled: e.enabled, ...view(e.id) })),
+    models: nvidia
+      ? (Object.keys(CHAINS) as Task[]).flatMap((task) => CHAINS[task].map((m) => ({ id: m, label: LABELS[m] ?? m, task, enabled: !cfg.off.includes(m), ...view(m) })))
+      : [],
+  };
 }
 
-/** Conecta qualquer API compatível com OpenAI depois de uma pergunta de teste; a chave fica cifrada no KV. */
-export async function setAiEngine(ctx: Ctx, input: { baseUrl: string; key: string; model: string; label?: string }) {
-  requireAdmin(ctx);
-  let baseUrl = String(input?.baseUrl || '').trim().replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
-  if (!/^https:\/\/[^\s/]+\.[^\s]+$/.test(baseUrl)) fail('Endereço inválido. Use https://… (ex.: https://openrouter.ai/api/v1). "localhost" não funciona: o SCOLA roda na nuvem.');
-  if (!/\/v\d+$/.test(baseUrl)) baseUrl += '/v1';
-  const key = String(input?.key || '').trim();
-  const model = String(input?.model || '').trim();
-  if (key.length < 8 || !model) fail('Informe a chave e o modelo (ex.: openrouter/auto).');
+/** Chama o endereço com uma pergunta de teste; devolve o tempo ou o motivo da recusa. */
+async function probe(baseUrl: string, key: string, model: string) {
+  const t0 = Date.now();
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST', signal: AbortSignal.timeout(45_000), headers: HEADERS(key),
     body: JSON.stringify({ model, messages: [{ role: 'user', content: 'Responda apenas: OK' }], max_tokens: 400 }),
-  }).catch((e) => fail(`Não consegui falar com ${baseUrl}: ${(e as Error)?.message || 'sem resposta'}.`, 400));
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    const j = parse<{ error?: { message?: string } | string; message?: string }>(body, {});
-    fail(`O serviço recusou (${res.status}): ${(typeof j.error === 'string' ? j.error : j.error?.message) || j.message || body.slice(0, 200)}`, 400);
-  }
-  const label = String(input.label || '').trim().slice(0, 40) || (baseUrl.includes('openrouter') ? `OpenRouter · ${model}` : model);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await aes(ctx.env), new TextEncoder().encode(JSON.stringify({ baseUrl, key, model, label }))));
-  await ctx.env.FILES.put(ENGINE_KV, `${b64(iv)}.${b64(ct)}`);
-  customCache = null;
-  return { label };
+  }).catch((e) => ({ ok: false as const, status: 0, text: async () => (e as Error)?.message || 'sem resposta' }));
+  if (res.ok) return { ok: true as const, ms: Date.now() - t0 };
+  const body = await res.text().catch(() => '');
+  const j = parse<{ error?: { message?: string } | string; message?: string }>(body, {});
+  return { ok: false as const, ms: Date.now() - t0, error: `${res.status ? `(${res.status}) ` : ''}${(typeof j.error === 'string' ? j.error : j.error?.message) || j.message || body.slice(0, 200)}` };
 }
 
-export async function clearAiEngine(ctx: Ctx) {
+/** Testa um motor já conectado (id do motor externo ou de um modelo da NVIDIA) e atualiza a saúde dele. */
+export async function testAiEngine(ctx: Ctx, id: string) {
   requireAdmin(ctx);
-  await ctx.env.FILES.delete(ENGINE_KV);
-  customCache = null;
+  const cfg = await config(ctx.env);
+  const ext = cfg.engines.find((e) => e.id === id);
+  let r: Awaited<ReturnType<typeof probe>>;
+  if (ext) r = await probe(ext.baseUrl, ext.key, ext.model);
+  else if (CHAINS.texto.includes(id) || CHAINS.visao.includes(id)) {
+    if (!ctx.env.AI_API_KEY) fail('A NVIDIA não está configurada.');
+    r = await probe(NV_CHAT, ctx.env.AI_API_KEY!, id);
+  } else return fail('Motor não encontrado.', 404);
+  await stats(ctx.env, true);
+  await record(ctx.env, id, r.ok, r.ms, r.ok ? undefined : r.error);
+  return r;
+}
+
+const cleanUrl = (u: string) => {
+  let baseUrl = String(u || '').trim().replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
+  if (!/^https:\/\/[^\s/]+\.[^\s]+$/.test(baseUrl)) fail('Endereço inválido. Use https://… (ex.: https://openrouter.ai/api/v1). "localhost" não funciona: o SCOLA roda na nuvem.');
+  if (!/\/v\d+$/.test(baseUrl)) baseUrl += '/v1';
+  return baseUrl;
+};
+
+/** Conecta (ou edita, com `id`) um motor compatível com a API da OpenAI, depois de uma pergunta de teste. Pode haver vários. */
+export async function setAiEngine(ctx: Ctx, input: { id?: string; baseUrl: string; key?: string; model: string; label?: string }) {
+  requireAdmin(ctx);
+  const cfg = await config(ctx.env);
+  const old = input.id ? cfg.engines.find((e) => e.id === input.id) : undefined;
+  const baseUrl = cleanUrl(input?.baseUrl);
+  const key = String(input?.key || '').trim() || old?.key || '';
+  const model = String(input?.model || '').trim();
+  if (key.length < 8 || !model) fail('Informe a chave e o modelo (ex.: openrouter/auto).');
+  const r = await probe(baseUrl, key, model);
+  if (!r.ok) fail(`O serviço recusou: ${r.error}`, 400);
+  const label = String(input.label || '').trim().slice(0, 40) || (baseUrl.includes('openrouter') ? `OpenRouter · ${model}` : model);
+  const item: Ext = { id: old?.id ?? `x${Date.now().toString(36)}`, baseUrl, key, model, label, enabled: old?.enabled ?? true };
+  const engines = old ? cfg.engines.map((e) => (e.id === old.id ? item : e)) : [...cfg.engines, item];
+  await seal(ctx.env, CONFIG_KV, { ...cfg, engines });
+  await ctx.env.FILES.delete(LEGACY_KV);
+  await stats(ctx.env, true);
+  await record(ctx.env, item.id, true, r.ms);
+  return { id: item.id, label, ms: r.ms };
+}
+
+/** Modo de escolha, liga/desliga motores e modelos, e ordem de prioridade dos motores externos. */
+export async function setAiConfig(ctx: Ctx, input: { mode?: Mode; enabled?: Record<string, boolean>; order?: string[] }) {
+  requireAdmin(ctx);
+  const cfg = await config(ctx.env);
+  const on = input?.enabled ?? {};
+  let engines = cfg.engines.map((e) => (e.id in on ? { ...e, enabled: !!on[e.id] } : e));
+  if (Array.isArray(input?.order)) {
+    const pos = new Map(input.order.map((id, i) => [id, i]));
+    engines = [...engines].sort((a, b) => (pos.get(a.id) ?? 99) - (pos.get(b.id) ?? 99));
+  }
+  const known = [...CHAINS.texto, ...CHAINS.visao, ...CHAINS.imagem];
+  const off = known.filter((m) => (m in on ? !on[m] : cfg.off.includes(m)));
+  const mode: Mode = input?.mode === 'rapido' || input?.mode === 'prioridade' || input?.mode === 'auto' ? input.mode : cfg.mode;
+  await seal(ctx.env, CONFIG_KV, { engines, off, mode });
+  return null;
+}
+
+/** Remove um motor externo (sem id, todos). A NVIDIA continua como reserva. */
+export async function clearAiEngine(ctx: Ctx, id?: string) {
+  requireAdmin(ctx);
+  const cfg = await config(ctx.env);
+  await seal(ctx.env, CONFIG_KV, { ...cfg, engines: id ? cfg.engines.filter((e) => e.id !== id) : [] });
+  await ctx.env.FILES.delete(LEGACY_KV);
+  if (id) await run(ctx.env.DB, 'DELETE FROM ai_engine_stats WHERE engine_id = ?', id).catch(() => null);
 }
 
 /* ===================== Busca nos conteúdos da escola (Vectorize) ===================== */

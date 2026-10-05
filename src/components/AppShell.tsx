@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Download,
   BookOpen,
+  Building2,
   CalendarDays,
   ClipboardCheck,
   ClipboardList,
@@ -17,6 +18,8 @@ import {
   LogOut,
   Megaphone,
   Menu,
+  ScrollText,
+  type LucideIcon,
   Settings,
   Sparkles,
   UserCog,
@@ -143,18 +146,25 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <Logo variant="dark" compact height={36} />
       </div>
 
+      {isSuperadmin && !inBase ? (
+        <div className="px-3 pb-3">
+          <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500">Administrador</p>
+          {ADMIN_NAV.map((it) => (
+            <NavLink key={it.to} to={it.to} end={it.end} onClick={onNavigate} className={linkCls}>
+              <it.icon size={18} />
+              <span>{it.label}</span>
+            </NavLink>
+          ))}
+        </div>
+      ) : null}
       {isSuperadmin ? (
         <div className="px-3 pb-3">
-          <NavLink to="/admin" end onClick={onNavigate} className={linkCls}>
-            <LayoutGrid size={18} />
-            <span>Painel do administrador</span>
-          </NavLink>
           {inBase ? (
             <div className="mt-3 rounded-lg border border-brand/40 bg-brand/10 p-3">
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-brand">Modo suporte</p>
               <p className="mt-0.5 truncate text-sm font-semibold text-white">{activeBase?.name}</p>
               <button onClick={leaveBase} className="mt-2 text-xs font-semibold text-neutral-300 underline-offset-2 hover:text-white hover:underline">
-                Sair desta base
+                Voltar ao painel do administrador
               </button>
             </div>
           ) : null}
@@ -262,7 +272,7 @@ function TopHeader({ onMenu }: { onMenu: () => void }) {
                 className="shrink-0 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-bold text-neutral-950 hover:brightness-95"
                 title="Sair do modo suporte"
               >
-                Modo suporte · sair
+                ← Painel do administrador
               </button>
             ) : null}
           </div>
@@ -301,11 +311,17 @@ function TopHeader({ onMenu }: { onMenu: () => void }) {
                 <p className="truncate font-semibold text-foreground">{name}</p>
                 <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
               </div>
-              {isSuperadmin ? (
+              {isSuperadmin && activeBase ? (
                 <MenuItem>
-                  <NavLink to="/admin" end className="flex items-center gap-2.5 rounded-lg px-3 py-2 data-[focus]:bg-muted">
+                  <button
+                    onClick={async () => {
+                      await switchOrg(null);
+                      navigate('/admin');
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left data-[focus]:bg-muted"
+                  >
                     <LayoutGrid size={15} /> Painel do administrador
-                  </NavLink>
+                  </button>
                 </MenuItem>
               ) : null}
               {activeBase ? (
@@ -356,6 +372,14 @@ function HeaderBaseSwitcher() {
   );
 }
 
+/** Menu do administrador (só aparece fora de uma escola). */
+const ADMIN_NAV: { to: string; label: string; end: boolean; icon: LucideIcon }[] = [
+  { to: '/admin', label: 'Visão geral', end: true, icon: LayoutGrid },
+  { to: '/admin/escolas', label: 'Escolas', end: false, icon: Building2 },
+  { to: '/admin/usuarios', label: 'Usuários', end: false, icon: UserCog },
+  { to: '/admin/logs', label: 'Logs', end: false, icon: ScrollText },
+];
+
 const topCls = (active: boolean) =>
   cn(
     'relative flex h-12 items-center gap-2 px-3.5 text-sm font-medium transition outline-none',
@@ -379,6 +403,13 @@ function TopNav() {
   return (
     <nav className="bg-neutral-950">
       <div className="mx-auto flex max-w-[1440px] items-center justify-center gap-1 px-6">
+        {isSuperadmin && !inBase
+          ? ADMIN_NAV.map((it) => (
+              <NavLink key={it.to} to={it.to} end={it.end} className={({ isActive: a }) => topCls(a)}>
+                <it.icon size={16} /> {it.label}
+              </NavLink>
+            ))
+          : null}
         {visible.map((g) => {
           if (!g.title || g.items.length === 1) {
             return g.items.map((it) => (

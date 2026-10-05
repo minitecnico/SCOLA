@@ -27,6 +27,7 @@ const EquipePage = lazyPage(() => import('../pages/EquipePage'), 'EquipePage');
 const SettingsPage = lazyPage(() => import('../pages/SettingsPage'), 'SettingsPage');
 const DownloadPlanPage = lazyPage(() => import('../pages/DownloadPlanPage'), 'DownloadPlanPage');
 const SharedReportPage = lazyPage(() => import('../pages/SharedReportPage'), 'SharedReportPage');
+const AdminOverviewPage = lazyPage(() => import('../pages/admin/AdminOverviewPage'), 'AdminOverviewPage');
 const AdminPage = lazyPage(() => import('../pages/admin/AdminPage'), 'AdminPage');
 const PlanDocEditorPage = lazyPage(() => import('../pages/PlanDocEditorPage'), 'PlanDocEditorPage');
 const IAPage = lazyPage(() => import('../pages/IAPage'), 'IAPage');
@@ -77,7 +78,8 @@ function Protected() {
     <AppShell>
       <Suspense fallback={<Loading />}>
         <Routes>
-          {isSuperadmin ? <Route path="/admin" element={<AdminPage />} /> : null}
+          {isSuperadmin ? <Route path="/admin" element={<AdminOverviewPage />} /> : null}
+          {isSuperadmin ? <Route path="/admin/escolas" element={<AdminPage />} /> : null}
           {isSuperadmin ? <Route path="/admin/logs" element={<LogsPage />} /> : null}
           {isSuperadmin ? <Route path="/admin/usuarios" element={<UsersPage />} /> : null}
           {adminHome ? (

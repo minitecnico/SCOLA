@@ -2,12 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, CalendarCheck, LogIn, MoreHorizontal, Pause, Pencil, Play, Plus, Trash2, Users, UserCog } from 'lucide-react';
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
-import { AiEngineCard } from '../../components/AiEngineCard';
 import { successToast } from '../../components/Feedback';
 import { CredentialsModal, TeamManager, type Credentials } from '../../components/TeamManager';
-import { AdminTabs } from '../../components/AdminTabs';
 import { Button, EmptyState, Field, Input, Loading, Modal, PageHeader, SearchInput, Segmented, Select, StatCard } from '../../components/ui';
 import { cn } from '../../lib/cn';
 import { createBase, deleteOrganization, hqStats, listOrgAdmin, setOrgActive, updateOrganization, type OrgAdmin } from '../../lib/queries';
@@ -26,7 +24,8 @@ export function AdminPage() {
   const { data: stats } = useQuery({ queryKey: ['admin-stats'], queryFn: hqStats });
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<'todas' | 'ativas' | 'suspensas'>('todas');
-  const [creating, setCreating] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const [creating, setCreating] = useState(params.get('novo') === '1');
   const [editing, setEditing] = useState<OrgAdmin | null>(null);
   const [team, setTeam] = useState<OrgAdmin | null>(null);
   const [creds, setCreds] = useState<Credentials | null>(null);
@@ -69,14 +68,13 @@ export function AdminPage() {
 
   return (
     <>
-      <AdminTabs />
       <PageHeader
-        title="Painel do administrador"
-        subtitle="Suas bases (escolas e professores), planos e acessos."
+        title="Escolas"
+        subtitle="Escolas e professores: planos, equipes e acesso. Entre em uma para ver os dados dela."
         back={false}
         action={
           <Button onClick={() => setCreating(true)}>
-            <Plus size={16} /> Nova base
+            <Plus size={16} /> Nova escola
           </Button>
         }
       />
@@ -87,8 +85,6 @@ export function AdminPage() {
         <StatCard icon={<UserCog size={18} />} value={stats?.users ?? '—'} label="Usuários" />
         <StatCard icon={<CalendarCheck size={18} />} value={stats?.sessions_30d ?? '—'} label="Chamadas (30 dias)" />
       </div>
-
-      <AiEngineCard />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar base ou cidade…" className="min-w-[14rem] flex-1" />
@@ -110,7 +106,7 @@ export function AdminPage() {
           icon={<Building2 size={24} />}
           title="Nenhuma base ainda"
           hint="Crie a primeira base: você informa a escola (ou o professor) e o gestor responsável recebe um acesso."
-          action={<Button onClick={() => setCreating(true)}><Plus size={16} /> Nova base</Button>}
+          action={<Button onClick={() => setCreating(true)}><Plus size={16} /> Nova escola</Button>}
         />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -193,7 +189,7 @@ export function AdminPage() {
 
       {creating ? (
         <CreateBaseModal
-          onClose={() => setCreating(false)}
+          onClose={() => { setCreating(false); if (params.has('novo')) setParams({}, { replace: true }); }}
           onDone={(c) => {
             refresh();
             setCreating(false);

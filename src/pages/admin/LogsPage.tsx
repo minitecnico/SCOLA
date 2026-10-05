@@ -3,7 +3,6 @@ import {
   Award, Building2, ClipboardCheck, Download, KeyRound, Megaphone, RefreshCw, ScrollText, Settings2, ShieldAlert, UserCog, Users, type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { AdminTabs } from '../../components/AdminTabs';
 import { Button, EmptyState, FilterBar, FilterField, Loading, PageHeader, SegmentedField, StatTile, StatusBadge, fieldCls } from '../../components/ui';
 import { cn } from '../../lib/cn';
 import { downloadXlsx } from '../../lib/importSheet';
@@ -121,7 +120,6 @@ export function LogsPage() {
 
   return (
     <>
-      <AdminTabs />
       <PageHeader
         title="Central de logs"
         subtitle="Quem fez o quê, em qual base, quando e de onde."

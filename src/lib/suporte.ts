@@ -2,7 +2,7 @@ import { rpc } from './api';
 
 /** Suporte nativo: a escola conversa com o administrador do SCOLA (servidor: worker/handlers/suporte.ts). */
 export type SupportThread = {
-  id: string; base_id: string; user_id: string; subject: string; status: 'aberta' | 'resolvida'; last_from: 'escola' | 'suporte';
+  id: string; protocol: string; base_id: string; user_id: string; subject: string; status: 'aberta' | 'resolvida'; last_from: 'escola' | 'suporte';
   last_preview: string; unread_admin: number; unread_user: number; created_at: string; updated_at: string;
 };
 export type SupportMessage = { id: string; thread_id: string; author_id: string; from_admin: number; body: string; created_at: string; author_name: string | null };
@@ -14,7 +14,7 @@ export const suporte = {
   list: () => rpc<SupportThread[]>('listSupportThreads'),
   unread: () => rpc<number>('supportUnreadCount'),
   get: (id: string) => rpc<{ thread: SupportThread; messages: SupportMessage[] }>('getSupportThread', id),
-  create: (input: { subject: string; body: string }) => rpc<{ id: string }>('createSupportThread', input),
+  create: (input: { subject: string; body: string }) => rpc<{ id: string; protocol: string }>('createSupportThread', input),
   reply: (id: string, body: string) => rpc<null>('replySupport', id, body),
   resolve: (id: string) => rpc<null>('resolveSupport', id),
   admin: {

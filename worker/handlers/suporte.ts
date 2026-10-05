@@ -7,7 +7,7 @@ import { notifySupport } from '../hub';
  * o administrador tem uma caixa de entrada única com todas as escolas.
  */
 type Thread = {
-  id: string; base_id: string; user_id: string; subject: string; status: 'aberta' | 'resolvida'; last_from: 'escola' | 'suporte';
+  id: string; protocol: string; base_id: string; user_id: string; subject: string; status: 'aberta' | 'resolvida'; last_from: 'escola' | 'suporte';
   last_preview: string; unread_admin: number; unread_user: number; created_at: string; updated_at: string;
 };
 type Message = { id: string; thread_id: string; author_id: string; from_admin: number; body: string; created_at: string; author_name: string | null };
@@ -54,12 +54,25 @@ export async function createSupportThread(ctx: Ctx, input: { subject: string; bo
   if ((recent?.n ?? 0) >= 5) fail('Você abriu muitas conversas na última hora. Responda nas que já estão abertas.', 429);
   const id = uid();
   const at = now();
-  await ctx.db.batch([
-    stmt(ctx.db, `INSERT INTO support_threads (id, base_id, user_id, subject, status, last_from, last_preview, unread_admin, unread_user, created_at, updated_at) VALUES (?, ?, ?, ?, 'aberta', 'escola', ?, 1, 0, ?, ?)`, id, base, ctx.user.id, subject, preview(body), at, at),
-    stmt(ctx.db, 'INSERT INTO support_messages (id, thread_id, author_id, from_admin, body, created_at) VALUES (?, ?, ?, 0, ?, ?)', uid(), id, ctx.user.id, body, at),
-  ]);
+  const year = at.slice(0, 4);
+  // Protocolo SC-AAAA-NNNN: próximo número do ano. Se duas conversas nascerem juntas, o índice único recusa e tentamos de novo.
+  let protocol = '';
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await ctx.db.batch([
+        stmt(ctx.db, `INSERT INTO support_threads (id, protocol, base_id, user_id, subject, status, last_from, last_preview, unread_admin, unread_user, created_at, updated_at)
+          VALUES (?, 'SC-' || ? || '-' || printf('%04d', (SELECT COALESCE(MAX(CAST(substr(protocol, 9) AS INTEGER)), 0) + 1 FROM support_threads WHERE protocol LIKE 'SC-' || ? || '-%')), ?, ?, ?, 'aberta', 'escola', ?, 1, 0, ?, ?)`,
+          id, year, year, base, ctx.user.id, subject, preview(body), at, at),
+        stmt(ctx.db, 'INSERT INTO support_messages (id, thread_id, author_id, from_admin, body, created_at) VALUES (?, ?, ?, 0, ?, ?)', uid(), id, ctx.user.id, body, at),
+      ]);
+      break;
+    } catch (e) {
+      if (attempt >= 2 || !String((e as Error)?.message).includes('UNIQUE')) throw e;
+    }
+  }
+  protocol = (await first<{ protocol: string }>(ctx.db, 'SELECT protocol FROM support_threads WHERE id = ?', id))?.protocol ?? '';
   await notifySupport(ctx.env, { thread: id, toAdmin: true });
-  return { id };
+  return { id, protocol };
 }
 
 export async function replySupport(ctx: Ctx, id: string, bodyIn: string) {
@@ -89,7 +102,7 @@ export async function listSupportAdmin(ctx: Ctx, input?: { filter?: SupportFilte
   const counts = await first<{ atender: number; respondidas: number; resolvidas: number; nao_lidas: number }>(ctx.db,
     `SELECT SUM(status = 'aberta' AND last_from = 'escola') AS atender, SUM(status = 'aberta' AND last_from = 'suporte') AS respondidas,
             SUM(status = 'resolvida') AS resolvidas, SUM(unread_admin > 0) AS nao_lidas FROM support_threads`);
-  const list = q ? rows.filter((r) => `${r.subject} ${r.base_name} ${r.user_name ?? ''} ${r.user_email} ${r.last_preview}`.toLowerCase().includes(q)) : rows;
+  const list = q ? rows.filter((r) => `${r.protocol} ${r.subject} ${r.base_name} ${r.user_name ?? ''} ${r.user_email} ${r.last_preview}`.toLowerCase().includes(q)) : rows;
   return { threads: list, counts: { atender: counts?.atender ?? 0, respondidas: counts?.respondidas ?? 0, resolvidas: counts?.resolvidas ?? 0, nao_lidas: counts?.nao_lidas ?? 0 } };
 }
 

@@ -51,7 +51,7 @@ export function AdminSuportePage() {
             { value: 'todas', label: 'Todas' },
           ]}
         />
-        <SearchInput value={q} onChange={setQ} placeholder="Buscar escola, pessoa ou assunto…" className="min-w-[14rem] flex-1" />
+        <SearchInput value={q} onChange={setQ} placeholder="Buscar protocolo, escola, pessoa ou assunto…" className="min-w-[14rem] flex-1" />
       </div>
 
       {isLoading ? <Loading /> : !data?.threads.length && !sel ? (
@@ -67,7 +67,7 @@ export function AdminSuportePage() {
                     <p className={cn('min-w-0 flex-1 truncate text-sm', th.unread_admin ? 'font-bold' : 'font-semibold')}>{th.subject}</p>
                     <span className="shrink-0 text-[10px] text-muted-foreground">{when(th.updated_at)}</span>
                   </div>
-                  <p className="truncate text-xs font-semibold text-neutral-700">{th.base_name} · {th.user_name || th.user_email}</p>
+                  <p className="truncate text-xs font-semibold text-neutral-700"><span className="font-mono">{th.protocol}</span> · {th.base_name} · {th.user_name || th.user_email}</p>
                   <p className="truncate text-xs text-muted-foreground">{th.last_from === 'suporte' ? 'Você: ' : ''}{th.last_preview}</p>
                 </button>
               </li>
@@ -81,7 +81,7 @@ export function AdminSuportePage() {
                 <div className="border-b border-border px-3 py-2.5">
                   <div className="flex items-center gap-2">
                     <button onClick={() => setSel(null)} className="grid h-9 w-9 place-items-center rounded-lg hover:bg-muted md:hidden" aria-label="Voltar"><ArrowLeft size={18} /></button>
-                    <p className="min-w-0 flex-1 truncate text-sm font-bold">{t.subject}</p>
+                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{t.subject}</p><p className="font-mono text-[11px] text-muted-foreground">Protocolo {t.protocol}</p></div>
                     {t.status === 'aberta' ? (
                       <Button variant="ghost" className="min-h-9 px-3 py-1.5" onClick={() => status.mutate('resolvida')}><CheckCircle2 size={15} /> Resolver</Button>
                     ) : (

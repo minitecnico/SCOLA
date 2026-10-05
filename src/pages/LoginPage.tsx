@@ -1,4 +1,4 @@
-import { ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { ArrowRight, ChevronDown, Eye, EyeOff, KeyRound, Lock, Mail } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { Logo, LogoMark } from '../components/Logo';
@@ -101,14 +101,37 @@ export function LoginPage() {
             </button>
           </form>
 
-          <button onClick={() => setForgot((v) => !v)} className="mt-5 text-sm font-medium text-neutral-500 underline-offset-4 hover:text-neutral-900 hover:underline">
-            Esqueci minha senha
-          </button>
-          {forgot ? (
-            <p className="mt-3 rounded-lg border-l-4 border-brand bg-brand/10 px-3 py-2.5 text-sm text-neutral-700">
-              Peça à gestão da sua escola para gerar uma senha provisória em <b>Equipe</b>. No próximo acesso você cria uma senha nova.
-            </p>
-          ) : null}
+          <div className="mt-6 border-t border-neutral-200 pt-5">
+            <button
+              type="button"
+              onClick={() => setForgot((v) => !v)}
+              aria-expanded={forgot}
+              className="flex w-full items-center justify-between rounded-lg px-1 py-1 text-sm font-semibold text-neutral-700 transition hover:text-neutral-950"
+            >
+              <span className="flex items-center gap-2"><KeyRound size={16} /> Esqueci minha senha</span>
+              <ChevronDown size={16} className={`transition-transform ${forgot ? 'rotate-180' : ''}`} />
+            </button>
+            {forgot ? (
+              <div className="mt-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-soft">
+                <p className="text-sm font-semibold text-neutral-900">Como recuperar o acesso</p>
+                <ol className="mt-3 space-y-3 text-sm text-neutral-600">
+                  {[
+                    <>Fale com a <b className="text-neutral-900">gestão da sua escola</b>.</>,
+                    <>Peça uma <b className="text-neutral-900">senha provisória</b>: ela é gerada em <b className="text-neutral-900">Equipe</b>, no sistema.</>,
+                    <>Entre com a senha provisória e <b className="text-neutral-900">crie sua senha nova</b> no primeiro acesso.</>,
+                  ].map((t, i) => (
+                    <li key={i} className="flex gap-3">
+                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-neutral-950 text-xs font-bold text-white">{i + 1}</span>
+                      <span className="pt-0.5">{t}</span>
+                    </li>
+                  ))}
+                </ol>
+                <p className="mt-4 rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-600">
+                  É gestor ou professor sem escola vinculada? Fale com o suporte do SCOLA.
+                </p>
+              </div>
+            ) : null}
+          </div>
         </div>
       </main>
     </div>

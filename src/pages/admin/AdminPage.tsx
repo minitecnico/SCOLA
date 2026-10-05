@@ -7,6 +7,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { AiEngineCard } from '../../components/AiEngineCard';
 import { successToast } from '../../components/Feedback';
 import { CredentialsModal, TeamManager, type Credentials } from '../../components/TeamManager';
+import { AdminTabs } from '../../components/AdminTabs';
 import { Button, EmptyState, Field, Input, Loading, Modal, PageHeader, SearchInput, Segmented, Select, StatCard } from '../../components/ui';
 import { cn } from '../../lib/cn';
 import { createBase, deleteOrganization, hqStats, listOrgAdmin, setOrgActive, updateOrganization, type OrgAdmin } from '../../lib/queries';
@@ -68,6 +69,7 @@ export function AdminPage() {
 
   return (
     <>
+      <AdminTabs />
       <PageHeader
         title="Painel do administrador"
         subtitle="Suas bases (escolas e professores), planos e acessos."

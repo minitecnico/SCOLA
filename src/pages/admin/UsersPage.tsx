@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../auth/AuthProvider';
 import { successToast } from '../../components/Feedback';
 import { CredentialsModal, type Credentials } from '../../components/TeamManager';
+import { AdminTabs } from '../../components/AdminTabs';
 import { Button, EmptyState, Field, Input, Loading, Modal, PageHeader, SearchInput, Segmented, Select } from '../../components/ui';
 import { cn } from '../../lib/cn';
 import {
@@ -46,6 +47,7 @@ export function UsersPage() {
 
   return (
     <>
+      <AdminTabs />
       <PageHeader title="Usuários" subtitle="Todas as contas da plataforma: dados de login, senha, bloqueio e bases." />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">

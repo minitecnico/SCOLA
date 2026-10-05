@@ -13,7 +13,6 @@ import {
   GraduationCap,
   Home,
   LayoutGrid,
-  ScrollText,
   ScanLine,
   LogOut,
   Megaphone,
@@ -149,14 +148,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <NavLink to="/admin" end onClick={onNavigate} className={linkCls}>
             <LayoutGrid size={18} />
             <span>Painel do administrador</span>
-          </NavLink>
-          <NavLink to="/admin/usuarios" onClick={onNavigate} className={linkCls}>
-            <UserCog size={18} />
-            <span>Usuários</span>
-          </NavLink>
-          <NavLink to="/admin/logs" onClick={onNavigate} className={linkCls}>
-            <ScrollText size={18} />
-            <span>Central de logs</span>
           </NavLink>
           {inBase ? (
             <div className="mt-3 rounded-lg border border-brand/40 bg-brand/10 p-3">
@@ -388,17 +379,6 @@ function TopNav() {
   return (
     <nav className="bg-neutral-950">
       <div className="mx-auto flex max-w-[1440px] items-center justify-center gap-1 px-6">
-        {isSuperadmin ? (
-          <>
-            <NavLink to="/admin/usuarios" className={({ isActive: a }) => topCls(a)}>
-              <UserCog size={16} /> Usuários
-            </NavLink>
-            <NavLink to="/admin/logs" className={({ isActive: a }) => topCls(a)}>
-              <ScrollText size={16} /> Logs
-            </NavLink>
-            {inBase ? <span className="mx-2 h-5 w-px bg-white/15" /> : null}
-          </>
-        ) : null}
         {visible.map((g) => {
           if (!g.title || g.items.length === 1) {
             return g.items.map((it) => (

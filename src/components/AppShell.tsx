@@ -273,16 +273,23 @@ function TopHeader({ onMenu }: { onMenu: () => void }) {
           <Logo compact height={28} />
         </NavLink>
         {activeBase ? (
-          <div className="hidden min-w-0 items-center gap-2.5 border-l border-border pl-4 md:flex">
-            {activeBase.logo_url ? <img src={activeBase.logo_url} alt="" className="h-8 w-8 shrink-0 rounded-md object-contain" /> : null}
-            <p className="truncate text-sm font-semibold text-foreground">{activeBase.name}</p>
+          <div className="hidden min-w-0 items-center gap-3 border-l border-border pl-5 md:flex">
+            {activeBase.logo_url ? (
+              <img src={activeBase.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-lg bg-white object-contain p-0.5 ring-1 ring-border" />
+            ) : (
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-neutral-950 text-sm font-bold text-white">{activeBase.name.slice(0, 1).toUpperCase()}</span>
+            )}
+            <div className="min-w-0 leading-tight">
+              <p className="truncate text-sm font-semibold text-foreground">{activeBase.name}</p>
+              <p className="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Ano letivo {new Date().getFullYear()}</p>
+            </div>
             {isSuperadmin ? (
               <button
                 onClick={async () => {
                   await switchOrg(null);
                   navigate('/admin');
                 }}
-                className="shrink-0 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-bold text-neutral-950 hover:brightness-95"
+                className="shrink-0 rounded-full border border-border bg-muted px-3 py-1 text-[11px] font-semibold text-foreground transition hover:bg-neutral-200"
                 title="Sair do modo suporte"
               >
                 ← Painel do administrador
@@ -297,25 +304,23 @@ function TopHeader({ onMenu }: { onMenu: () => void }) {
             </div>
           ) : null}
           {activeBase ? (
-            <NavLink to="/avisos" className="relative grid h-10 w-10 place-items-center rounded-lg text-foreground hover:bg-muted" aria-label="Avisos">
-              <Bell size={19} />
+            <NavLink to="/avisos" className="relative grid h-10 w-10 place-items-center rounded-full text-neutral-700 ring-1 ring-inset ring-border transition hover:bg-muted hover:text-foreground" aria-label="Avisos" title="Avisos">
+              <Bell size={18} />
               {unread ? (
                 <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>
               ) : null}
             </NavLink>
           ) : null}
           <HMenu as="div" className="relative">
-            <MenuButton className="flex items-center gap-2.5 rounded-lg py-1 pl-2 pr-1 hover:bg-muted">
-              <span className="hidden text-right leading-tight xl:block">
-                <span className="block text-sm text-muted-foreground">
-                  Olá, <b className="font-semibold text-foreground">{first}</b>
-                </span>
-                <span className="block text-[11px] text-muted-foreground">{isSuperadmin ? 'Administrador' : role ? ROLE_LABEL[role] : ''}</span>
+            <MenuButton className="ml-1 flex items-center gap-3 rounded-full border border-transparent py-1 pl-3 pr-2 transition hover:border-border hover:bg-muted/60 data-[open]:border-border data-[open]:bg-muted/60">
+              <span className="hidden text-right leading-tight lg:block">
+                <span className="block max-w-[11rem] truncate text-sm font-semibold text-foreground">{name.split(' ').slice(0, 2).join(' ')}</span>
+                <span className="block text-[11px] font-medium text-muted-foreground">{isSuperadmin ? 'Administrador' : role ? ROLE_LABEL[role] : ''}</span>
               </span>
               {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="" className="h-9 w-9 rounded-lg object-cover" />
+                <img src={profile.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover ring-1 ring-border" />
               ) : (
-                <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand text-sm font-bold uppercase text-neutral-950">{first.slice(0, 1)}</span>
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-neutral-950 text-sm font-bold uppercase text-white">{first.slice(0, 1)}</span>
               )}
               <ChevronDown size={14} className="text-muted-foreground" />
             </MenuButton>

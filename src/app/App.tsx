@@ -27,6 +27,8 @@ const EquipePage = lazyPage(() => import('../pages/EquipePage'), 'EquipePage');
 const SettingsPage = lazyPage(() => import('../pages/SettingsPage'), 'SettingsPage');
 const DownloadPlanPage = lazyPage(() => import('../pages/DownloadPlanPage'), 'DownloadPlanPage');
 const SharedReportPage = lazyPage(() => import('../pages/SharedReportPage'), 'SharedReportPage');
+const AdminSuportePage = lazyPage(() => import('../pages/admin/AdminSuportePage'), 'AdminSuportePage');
+const SuportePage = lazyPage(() => import('../pages/SuportePage'), 'SuportePage');
 const AdminOverviewPage = lazyPage(() => import('../pages/admin/AdminOverviewPage'), 'AdminOverviewPage');
 const AdminPage = lazyPage(() => import('../pages/admin/AdminPage'), 'AdminPage');
 const PlanDocEditorPage = lazyPage(() => import('../pages/PlanDocEditorPage'), 'PlanDocEditorPage');
@@ -80,6 +82,7 @@ function Protected() {
         <Routes>
           {isSuperadmin ? <Route path="/admin" element={<AdminOverviewPage />} /> : null}
           {isSuperadmin ? <Route path="/admin/escolas" element={<AdminPage />} /> : null}
+          {isSuperadmin ? <Route path="/admin/suporte" element={<AdminSuportePage />} /> : null}
           {isSuperadmin ? <Route path="/admin/logs" element={<LogsPage />} /> : null}
           {isSuperadmin ? <Route path="/admin/usuarios" element={<UsersPage />} /> : null}
           {adminHome ? (
@@ -105,6 +108,7 @@ function Protected() {
               <Route path="/alunos" element={<Gate module="alunos"><StudentsPage /></Gate>} />
               <Route path="/equipe" element={<Gate module="equipe"><EquipePage /></Gate>} />
               <Route path="/ano-letivo" element={<Gate module="anoletivo"><AnoLetivoPage /></Gate>} />
+              <Route path="/suporte" element={<Gate module="suporte"><SuportePage /></Gate>} />
               <Route path="/configuracoes" element={<SettingsPage />} />
               <Route path="/baixar/:id" element={<DownloadPlanPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />

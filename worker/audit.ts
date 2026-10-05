@@ -144,6 +144,10 @@ export const ACTIONS: Record<string, Spec> = {
   sendExamToGrades: { cat: 'notas', label: 'Lançou notas da prova no diário', refs: (a) => ({ text: term(a[2], a[1]) }), result: (r) => (r ? `${r.sent} aluno(s) na coluna ${r.column}` : null) },
   // Comunicação e planejamento
   sendNotice: { cat: 'comunicacao', label: 'Enviou aviso', refs: (a) => ({ text: s(a[0]?.title) }) },
+  createSupportThread: { cat: 'comunicacao', label: 'Abriu conversa com o suporte', refs: (a) => ({ text: s(a[0]?.subject) }) },
+  replySupport: { cat: 'comunicacao', label: 'Respondeu ao suporte' },
+  replySupportAdmin: { cat: 'comunicacao', label: 'Respondeu uma escola pelo suporte' },
+  setSupportStatus: { cat: 'comunicacao', label: 'Mudou a situação de uma conversa do suporte' },
   deleteNotice: { cat: 'comunicacao', label: 'Excluiu aviso' },
   createCalendar: { cat: 'comunicacao', label: 'Criou calendário', refs: (a) => ({ text: s(a[0]?.title) }) },
   saveCalendar: { cat: 'comunicacao', label: 'Editou calendário', refs: (a) => ({ text: s(a[0]?.title) }) },

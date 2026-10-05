@@ -18,6 +18,7 @@ import {
   LogOut,
   Megaphone,
   Menu,
+  LifeBuoy,
   ScrollText,
   type LucideIcon,
   Settings,
@@ -34,6 +35,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { cn } from '../lib/cn';
 import { can, type ModuleKey } from '../lib/permissions';
 import { planUnreadCounts, unreadNoticeCount } from '../lib/queries';
+import { suporte } from '../lib/suporte';
 import { ROLE_LABEL } from '../lib/types';
 import { useOnlineStatus } from '../lib/useOnlineStatus';
 import { Logo } from './Logo';
@@ -71,7 +73,7 @@ const groups: { title?: string; items: NavItem[] }[] = [
       { label: 'Ano letivo', to: '/ano-letivo', icon: <Archive size={18} />, module: 'anoletivo' },
     ],
   },
-  { title: 'Conta', items: [{ label: 'Configurações', to: '/configuracoes', icon: <Settings size={18} />, module: 'configuracoes' }] },
+  { title: 'Conta', items: [{ label: 'Suporte', to: '/suporte', icon: <LifeBuoy size={18} />, module: 'suporte' }, { label: 'Configurações', to: '/configuracoes', icon: <Settings size={18} />, module: 'configuracoes' }] },
 ];
 
 const linkCls = ({ isActive }: { isActive: boolean }) =>
@@ -129,9 +131,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     retry: false,
   });
   const planUnread = Object.values(planUnreadMap).reduce((a, b) => a + b, 0);
+  const adminUnread = useAdminSupportUnread();
+  const { data: supUnread = 0 } = useQuery({ queryKey: ['support-unread'], queryFn: suporte.unread, enabled: !!user && inBase && !isSuperadmin, refetchInterval: 60_000 });
 
   const visibleGroups = inBase
-    ? groups.map((g) => ({ ...g, items: g.items.filter((it) => can(role, it.module)) })).filter((g) => g.items.length > 0)
+    ? groups.map((g) => ({ ...g, items: g.items.filter((it) => can(role, it.module) && !(isSuperadmin && it.to === '/suporte')) })).filter((g) => g.items.length > 0)
     : [];
 
   async function leaveBase() {
@@ -153,6 +157,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <NavLink key={it.to} to={it.to} end={it.end} onClick={onNavigate} className={linkCls}>
               <it.icon size={18} />
               <span>{it.label}</span>
+              {it.to === '/admin/suporte' && adminUnread > 0 ? <Badge n={adminUnread} /> : null}
             </NavLink>
           ))}
         </div>
@@ -196,6 +201,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                   <span>{item.label}</span>
                   {item.to === '/avisos' && unread > 0 ? <Badge n={unread} /> : null}
                   {item.to === '/planejamento' && planUnread > 0 ? <Badge n={planUnread} /> : null}
+                  {item.to === '/suporte' && supUnread > 0 ? <Badge n={supUnread} /> : null}
                 </NavLink>
               ))}
             </div>
@@ -235,6 +241,12 @@ function useCounts() {
   const { data: unread = 0 } = useQuery({ queryKey: ['notices-unread', user?.id], queryFn: () => unreadNoticeCount(), enabled: !!user && inBase, refetchInterval: 60_000 });
   const { data: planMap = {} } = useQuery({ queryKey: ['plan-unread'], queryFn: planUnreadCounts, enabled: !!user && inBase, refetchInterval: 60_000, retry: false });
   return { unread, planUnread: Object.values(planMap).reduce((a, b) => a + b, 0) };
+}
+
+/** Conversas do suporte aguardando o administrador (só roda para ele, fora de uma escola). */
+function useAdminSupportUnread() {
+  const { isSuperadmin, activeBase } = useAuth();
+  return useQuery({ queryKey: ['support-admin-unread'], queryFn: suporte.admin.unread, enabled: isSuperadmin && !activeBase, refetchInterval: 30_000 }).data ?? 0;
 }
 
 function TopHeader({ onMenu }: { onMenu: () => void }) {
@@ -331,6 +343,13 @@ function TopHeader({ onMenu }: { onMenu: () => void }) {
                   </NavLink>
                 </MenuItem>
               ) : null}
+              {activeBase && !isSuperadmin ? (
+                <MenuItem>
+                  <NavLink to="/suporte" className="flex items-center gap-2.5 rounded-lg px-3 py-2 data-[focus]:bg-muted">
+                    <LifeBuoy size={15} /> Suporte
+                  </NavLink>
+                </MenuItem>
+              ) : null}
               {canPrompt || ios ? (
                 <MenuItem>
                   <button onClick={() => (canPrompt ? void install() : setIosHelp(true))} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left data-[focus]:bg-muted">
@@ -376,6 +395,7 @@ function HeaderBaseSwitcher() {
 const ADMIN_NAV: { to: string; label: string; end: boolean; icon: LucideIcon }[] = [
   { to: '/admin', label: 'Visão geral', end: true, icon: LayoutGrid },
   { to: '/admin/escolas', label: 'Escolas', end: false, icon: Building2 },
+  { to: '/admin/suporte', label: 'Atendimento', end: false, icon: LifeBuoy },
   { to: '/admin/usuarios', label: 'Usuários', end: false, icon: UserCog },
   { to: '/admin/logs', label: 'Logs', end: false, icon: ScrollText },
 ];
@@ -390,6 +410,7 @@ function TopNav() {
   const { role, activeBase, isSuperadmin } = useAuth();
   const { pathname } = useLocation();
   const { unread, planUnread } = useCounts();
+  const adminUnread = useAdminSupportUnread();
   const inBase = !!activeBase;
   const badge = (to: string) => (to === '/avisos' ? unread : to === '/planejamento' ? planUnread : 0);
   const visible = inBase
@@ -407,6 +428,7 @@ function TopNav() {
           ? ADMIN_NAV.map((it) => (
               <NavLink key={it.to} to={it.to} end={it.end} className={({ isActive: a }) => topCls(a)}>
                 <it.icon size={16} /> {it.label}
+                {it.to === '/admin/suporte' && adminUnread > 0 ? <span className="ml-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">{adminUnread}</span> : null}
               </NavLink>
             ))
           : null}

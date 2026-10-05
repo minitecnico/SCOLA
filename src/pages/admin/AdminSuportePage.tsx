@@ -24,8 +24,8 @@ export function AdminSuportePage() {
   const [filter, setFilter] = useState<SupportFilter>('atender');
   const [q, setQ] = useState('');
   const [sel, setSel] = useState<string | null>(null);
-  const { data, isLoading } = useQuery({ queryKey: ['support-admin', filter, q], queryFn: () => suporte.admin.list({ filter, q }), refetchInterval: 15_000 });
-  const { data: open } = useQuery({ queryKey: ['support-admin-thread', sel], queryFn: () => suporte.admin.get(sel!), enabled: !!sel, refetchInterval: 8_000 });
+  const { data, isLoading } = useQuery({ queryKey: ['support-admin', filter, q], queryFn: () => suporte.admin.list({ filter, q }), refetchInterval: 60_000 });
+  const { data: open } = useQuery({ queryKey: ['support-admin-thread', sel], queryFn: () => suporte.admin.get(sel!), enabled: !!sel, refetchInterval: 60_000 });
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['support-admin'] });
     qc.invalidateQueries({ queryKey: ['support-admin-thread'] });

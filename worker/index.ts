@@ -24,6 +24,7 @@ import * as provas from './handlers/provas';
 import * as usuarios from './handlers/usuarios';
 import * as ia from './ia';
 import * as suporte from './handlers/suporte';
+export { SupportHub } from './hub';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
@@ -438,8 +439,21 @@ app.get('/api/public/reports/:id', async (c) => {
 
 app.all('/api/*', (c) => c.json({ error: 'Rota não encontrada.' }, 404));
 
+/** Tempo real do suporte: fica fora do Hono para a resposta 101 (WebSocket) passar intacta (sem cabeçalhos extras). */
+async function supportSocket(req: Request, env: Env) {
+  if (req.headers.get('Upgrade') !== 'websocket') return Response.json({ error: 'Esperado WebSocket.' }, { status: 426 });
+  const token = /(?:^|;\s*)scola_sessao=([^;]+)/.exec(req.headers.get('cookie') ?? '')?.[1];
+  const user = await userFromToken(env.DB, token ? decodeURIComponent(token) : undefined);
+  if (!user || user.must_change_pw) return Response.json({ error: 'Sessão expirada. Entre novamente.' }, { status: 401 });
+  const out = new Request(req);
+  out.headers.set('x-scola-user', user.id);
+  out.headers.set('x-scola-admin', user.is_admin ? '1' : '0');
+  return env.SUPPORT_HUB.get(env.SUPPORT_HUB.idFromName('hub')).fetch(out);
+}
+
 export default {
-  fetch: app.fetch,
+  fetch: (req: Request, env: Env, ctx: ExecutionContext) =>
+    new URL(req.url).pathname === '/api/support/ws' ? supportSocket(req, env) : app.fetch(req, env, ctx),
   /** Rotina diária: apaga do KV os anexos de itens/bases excluídos (poucos por vez, limite do plano grátis). */
   async scheduled(_controller: ScheduledController, env: Env) {
     // Logs: guarda 180 dias (cabe folgado no plano gratuito do D1).

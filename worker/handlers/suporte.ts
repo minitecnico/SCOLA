@@ -1,5 +1,6 @@
 import { requireAdmin, requireBase, type Ctx } from '../auth';
 import { all, fail, first, now, run, stmt, uid } from '../db';
+import { notifySupport } from '../hub';
 
 /**
  * Suporte nativo: a escola abre conversas com o administrador do SCOLA e acompanha as respostas;
@@ -57,6 +58,7 @@ export async function createSupportThread(ctx: Ctx, input: { subject: string; bo
     stmt(ctx.db, `INSERT INTO support_threads (id, base_id, user_id, subject, status, last_from, last_preview, unread_admin, unread_user, created_at, updated_at) VALUES (?, ?, ?, ?, 'aberta', 'escola', ?, 1, 0, ?, ?)`, id, base, ctx.user.id, subject, preview(body), at, at),
     stmt(ctx.db, 'INSERT INTO support_messages (id, thread_id, author_id, from_admin, body, created_at) VALUES (?, ?, ?, 0, ?, ?)', uid(), id, ctx.user.id, body, at),
   ]);
+  await notifySupport(ctx.env, { thread: id, toAdmin: true });
   return { id };
 }
 
@@ -69,6 +71,7 @@ export async function replySupport(ctx: Ctx, id: string, bodyIn: string) {
     stmt(ctx.db, 'INSERT INTO support_messages (id, thread_id, author_id, from_admin, body, created_at) VALUES (?, ?, ?, 0, ?, ?)', uid(), id, ctx.user.id, body, at),
     stmt(ctx.db, `UPDATE support_threads SET status = 'aberta', last_from = 'escola', last_preview = ?, unread_admin = unread_admin + 1, updated_at = ? WHERE id = ?`, preview(body), at, id),
   ]);
+  await notifySupport(ctx.env, { thread: id, toAdmin: true });
 }
 
 /* ------------------------------ Administrador (caixa de entrada) ------------------------------ */
@@ -111,7 +114,8 @@ export async function getSupportThreadAdmin(ctx: Ctx, id: string) {
 
 export async function replySupportAdmin(ctx: Ctx, id: string, bodyIn: string, resolve?: boolean) {
   requireAdmin(ctx);
-  if (!(await first(ctx.db, 'SELECT 1 AS ok FROM support_threads WHERE id = ?', id))) fail('Conversa não encontrada.', 404);
+  const th = await first<{ user_id: string }>(ctx.db, 'SELECT user_id FROM support_threads WHERE id = ?', id);
+  if (!th) fail('Conversa não encontrada.', 404);
   const body = clip(bodyIn, 4000);
   if (!body) fail('Escreva a mensagem.');
   const at = now();
@@ -119,16 +123,20 @@ export async function replySupportAdmin(ctx: Ctx, id: string, bodyIn: string, re
     stmt(ctx.db, 'INSERT INTO support_messages (id, thread_id, author_id, from_admin, body, created_at) VALUES (?, ?, ?, 1, ?, ?)', uid(), id, ctx.user.id, body, at),
     stmt(ctx.db, `UPDATE support_threads SET status = ?, last_from = 'suporte', last_preview = ?, unread_user = unread_user + 1, unread_admin = 0, updated_at = ? WHERE id = ?`, resolve ? 'resolvida' : 'aberta', preview(body), at, id),
   ]);
+  await notifySupport(ctx.env, { thread: id, userId: th!.user_id, toAdmin: true });
 }
 
 export async function setSupportStatus(ctx: Ctx, id: string, status: 'aberta' | 'resolvida') {
   requireAdmin(ctx);
   if (status !== 'aberta' && status !== 'resolvida') fail('Situação inválida.');
   await run(ctx.db, 'UPDATE support_threads SET status = ?, unread_admin = 0 WHERE id = ?', status, id);
+  const th = await first<{ user_id: string }>(ctx.db, 'SELECT user_id FROM support_threads WHERE id = ?', id);
+  await notifySupport(ctx.env, { thread: id, userId: th?.user_id, toAdmin: true });
 }
 
 /** A escola também pode encerrar a própria conversa ("já resolvi"). */
 export async function resolveSupport(ctx: Ctx, id: string) {
   await ownThread(ctx, id);
   await run(ctx.db, "UPDATE support_threads SET status = 'resolvida', unread_user = 0 WHERE id = ?", id);
+  await notifySupport(ctx.env, { thread: id, toAdmin: true });
 }

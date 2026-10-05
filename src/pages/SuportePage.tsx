@@ -14,8 +14,8 @@ export function SuportePage() {
   const { user } = useAuth();
   const [sel, setSel] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const { data: threads = [], isLoading } = useQuery({ queryKey: ['support-threads'], queryFn: suporte.list, refetchInterval: 20_000 });
-  const { data: open } = useQuery({ queryKey: ['support-thread', sel], queryFn: () => suporte.get(sel!), enabled: !!sel, refetchInterval: 10_000 });
+  const { data: threads = [], isLoading } = useQuery({ queryKey: ['support-threads'], queryFn: suporte.list, refetchInterval: 60_000 });
+  const { data: open } = useQuery({ queryKey: ['support-thread', sel], queryFn: () => suporte.get(sel!), enabled: !!sel, refetchInterval: 60_000 });
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['support-threads'] });
     qc.invalidateQueries({ queryKey: ['support-thread'] });

@@ -8,6 +8,7 @@ export type Env = {
   DB: D1Database;
   FILES: KVNamespace;
   VECTORIZE: VectorizeIndex;
+  SUPPORT_HUB: DurableObjectNamespace; // tempo real do suporte (worker/hub.ts)
   ASSETS: Fetcher;
   PBKDF2_ITER?: string;
   // Integração Google (opcional): segredos do Worker. Sem eles o botão "Conectar Google" fica oculto.

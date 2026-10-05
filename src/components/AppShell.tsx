@@ -36,6 +36,7 @@ import { cn } from '../lib/cn';
 import { can, type ModuleKey } from '../lib/permissions';
 import { planUnreadCounts, unreadNoticeCount } from '../lib/queries';
 import { suporte } from '../lib/suporte';
+import { useSupportLive } from '../lib/useSupportLive';
 import { ROLE_LABEL } from '../lib/types';
 import { useOnlineStatus } from '../lib/useOnlineStatus';
 import { Logo } from './Logo';
@@ -476,6 +477,8 @@ function TopNav() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
+  const { isSuperadmin, activeBase } = useAuth();
+  useSupportLive(isSuperadmin || !!activeBase);
   const online = useOnlineStatus();
   const [open, setOpen] = useState(false);
 

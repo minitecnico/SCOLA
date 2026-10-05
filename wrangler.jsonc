@@ -18,6 +18,9 @@
   ],
   // Assistente (RAG): índice de busca no Vectorize. Os modelos de IA são configurados por chave (ver README).
   "vectorize": [{ "binding": "VECTORIZE", "index_name": "scola-rag" }],
+  // Suporte em tempo real: Durable Object com SQLite (disponível no plano gratuito).
+  "durable_objects": { "bindings": [{ "name": "SUPPORT_HUB", "class_name": "SupportHub" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SupportHub"] }],
   // Limpeza diária dos anexos excluídos (03:00 UTC).
   "triggers": { "crons": ["0 3 * * *"] },
   "observability": { "enabled": true }

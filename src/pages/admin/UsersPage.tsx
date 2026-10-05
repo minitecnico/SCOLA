@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ban, Building2, ChevronRight, KeyRound, LogOut, Mail, Phone, ShieldCheck, Trash2, UserCog, UserRound } from 'lucide-react';
+import { Ban, Building2, ChevronRight, KeyRound, LogOut, Mail, Phone, Plus, ShieldCheck, Trash2, UserCog, UserRound } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../auth/AuthProvider';
 import { successToast } from '../../components/Feedback';
@@ -7,7 +7,7 @@ import { CredentialsModal, type Credentials } from '../../components/TeamManager
 import { Button, EmptyState, Field, Input, Loading, Modal, PageHeader, SearchInput, Segmented, Select } from '../../components/ui';
 import { cn } from '../../lib/cn';
 import {
-  deleteUserAdmin, endUserSessions, listOrgAdmin, listUsersAdmin, setUserBase, setUserDisabled, setUserPasswordAdmin, updateUserAdmin, type AdminUser,
+  addMember, deleteUserAdmin, endUserSessions, listOrgAdmin, listUsersAdmin, setUserBase, setUserDisabled, setUserPasswordAdmin, updateUserAdmin, type AdminUser,
 } from '../../lib/queries';
 import { ASSIGNABLE_ROLES, ROLE_LABEL, type AppRole } from '../../lib/types';
 
@@ -24,6 +24,12 @@ export function UsersPage() {
   const { data: users = [], isLoading } = useQuery({ queryKey: ['admin-users'], queryFn: listUsersAdmin });
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>('todos');
+  const [school, setSchool] = useState('');
+  const [role, setRole] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [creds, setCreds] = useState<Credentials | null>(null);
+  const qc = useQueryClient();
+  const { data: schools = [] } = useQuery({ queryKey: ['admin-bases'], queryFn: listOrgAdmin });
   const [openId, setOpenId] = useState<string | null>(null);
   const open = users.find((u) => u.id === openId) ?? null;
 
@@ -35,21 +41,36 @@ export function UsersPage() {
           (filter === 'bloqueados' && u.disabled) ||
           (filter === 'provisoria' && u.must_change_pw) ||
           (filter === 'nunca' && !u.last_login_at)) &&
+        (!school || u.bases.some((b) => b.base_id === school)) &&
+        (!role || u.bases.some((b) => b.role === role && (!school || b.base_id === school))) &&
         (!t ||
           (u.full_name ?? '').toLowerCase().includes(t) ||
           u.email.toLowerCase().includes(t) ||
           (u.phone ?? '').includes(t) ||
           u.bases.some((b) => b.base_name.toLowerCase().includes(t))),
     );
-  }, [users, q, filter]);
+  }, [users, q, filter, school, role]);
   const count = (f: Filter) => users.filter((u) => (f === 'bloqueados' ? u.disabled : f === 'provisoria' ? u.must_change_pw : !u.last_login_at)).length;
 
   return (
     <>
-      <PageHeader title="Usuários" subtitle="Todas as contas da plataforma: dados de login, senha, bloqueio e bases." />
+      <PageHeader
+        title="Usuários"
+        subtitle="Todas as contas da plataforma: cadastro, escola e papel, senha, bloqueio e acesso."
+        back={false}
+        action={<Button onClick={() => setCreating(true)}><Plus size={16} /> Novo usuário</Button>}
+      />
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <SearchInput value={q} onChange={setQ} placeholder="Buscar por nome, e-mail, telefone ou base…" className="min-w-[14rem] flex-1" />
+        <Select value={school} onChange={(e) => setSchool(e.target.value)} className="w-full sm:w-52" aria-label="Escola">
+          <option value="">Todas as escolas</option>
+          {schools.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </Select>
+        <Select value={role} onChange={(e) => setRole(e.target.value)} className="w-full sm:w-44" aria-label="Papel">
+          <option value="">Todos os papéis</option>
+          {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+        </Select>
         <Segmented<Filter>
           value={filter}
           onChange={setFilter}
@@ -107,7 +128,62 @@ export function UsersPage() {
       )}
 
       {open ? <UserModal user={open} onClose={() => setOpenId(null)} /> : null}
+      {creating ? (
+        <NewUserModal
+          schools={schools.filter((b) => b.active)}
+          onClose={() => setCreating(false)}
+          onDone={(c) => {
+            qc.invalidateQueries({ queryKey: ['admin-users'] });
+            qc.invalidateQueries({ queryKey: ['admin-bases'] });
+            qc.invalidateQueries({ queryKey: ['admin-stats'] });
+            setCreating(false);
+            if (c) setCreds(c);
+            else successToast('Pessoa vinculada à escola (já tinha conta e usa a mesma senha)');
+          }}
+        />
+      ) : null}
+      <CredentialsModal creds={creds} onClose={() => setCreds(null)} />
     </>
+  );
+}
+
+/** Cadastro de usuário pelo administrador: escolhe a escola e o papel; sai uma senha provisória para repassar. */
+function NewUserModal({ schools, onClose, onDone }: { schools: { id: string; name: string }[]; onClose: () => void; onDone: (c: Credentials | null) => void }) {
+  const [form, setForm] = useState({ full_name: '', email: '', phone: '', baseId: schools[0]?.id ?? '', role: 'professor' as AppRole });
+  const create = useMutation({
+    mutationFn: async () => {
+      const r = await addMember(form.baseId, { email: form.email, full_name: form.full_name, role: form.role });
+      if (form.phone.trim() && r.password) await updateUserAdmin(r.userId, { full_name: form.full_name, email: r.email, phone: form.phone.trim() });
+      return r;
+    },
+    onSuccess: (r) => onDone(r.password ? { name: form.full_name, email: r.email, password: r.password } : null),
+  });
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value });
+  return (
+    <Modal open onClose={onClose} title="Novo usuário">
+      <form onSubmit={(e) => { e.preventDefault(); create.mutate(); }} className="space-y-4">
+        <Field label="Nome completo"><Input value={form.full_name} onChange={set('full_name')} required autoFocus placeholder="Ex.: Maria da Silva" /></Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="E-mail (login)"><Input type="email" value={form.email} onChange={set('email')} required placeholder="nome@escola.com" /></Field>
+          <Field label="Telefone (opcional)"><Input value={form.phone} onChange={set('phone')} placeholder="(00) 00000-0000" /></Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Escola">
+            <Select value={form.baseId} onChange={set('baseId')} required>
+              {schools.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </Select>
+          </Field>
+          <Field label="Papel na escola">
+            <Select value={form.role} onChange={set('role')}>
+              {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+            </Select>
+          </Field>
+        </div>
+        <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">Será criada uma senha provisória, mostrada uma vez para você repassar. No primeiro acesso a pessoa define a própria senha. Se o e-mail já tiver conta, ela só é vinculada à escola.</p>
+        {create.error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{(create.error as Error).message}</p> : null}
+        <Button type="submit" className="w-full" disabled={create.isPending || !form.baseId}>{create.isPending ? 'Cadastrando…' : 'Cadastrar usuário'}</Button>
+      </form>
+    </Modal>
   );
 }
 

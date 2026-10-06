@@ -1,9 +1,6 @@
 import { Hono, type Context } from 'hono';
-import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
-import {
-  assertNotLocked, buildCtx, burnPasswordCheck, clearFailures, createSession, destroySession, hashPassword, iterationsFor, needsRehash,
-  recordFailure, requireBase, requireRole, SESSION_COOKIE, userFromToken, verifyPassword, type Ctx, type UserRow,
-} from './auth';
+import { deleteCookie, getCookie } from 'hono/cookie';
+import { buildCtx, destroySession, requireBase, requireRole, SESSION_COOKIE, userFromToken, type Ctx, type UserRow } from './auth';
 import { ACTIONS, deviceOf, insertLog, labelOf, type LogEntry, type Refs } from './audit';
 import { clearBaseCache } from './cache';
 import { all, fail, first, HttpError, parse, run, uid, type Env } from './db';
@@ -22,17 +19,18 @@ import * as logs from './handlers/logs';
 import * as notas from './handlers/notas';
 import * as painel from './handlers/painel';
 import * as provas from './handlers/provas';
+import * as seguranca from './handlers/seguranca';
 import * as usuarios from './handlers/usuarios';
 import * as ia from './ia';
 import * as suporte from './handlers/suporte';
-import { confirmReset, requestReset } from './recovery';
+import { authRoutes } from './authflow';
 export { SupportHub } from './hub';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
 const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades', 'docInBase', 'folderInBase', 'canEditDoc', 'saveEditableContent', 'ragForget', 'chatStream']);
 const handlers: Record<string, Handler> = {};
-for (const mod of [alertas, anoletivo, cadastros, editor, feriados, folders, google, ia, chamadas, comunicacao, contas, logs, notas, painel, provas, suporte, usuarios]) {
+for (const mod of [alertas, anoletivo, cadastros, editor, feriados, folders, google, ia, chamadas, comunicacao, contas, logs, notas, painel, provas, seguranca, suporte, usuarios]) {
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn === 'function' && !INTERNAL.has(name)) handlers[name] = fn as Handler;
   }
@@ -90,74 +88,7 @@ async function authed(c: Context<{ Bindings: Env; Variables: { user: UserRow } }
 }
 
 /* ------------------------------------- Login -------------------------------------- */
-app.post('/api/auth/login', async (c) => {
-  const body = await c.req.json<{ email?: string; password?: string }>().catch(() => ({}) as { email?: string; password?: string });
-  const email = String(body.email || '').trim().toLowerCase();
-  const password = String(body.password || '');
-  if (!email || !password) fail('Informe e-mail e senha.');
-  const db = c.env.DB;
-  try {
-    await assertNotLocked(db, email, origin(c).ip);
-  } catch (err) {
-    bg(c, insertLog(db, { email, action: 'login_bloqueado', category: 'acesso', summary: 'Login bloqueado por excesso de tentativas', status: 'negado', ...origin(c) }));
-    throw err;
-  }
-  const user = await first<UserRow>(db, 'SELECT * FROM users WHERE email = ?', email);
-  // Senha copiada do WhatsApp/e-mail costuma vir com espaço no fim: tenta também sem os espaços das pontas.
-  let matched: string | null = null;
-  if (user) {
-    if (await verifyPassword(password, user.password_hash)) matched = password;
-    else if (password.trim() !== password && (await verifyPassword(password.trim(), user.password_hash))) matched = password.trim();
-  }
-  if (!user) await burnPasswordCheck(c.env, password);
-  if (!matched) {
-    await recordFailure(db, email, origin(c).ip);
-    bg(c, insertLog(db, {
-      email, userId: user?.id ?? null, action: 'login_falhou', category: 'acesso', summary: 'Tentativa de login falhou', status: 'negado',
-      detail: user ? 'Senha incorreta' : 'E-mail não cadastrado',
-      baseId: user?.active_base_id ?? null, ...origin(c),
-    }));
-    fail('E-mail ou senha incorretos.', 401);
-  }
-  await clearFailures(db, email);
-  // Conta bloqueada pelo administrador: a senha está certa, mas não entra.
-  if (user!.disabled) {
-    bg(c, insertLog(db, {
-      email, userId: user!.id, action: 'login_falhou', category: 'acesso', summary: 'Tentativa de login de conta bloqueada', status: 'negado',
-      detail: 'Conta bloqueada pelo administrador', baseId: user!.active_base_id, ...origin(c),
-    }));
-    fail('Seu acesso está bloqueado. Fale com o administrador do SCOLA.', 403);
-  }
-  // Contas migradas (bcrypt) ou com custo antigo ganham hash novo, de forma transparente.
-  const it = iterationsFor(c.env);
-  if (needsRehash(user!.password_hash, it)) {
-    await run(db, 'UPDATE users SET password_hash = ? WHERE id = ?', await hashPassword(matched!, it), user!.id);
-  }
-  const { token, maxAge } = await createSession(db, user!.id);
-  setCookie(c, SESSION_COOKIE, token, {
-    httpOnly: true, secure: new URL(c.req.url).protocol === 'https:', sameSite: 'Lax', path: '/', maxAge,
-  });
-  bg(c, (async () => {
-    const m = await first<{ base_id: string; role: string }>(db, 'SELECT base_id, role FROM memberships WHERE user_id = ? LIMIT 1', user!.id);
-    await insertLog(db, {
-      userId: user!.id, email: user!.email, role: user!.is_admin ? 'admin' : m?.role ?? null, baseId: user!.is_admin ? user!.active_base_id : m?.base_id ?? null,
-      action: 'login', category: 'acesso', summary: user!.must_change_pw ? 'Entrou com senha provisória' : 'Entrou no sistema', ...origin(c),
-    });
-  })());
-  return c.json({ ok: true });
-});
-
-/** Recuperação de senha (sem login): pedido do link por e-mail e criação da senha nova. */
-app.post('/api/auth/forgot', async (c) => {
-  const body = await c.req.json<{ email?: string }>().catch(() => ({}) as { email?: string });
-  await requestReset(c.env, { email: String(body.email ?? ''), ip: origin(c).ip, origin: new URL(c.req.url).origin, device: origin(c).device });
-  return c.json({ ok: true });
-});
-app.post('/api/auth/reset', async (c) => {
-  const body = await c.req.json<{ token?: string; password?: string }>().catch(() => ({}) as { token?: string; password?: string });
-  await confirmReset(c.env, { token: String(body.token ?? ''), password: String(body.password ?? ''), ip: origin(c).ip, device: origin(c).device });
-  return c.json({ ok: true });
-});
+authRoutes(app);
 
 app.post('/api/auth/logout', async (c) => {
   const token = getCookie(c, SESSION_COOKIE);
@@ -204,6 +135,7 @@ app.post('/api/rpc/:name', async (c) => {
   if (!user) fail('Sessão expirada. Entre novamente.', 401);
   if (user!.must_change_pw && !ALLOWED_BEFORE_PW_CHANGE.has(name)) fail('Troque a senha provisória para continuar.', 403);
   const ctx = await buildCtx(c.env, user!);
+  ctx.origin = new URL(c.req.url).origin;
   const body = await c.req.json<{ args?: unknown[] }>().catch(() => ({ args: [] as unknown[] }));
   const args = Array.isArray(body.args) ? body.args : [];
 

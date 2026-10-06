@@ -4,11 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import { successToast } from '../../components/Feedback';
-import { CredentialsModal, type Credentials } from '../../components/TeamManager';
+import { AccessLinkModal, type AccessLinkInfo } from '../../components/TeamManager';
 import { Button, EmptyState, Field, Input, Loading, Modal, PageHeader, SearchInput, Segmented, Select } from '../../components/ui';
 import { cn } from '../../lib/cn';
 import {
-  addMember, deleteUserAdmin, endUserSessions, listOrgAdmin, listUsersAdmin, setUserBase, setUserDisabled, setUserPasswordAdmin, updateUserAdmin, type AdminUser,
+  addMember, adminResetTwoFactor, deleteUserAdmin, endUserSessions, generateAccessLink, listOrgAdmin, listUsersAdmin, setUserBase, setUserDisabled, setUserPasswordAdmin, updateUserAdmin, type AdminUser,
 } from '../../lib/queries';
 import { ASSIGNABLE_ROLES, ROLE_LABEL, type AppRole } from '../../lib/types';
 
@@ -17,7 +17,7 @@ import { ASSIGNABLE_ROLES, ROLE_LABEL, type AppRole } from '../../lib/types';
  * O administrador edita nome, e-mail (login) e telefone, define senha, bloqueia,
  * desconecta dos aparelhos, vincula a bases e exclui.
  */
-type Filter = 'todos' | 'bloqueados' | 'provisoria' | 'nunca';
+type Filter = 'todos' | 'bloqueados' | 'convite' | 'nunca';
 const fmt = (s: string | null) => (s ? new Date(s).toLocaleDateString('pt-BR') : 'nunca');
 const initials = (u: AdminUser) => (u.full_name || u.email).slice(0, 1).toUpperCase();
 
@@ -29,7 +29,7 @@ export function UsersPage() {
   const [role, setRole] = useState('');
   const [params, setParams] = useSearchParams();
   const [creating, setCreating] = useState(params.get('novo') === '1');
-  const [creds, setCreds] = useState<Credentials | null>(null);
+  const [link, setLink] = useState<AccessLinkInfo | null>(null);
   const qc = useQueryClient();
   const { data: schools = [] } = useQuery({ queryKey: ['admin-bases'], queryFn: listOrgAdmin });
   const [openId, setOpenId] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export function UsersPage() {
       (u) =>
         (filter === 'todos' ||
           (filter === 'bloqueados' && u.disabled) ||
-          (filter === 'provisoria' && u.must_change_pw) ||
+          (filter === 'convite' && (u.pending || u.must_change_pw)) ||
           (filter === 'nunca' && !u.last_login_at)) &&
         (!school || u.bases.some((b) => b.base_id === school)) &&
         (!role || u.bases.some((b) => b.role === role && (!school || b.base_id === school))) &&
@@ -52,7 +52,7 @@ export function UsersPage() {
           u.bases.some((b) => b.base_name.toLowerCase().includes(t))),
     );
   }, [users, q, filter, school, role]);
-  const count = (f: Filter) => users.filter((u) => (f === 'bloqueados' ? u.disabled : f === 'provisoria' ? u.must_change_pw : !u.last_login_at)).length;
+  const count = (f: Filter) => users.filter((u) => (f === 'bloqueados' ? u.disabled : f === 'convite' ? u.pending || u.must_change_pw : !u.last_login_at)).length;
 
   return (
     <>
@@ -79,7 +79,7 @@ export function UsersPage() {
           options={[
             { value: 'todos', label: `Todos (${users.length})` },
             { value: 'bloqueados', label: `Bloqueados (${count('bloqueados')})` },
-            { value: 'provisoria', label: `Senha provisória (${count('provisoria')})` },
+            { value: 'convite', label: `Convite pendente (${count('convite')})` },
             { value: 'nunca', label: `Nunca entraram (${count('nunca')})` },
           ]}
         />
@@ -101,7 +101,10 @@ export function UsersPage() {
                   <span className={cn('truncate text-sm font-semibold', u.disabled && 'text-muted-foreground line-through')}>{u.full_name || '—'}</span>
                   {u.is_admin ? <Tag tone="dark">Administrador</Tag> : null}
                   {u.disabled ? <Tag tone="red">Bloqueado</Tag> : null}
+                  {u.pending ? <Tag tone="brand">Convite pendente</Tag> : null}
                   {u.must_change_pw ? <Tag tone="brand">Senha provisória</Tag> : null}
+                  {u.google ? <Tag tone="brand">Google</Tag> : null}
+                  {u.totp_enabled ? <Tag tone="brand">2 etapas</Tag> : null}
                 </span>
                 <span className="block truncate text-xs text-muted-foreground">
                   {u.email}
@@ -139,26 +142,26 @@ export function UsersPage() {
             qc.invalidateQueries({ queryKey: ['admin-bases'] });
             qc.invalidateQueries({ queryKey: ['admin-stats'] });
             setCreating(false);
-            if (c) setCreds(c);
-            else successToast('Pessoa vinculada à escola (já tinha conta e usa a mesma senha)');
+            if (c) setLink(c);
+            else successToast('Pessoa vinculada à escola (já tinha conta e usa o mesmo acesso)');
           }}
         />
       ) : null}
-      <CredentialsModal creds={creds} onClose={() => setCreds(null)} />
+      <AccessLinkModal link={link} onClose={() => setLink(null)} title="Convite criado" />
     </>
   );
 }
 
-/** Cadastro de usuário pelo administrador: escolhe a escola e o papel; sai uma senha provisória para repassar. */
-function NewUserModal({ schools, onClose, onDone }: { schools: { id: string; name: string }[]; onClose: () => void; onDone: (c: Credentials | null) => void }) {
+/** Cadastro de usuário pelo administrador: escolhe a escola e o papel; sai um convite por link para a pessoa criar a própria senha. */
+function NewUserModal({ schools, onClose, onDone }: { schools: { id: string; name: string }[]; onClose: () => void; onDone: (c: AccessLinkInfo | null) => void }) {
   const [form, setForm] = useState({ full_name: '', email: '', phone: '', baseId: schools[0]?.id ?? '', role: 'professor' as AppRole });
   const create = useMutation({
     mutationFn: async () => {
       const r = await addMember(form.baseId, { email: form.email, full_name: form.full_name, role: form.role });
-      if (form.phone.trim() && r.password) await updateUserAdmin(r.userId, { full_name: form.full_name, email: r.email, phone: form.phone.trim() });
+      if (form.phone.trim() && r.isNew) await updateUserAdmin(r.userId, { full_name: form.full_name, email: r.email, phone: form.phone.trim() });
       return r;
     },
-    onSuccess: (r) => onDone(r.password ? { name: form.full_name, email: r.email, password: r.password } : null),
+    onSuccess: (r) => onDone(r.inviteUrl ? { name: form.full_name, email: r.email, url: r.inviteUrl, emailed: r.emailed, kind: 'invite', baseName: schools.find((b) => b.id === form.baseId)?.name } : null),
   });
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value });
   return (
@@ -181,7 +184,7 @@ function NewUserModal({ schools, onClose, onDone }: { schools: { id: string; nam
             </Select>
           </Field>
         </div>
-        <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">Será criada uma senha provisória, mostrada uma vez para você repassar. No primeiro acesso a pessoa define a própria senha. Se o e-mail já tiver conta, ela só é vinculada à escola.</p>
+        <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">A pessoa recebe um convite por link (por e-mail, se estiver configurado, ou pelo WhatsApp) e cria a própria senha — ou entra com o Google. Se o e-mail já tiver conta, ela só é vinculada à escola.</p>
         {create.error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{(create.error as Error).message}</p> : null}
         <Button type="submit" className="w-full" disabled={create.isPending || !form.baseId}>{create.isPending ? 'Cadastrando…' : 'Cadastrar usuário'}</Button>
       </form>
@@ -227,7 +230,7 @@ function UserModal({ user, onClose }: { user: AdminUser; onClose: () => void }) 
     qc.invalidateQueries({ queryKey: ['admin-bases'] });
     qc.invalidateQueries({ queryKey: ['org-members'] });
   };
-  const [creds, setCreds] = useState<Credentials | null>(null);
+  const [accessInfo, setAccessInfo] = useState<AccessLinkInfo | null>(null);
   const [err, setErr] = useState('');
   const onError = (e: Error) => setErr(e.message);
 
@@ -250,14 +253,23 @@ function UserModal({ user, onClose }: { user: AdminUser; onClose: () => void }) 
   const [pw, setPw] = useState('');
   const [mustChange, setMustChange] = useState(true);
   const setPassword = useMutation({
-    mutationFn: (generate: boolean) => setUserPasswordAdmin(user.id, generate ? null : pw, mustChange),
+    mutationFn: () => setUserPasswordAdmin(user.id, pw, mustChange),
     onSuccess: (r) => {
       refresh();
       setErr('');
       setPw('');
-      if (r.password) setCreds({ name: r.name ?? undefined, email: r.email, password: r.password });
-      else successToast(self ? 'Sua senha foi alterada' : 'Senha definida. A pessoa foi desconectada dos aparelhos.');
+      successToast(self ? 'Sua senha foi alterada' : 'Senha definida. A pessoa foi desconectada dos aparelhos.');
     },
+    onError,
+  });
+  const accessLink = useMutation({
+    mutationFn: () => generateAccessLink(user.id),
+    onSuccess: (r) => { refresh(); setErr(''); setAccessInfo(r); },
+    onError,
+  });
+  const resetTwoFactor = useMutation({
+    mutationFn: () => adminResetTwoFactor(user.id),
+    onSuccess: () => { refresh(); setErr(''); successToast('Verificação em duas etapas removida'); },
     onError,
   });
 
@@ -353,19 +365,19 @@ function UserModal({ user, onClose }: { user: AdminUser; onClose: () => void }) 
         <Section
           icon={<KeyRound size={17} />}
           title="Senha"
-          hint={self ? 'Defina uma nova senha para a sua conta.' : 'Gere uma provisória para enviar por WhatsApp, ou defina uma. A pessoa é desconectada dos aparelhos.'}
+          hint={self ? 'Defina uma nova senha para a sua conta.' : 'Gere um link para a pessoa criar a própria senha (recomendado) ou defina uma você mesmo. Ela é desconectada dos aparelhos.'}
         >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             {!self ? (
-              <Button variant="ghost" onClick={() => confirm(`Gerar senha provisória para ${user.full_name || user.email}? A senha atual deixa de funcionar.`) && setPassword.mutate(true)} disabled={setPassword.isPending}>
-                <KeyRound size={16} /> Gerar senha provisória
+              <Button variant="ghost" onClick={() => accessLink.mutate()} disabled={accessLink.isPending}>
+                <KeyRound size={16} /> {user.pending ? 'Gerar link de convite' : 'Gerar link de acesso'}
               </Button>
             ) : null}
             <form
               className="flex flex-1 gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (pw.length >= 8) setPassword.mutate(false);
+                if (pw.length >= 8) setPassword.mutate();
               }}
             >
               <Input type="text" value={pw} onChange={(e) => setPw(e.target.value)} placeholder={self ? 'Nova senha (mín. 6)' : 'ou digite uma senha (mín. 6)'} autoComplete="new-password" className="flex-1" />
@@ -381,6 +393,14 @@ function UserModal({ user, onClose }: { user: AdminUser; onClose: () => void }) 
             </label>
           ) : null}
         </Section>
+
+        {user.totp_enabled && !self ? (
+          <Section icon={<ShieldCheck size={17} />} title="Verificação em duas etapas" hint="A pessoa usa um aplicativo autenticador para entrar. Remova se ela perdeu o celular e os códigos de recuperação.">
+            <Button variant="ghost" onClick={() => confirm(`Remover a verificação em duas etapas de ${user.full_name || user.email}?`) && resetTwoFactor.mutate()} disabled={resetTwoFactor.isPending}>
+              <ShieldCheck size={16} /> Remover verificação em duas etapas
+            </Button>
+          </Section>
+        ) : null}
 
         {!user.is_admin ? (
           <Section icon={<Building2 size={17} />} title="Bases e papéis" hint="Uma pessoa pode estar em mais de uma base (ex.: professor em 2 escolas).">
@@ -485,7 +505,7 @@ function UserModal({ user, onClose }: { user: AdminUser; onClose: () => void }) 
           </a>
         ) : null}
       </div>
-      <CredentialsModal creds={creds} onClose={() => setCreds(null)} title="Nova senha provisória" />
+      <AccessLinkModal link={accessInfo} onClose={() => setAccessInfo(null)} />
     </Modal>
   );
 }

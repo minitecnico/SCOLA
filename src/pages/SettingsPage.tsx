@@ -3,13 +3,14 @@ import { Building2, Check, Eye, EyeOff, ImagePlus, KeyRound, LogOut, ShieldCheck
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { CityPicker } from '../components/CityPicker';
+import { TwoFactorCard } from '../components/TwoFactorCard';
 import { successToast } from '../components/Feedback';
 import { Button, Field, Input, PageHeader, SegmentedField, StatusBadge, fieldCls } from '../components/ui';
 import { cn } from '../lib/cn';
 import { fileToCompressedDataUrl } from '../lib/image';
 import { can } from '../lib/permissions';
 import {
-  changePassword, getProfile, listOrgAdmin, listSchools, saveSchool, setOrgActive, updateOrganization, updateProfile,
+  changePassword, getProfile, getSecurityStatus, listOrgAdmin, listSchools, saveSchool, setOrgActive, updateOrganization, updateProfile,
 } from '../lib/queries';
 import { ROLE_LABEL } from '../lib/types';
 
@@ -308,7 +309,9 @@ function SecuritySection() {
     { ok: !!pwd && pwd.trim() === pwd, label: 'Sem espaço no começo ou no fim' },
     { ok: !!pwd && pwd === pwd2, label: 'As duas senhas conferem' },
   ];
-  const valid = !!current && rules.every((r) => r.ok);
+  const { data: sec } = useQuery({ queryKey: ['security-status'], queryFn: getSecurityStatus });
+  const hasPassword = sec?.hasPassword ?? true; // conta criada só com o Google ainda não tem senha
+  const valid = (!!current || !hasPassword) && rules.every((r) => r.ok);
 
   const change = useMutation({
     mutationFn: () => changePassword(current, pwd),
@@ -338,9 +341,13 @@ function SecuritySection() {
         }
       >
         <div className="grid gap-4 sm:max-w-md">
-          <Field label="Senha atual">
-            <Input type={type} value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
-          </Field>
+          {hasPassword ? (
+            <Field label="Senha atual">
+              <Input type={type} value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
+            </Field>
+          ) : (
+            <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">Você entra com o Google e ainda não tem senha. Crie uma se quiser também poder entrar com e-mail e senha.</p>
+          )}
           <Field label="Nova senha">
             <div className="relative">
               <Input type={type} value={pwd} onChange={(e) => setPwd(e.target.value)} autoComplete="new-password" className="pr-11" />
@@ -369,6 +376,12 @@ function SecuritySection() {
           </ul>
         </div>
       </Section>
+
+      {sec?.twoFactorAvailable ? (
+        <Section title="Verificação em duas etapas" description="Uma segunda camada de proteção para a sua conta, com aplicativo autenticador.">
+          <TwoFactorCard />
+        </Section>
+      ) : null}
 
       <Section title="Sessão" description="Encerra o acesso neste aparelho.">
         <div className="flex flex-wrap items-center justify-between gap-3">

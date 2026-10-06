@@ -36,7 +36,9 @@ interface AuthState {
   isSuperadmin: boolean;
   mustChangePassword: boolean;
   suspended: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  /** Devolve `{ needs2fa, challenge }` quando a conta tem verificação em duas etapas; senão já entra. */
+  signIn: (email: string, password: string, opts?: { remember?: boolean; captcha?: string }) => Promise<{ needs2fa: true; challenge: string } | null>;
+  verifyTwoFactor: (challenge: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
   switchOrg: (orgId: string | null) => Promise<void>;
   refreshContext: (silent?: boolean) => Promise<void>;
@@ -77,8 +79,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshContext, queryClient]);
 
   const signIn = useCallback(
-    async (email: string, password: string) => {
-      await apiPost('/api/auth/login', { email, password });
+    async (email: string, password: string, opts?: { remember?: boolean; captcha?: string }) => {
+      const r = await apiPost<{ ok?: boolean; needs2fa?: boolean; challenge?: string }>('/api/auth/login', { email, password, remember: opts?.remember ?? true, captcha: opts?.captcha });
+      if (r.needs2fa && r.challenge) return { needs2fa: true as const, challenge: r.challenge };
+      queryClient.clear();
+      await refreshContext();
+      return null;
+    },
+    [queryClient, refreshContext],
+  );
+
+  const verifyTwoFactor = useCallback(
+    async (challenge: string, code: string) => {
+      await apiPost('/api/auth/2fa', { challenge, code });
       queryClient.clear();
       await refreshContext();
     },
@@ -123,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         mustChangePassword: !!me.mustChangePassword,
         suspended: !!me.suspended,
         signIn,
+        verifyTwoFactor,
         signOut,
         switchOrg,
         refreshContext,

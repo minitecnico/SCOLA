@@ -162,11 +162,16 @@ export const ACTIONS: Record<string, Spec> = {
   // Conta e equipe
   updateProfile: { cat: 'acesso', label: 'Atualizou o próprio perfil' },
   changePassword: { cat: 'acesso', label: 'Trocou a senha' },
+  startTwoFactor: { cat: 'acesso', label: 'Começou a ativar a verificação em duas etapas' },
+  confirmTwoFactor: { cat: 'acesso', label: 'Ativou a verificação em duas etapas' },
+  disableTwoFactor: { cat: 'acesso', label: 'Desativou a verificação em duas etapas' },
+  adminResetTwoFactor: { cat: 'admin', label: 'Removeu a verificação em duas etapas de usuário', refs: (a) => ({ userId: a[0] }) },
+  generateAccessLink: { cat: 'admin', label: 'Gerou link de acesso para usuário', refs: (a) => ({ userId: a[0] }) },
   setActiveOrg: { cat: 'admin', label: (a) => (a[0] ? 'Entrou em modo suporte' : 'Saiu do modo suporte'), refs: (a) => ({ baseId: a[0] ?? null }) },
   addMember: { cat: 'equipe', label: 'Adicionou membro à equipe', refs: (a) => ({ baseId: a[0], text: `${s(a[1]?.email) ?? ''} (${ROLE_PT[a[1]?.role] ?? a[1]?.role ?? ''})` }) },
   setMemberRole: { cat: 'equipe', label: 'Alterou o papel de membro', refs: (a) => ({ baseId: a[0], userId: a[1], text: ROLE_PT[a[2]] ?? s(a[2]) }) },
   removeMember: { cat: 'equipe', label: 'Removeu membro da equipe', refs: (a) => ({ baseId: a[0], userId: a[1] }), pre: true },
-  resetMemberPassword: { cat: 'equipe', label: 'Redefiniu a senha de membro', refs: (a) => ({ baseId: a[0], userId: a[1] }) },
+  memberAccessLink: { cat: 'equipe', label: 'Gerou link de acesso para membro', refs: (a) => ({ baseId: a[0], userId: a[1] }) },
   setMemberContact: { cat: 'equipe', label: 'Atualizou contato de membro', refs: (a) => ({ userId: a[0] }) },
   // Administração da plataforma
   createBase: { cat: 'admin', label: 'Criou base', refs: (a) => ({ text: s(a[0]?.name) }) },

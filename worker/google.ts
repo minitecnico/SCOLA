@@ -31,7 +31,7 @@ export async function sealToken(env: Env, token: string) {
   return `${b64(iv)}.${b64(ct)}`;
 }
 
-async function openToken(env: Env, sealed: string) {
+export async function openToken(env: Env, sealed: string) {
   const [iv, ct] = sealed.split('.');
   const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv) }, await aesKey(env), unb64(ct));
   return new TextDecoder().decode(pt);
@@ -108,4 +108,35 @@ export async function revokeAndForget(env: Env, userId: string) {
     }
   }
   await run(env.DB, 'DELETE FROM google_accounts WHERE user_id = ?', userId);
+}
+
+/* ------------------------- Entrar com o Google (só identidade) ------------------------- */
+/** "Entrar com Google" só pede nome e e-mail (escopos básicos — não exige verificação do app pelo Google). */
+export const googleLoginReady = (env: Env) => !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+export const loginRedirectUri = (reqUrl: string) => `${new URL(reqUrl).origin}/api/auth/google/callback`;
+
+export function loginAuthUrl(env: Env, reqUrl: string, state: string) {
+  const p = new URLSearchParams({
+    client_id: env.GOOGLE_CLIENT_ID!, redirect_uri: loginRedirectUri(reqUrl), response_type: 'code', scope: 'openid email profile',
+    prompt: 'select_account', state,
+  });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${p}`;
+}
+
+export type GoogleIdentity = { sub: string; email: string; name: string | null };
+
+/** Troca o código pela identidade. O id_token vem direto do Google (HTTPS), então basta ler e conferir o conteúdo. */
+export async function exchangeLoginCode(env: Env, reqUrl: string, code: string): Promise<GoogleIdentity | null> {
+  const { ok, j } = await tokenRequest({
+    code, client_id: env.GOOGLE_CLIENT_ID!, client_secret: env.GOOGLE_CLIENT_SECRET!, redirect_uri: loginRedirectUri(reqUrl), grant_type: 'authorization_code',
+  });
+  if (!ok || !j.id_token) return null;
+  try {
+    const c = JSON.parse(new TextDecoder().decode(unb64(j.id_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(j.id_token.split('.')[1].length / 4) * 4, '='))));
+    if (c.aud !== env.GOOGLE_CLIENT_ID || !/accounts\.google\.com$/.test(String(c.iss)) || c.exp * 1000 < Date.now()) return null;
+    if (c.email_verified !== true && c.email_verified !== 'true') return null;
+    return { sub: String(c.sub), email: String(c.email).toLowerCase(), name: c.name ? String(c.name) : null };
+  } catch {
+    return null;
+  }
 }

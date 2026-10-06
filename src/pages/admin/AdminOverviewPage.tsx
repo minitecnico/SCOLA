@@ -6,9 +6,8 @@ import { useAuth } from '../../auth/AuthProvider';
 import { AiEngineCard } from '../../components/AiEngineCard';
 import { Button, Card, Loading, PageHeader, StatCard } from '../../components/ui';
 import { cn } from '../../lib/cn';
-import { rpc } from '../../lib/api';
 import { suporte } from '../../lib/suporte';
-import { hqStats, listLogs, listOrgAdmin, logOverview, type OrgAdmin } from '../../lib/queries';
+import { getAccessStatus, hqStats, listLogs, listOrgAdmin, logOverview, type OrgAdmin } from '../../lib/queries';
 
 const DAY = 86400_000;
 const daysSince = (s: string | null) => (s ? Math.floor((Date.now() - new Date(s.length === 10 ? `${s}T12:00:00` : s).getTime()) / DAY) : null);
@@ -68,7 +67,7 @@ export function AdminOverviewPage() {
   const { data: recent } = useQuery({ queryKey: ['admin-recent-logs'], queryFn: () => listLogs({ period: '24h' }, 8), refetchInterval: 60_000 });
 
   const { data: pending = 0 } = useQuery({ queryKey: ['support-admin-unread'], queryFn: suporte.admin.unread, refetchInterval: 30_000 });
-  const { data: reset } = useQuery({ queryKey: ['admin-reset-status'], queryFn: () => rpc<{ ready: boolean; sender: string | null; googleConfigured: boolean }>('passwordResetStatus') });
+  const { data: access } = useQuery({ queryKey: ['admin-access-status'], queryFn: getAccessStatus });
   const alerts = useMemo(() => buildAlerts(bases), [bases]);
   const trial = bases.filter((b) => b.active && b.plan === 'teste').length;
   const suspended = bases.filter((b) => !b.active).length;
@@ -115,12 +114,11 @@ export function AdminOverviewPage() {
             <h2 className="text-base font-bold">Precisa de atenção</h2>
             {alerts.length ? <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-[11px] font-bold text-white">{alerts.length}</span> : null}
           </div>
-          {reset && !reset.ready ? (
-            <a href={reset.googleConfigured ? '/api/google/connect' : undefined} className="mb-2 flex items-center gap-3 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700 hover:brightness-95">
-              <ShieldAlert size={16} className="shrink-0" />
-              <span className="min-w-0 flex-1"><b>"Esqueci minha senha" está desativado.</b> {reset.googleConfigured ? 'Clique aqui, entre com o seu Google e marque a permissão de enviar e-mails para ativar.' : 'O Google ainda não está configurado no servidor.'}</span>
-              {reset.googleConfigured ? <ChevronRight size={15} /> : null}
-            </a>
+          {access && !access.mail.ready ? (
+            <div className="mb-2 flex items-start gap-3 rounded-lg bg-neutral-100 px-3 py-2.5 text-sm text-neutral-800">
+              <ShieldAlert size={16} className="mt-0.5 shrink-0" />
+              <span className="min-w-0 flex-1"><b>E-mail de acesso não configurado.</b> Convites e novos links funcionam por link (WhatsApp), mas “Esqueci minha senha” fica desligado. Ative em minutos com Resend ou Brevo (grátis) — veja “E-mail de acesso” no README.</span>
+            </div>
           ) : null}
           {pending ? (
             <Link to="/admin/suporte" className="mb-2 flex items-center gap-3 rounded-lg bg-neutral-900 px-3 py-2.5 text-sm text-white hover:bg-black">
@@ -138,7 +136,7 @@ export function AdminOverviewPage() {
               <ChevronRight size={15} />
             </Link>
           ) : null}
-          {alerts.length === 0 && !ov?.suspicious?.length && !pending && (reset?.ready ?? true) ? (
+          {alerts.length === 0 && !ov?.suspicious?.length && !pending && (access?.mail.ready ?? true) ? (
             <p className="rounded-lg bg-muted px-3 py-6 text-center text-sm text-muted-foreground">Tudo em ordem. Nenhuma escola precisa de atenção agora.</p>
           ) : (
             <ul className="space-y-1.5">

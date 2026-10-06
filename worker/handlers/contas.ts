@@ -1,6 +1,7 @@
-import { resetStatus } from '../recovery';
+import { emailAccessLink, issueLink, NO_PASSWORD } from '../access';
+import { mailReady } from '../mail';
 import {
-  hashPassword, iterationsFor, requireAdmin, tempPassword, validatePassword, verifyPassword,
+  hashPassword, iterationsFor, requireAdmin, validatePassword, verifyPassword,
   type Ctx, type Role,
 } from '../auth';
 import { all, fail, first, run, stmt, uid } from '../db';
@@ -27,7 +28,8 @@ export async function updateProfile(ctx: Ctx, input: { full_name?: string; avata
 export async function changePassword(ctx: Ctx, current: string, next: string) {
   validatePassword(next);
   // Na troca obrigatória do primeiro acesso, a senha atual é a provisória (já digitada no login).
-  if (!ctx.user.must_change_pw || current) {
+  // Conta criada só com o Google ainda não tem senha: pode definir a primeira sem informar a atual.
+  if (ctx.user.password_hash !== NO_PASSWORD && (!ctx.user.must_change_pw || current)) {
     if (!(await verifyPassword(String(current || ''), ctx.user.password_hash))) fail('Senha atual incorreta.');
   }
   await run(ctx.db, 'UPDATE users SET password_hash = ?, must_change_pw = 0 WHERE id = ?',
@@ -55,38 +57,48 @@ function assertCanManage(ctx: Ctx, baseId: string) {
 export async function listOrgMembers(ctx: Ctx, baseId: string) {
   assertCanManage(ctx, baseId);
   return all(ctx.db,
-    `SELECT u.id AS user_id, m.role, u.full_name, u.email, u.phone, u.last_login_at, u.must_change_pw
+    `SELECT u.id AS user_id, m.role, u.full_name, u.email, u.phone, u.last_login_at, u.must_change_pw,
+            (u.password_hash = '${NO_PASSWORD}' AND u.google_sub IS NULL) AS pending, u.totp_enabled, (u.google_sub IS NOT NULL) AS google
        FROM memberships m JOIN users u ON u.id = m.user_id
       WHERE m.base_id = ? ORDER BY m.role, u.full_name COLLATE NOCASE`, baseId);
 }
 
 /**
- * Adiciona alguém à base. Se o e-mail ainda não tem conta, cria com senha provisória
- * (devolvida UMA vez para você repassar). Se já tem, só vincula (ex.: professor em 2 escolas).
+ * Adiciona alguém à base. Se o e-mail ainda não tem conta, cria a conta SEM senha e gera um convite:
+ * a pessoa abre o link (por e-mail, se configurado, ou pelo WhatsApp) e cria a própria senha — ou entra com o Google.
+ * Se já tem conta, só vincula (ex.: professor em 2 escolas) e usa o acesso que já tem.
  */
 export async function addMember(ctx: Ctx, baseId: string, input: { email: string; full_name?: string; role: Role }) {
   assertCanManage(ctx, baseId);
   const email = normEmail(input.email);
   if (!EMAIL_RE.test(email)) fail('E-mail inválido.');
   if (!ROLES.includes(input.role)) fail('Papel inválido.');
-  if (!(await first(ctx.db, 'SELECT id FROM bases WHERE id = ?', baseId))) fail('Base não encontrada.', 404);
+  const base = await first<{ name: string }>(ctx.db, 'SELECT name FROM bases WHERE id = ?', baseId);
+  if (!base) fail('Base não encontrada.', 404);
 
-  let user = await first<{ id: string; is_admin: number }>(ctx.db, 'SELECT id, is_admin FROM users WHERE email = ?', email);
-  let password: string | null = null;
+  let user = await first<{ id: string; is_admin: number; full_name: string | null; password_hash: string; google_sub: string | null }>(ctx.db, 'SELECT id, is_admin, full_name, password_hash, google_sub FROM users WHERE email = ?', email);
+  let isNew = false;
   if (!user) {
     const name = String(input.full_name || '').trim();
     if (!name) fail('Informe o nome da pessoa.');
-    password = tempPassword();
     const id = uid();
-    await run(ctx.db, 'INSERT INTO users (id, email, password_hash, full_name, must_change_pw, active_base_id) VALUES (?, ?, ?, ?, 1, ?)',
-      id, email, await hashPassword(password, iterationsFor(ctx.env)), name, baseId);
-    user = { id, is_admin: 0 };
+    await run(ctx.db, 'INSERT INTO users (id, email, password_hash, full_name, must_change_pw, active_base_id) VALUES (?, ?, ?, ?, 0, ?)', id, email, NO_PASSWORD, name, baseId);
+    user = { id, is_admin: 0, full_name: name, password_hash: NO_PASSWORD, google_sub: null };
+    isNew = true;
   }
   if (user.is_admin) fail('Esse e-mail é do administrador do sistema.');
   await run(ctx.db,
     `INSERT INTO memberships (id, user_id, base_id, role) VALUES (?, ?, ?, ?)
      ON CONFLICT (user_id, base_id) DO UPDATE SET role = excluded.role`, uid(), user.id, baseId, input.role);
-  return { userId: user.id, email, password };
+
+  // Quem ainda não criou a senha (conta nova ou convite anterior em aberto) recebe o link desta escola.
+  let inviteUrl: string | null = null;
+  let emailed = false;
+  if (user.password_hash === NO_PASSWORD && !user.google_sub) {
+    inviteUrl = (await issueLink(ctx.env, { userId: user.id, kind: 'invite', baseId, origin: ctx.origin ?? '' })).url;
+    emailed = await emailAccessLink(ctx.env, { to: email, name: user.full_name, url: inviteUrl, kind: 'invite', baseName: base!.name, role: input.role });
+  }
+  return { userId: user.id, email, isNew, inviteUrl, emailed };
 }
 
 export async function setMemberRole(ctx: Ctx, baseId: string, userId: string, role: Role) {
@@ -106,24 +118,26 @@ export async function removeMember(ctx: Ctx, baseId: string, userId: string) {
   ]);
 }
 
-/** Gera senha provisória nova e derruba as sessões da pessoa. Devolve a senha para repassar. */
-export async function resetMemberPassword(ctx: Ctx, baseId: string, userId: string) {
+/**
+ * Gera um novo link de acesso para a pessoa: convite (quem ainda não criou a senha) ou redefinição (vale 24 h).
+ * Serve para quem perdeu o e-mail, esqueceu a senha e não consegue pedir sozinho. Nada de senha provisória.
+ */
+export async function memberAccessLink(ctx: Ctx, baseId: string, userId: string) {
   assertCanManage(ctx, baseId);
-  const m = await first(ctx.db, 'SELECT id FROM memberships WHERE user_id = ? AND base_id = ?', userId, baseId);
+  const m = await first<{ role: string; base_name: string }>(ctx.db, 'SELECT m.role, b.name AS base_name FROM memberships m JOIN bases b ON b.id = m.base_id WHERE m.user_id = ? AND m.base_id = ?', userId, baseId);
   if (!m) fail('Pessoa não pertence a esta base.', 404);
+  const target = await first<{ is_admin: number; email: string; full_name: string | null; password_hash: string }>(ctx.db, 'SELECT is_admin, email, full_name, password_hash FROM users WHERE id = ?', userId);
+  if (!target || target.is_admin) fail('Não é possível gerar link para o administrador.');
+  const pending = target!.password_hash === NO_PASSWORD;
   // Conta compartilhada com outra escola: só o administrador do sistema redefine (senão um gestor assumiria a conta alheia).
-  if (!ctx.isAdmin) {
+  if (!pending && !ctx.isAdmin) {
     const other = await first<{ n: number }>(ctx.db, 'SELECT COUNT(*) AS n FROM memberships WHERE user_id = ? AND base_id <> ?', userId, baseId);
     if ((other?.n ?? 0) > 0) fail('Esta pessoa também tem acesso a outra escola. Peça para ela usar "Esqueci minha senha" ou fale com o administrador do SCOLA.', 403);
   }
-  const target = await first<{ is_admin: number }>(ctx.db, 'SELECT is_admin FROM users WHERE id = ?', userId);
-  if (target?.is_admin) fail('Não é possível redefinir a senha do administrador.');
-  const password = tempPassword();
-  await ctx.db.batch([
-    stmt(ctx.db, 'UPDATE users SET password_hash = ?, must_change_pw = 1 WHERE id = ?', await hashPassword(password, iterationsFor(ctx.env)), userId),
-    stmt(ctx.db, 'DELETE FROM sessions WHERE user_id = ?', userId),
-  ]);
-  return { password };
+  const kind = pending ? 'invite' : 'reset';
+  const link = await issueLink(ctx.env, { userId, kind, baseId: pending ? baseId : null, origin: ctx.origin ?? '', ttlMin: pending ? undefined : 24 * 60 });
+  const emailed = await emailAccessLink(ctx.env, { to: target!.email, name: target!.full_name, url: link.url, kind, baseName: m!.base_name, role: m!.role });
+  return { url: link.url, emailed, kind, email: target!.email, name: target!.full_name };
 }
 
 /* ----------------------------- Administrador (você) ------------------------------ */
@@ -138,12 +152,6 @@ export async function listOrgAdmin(ctx: Ctx) {
             (SELECT MAX(u.last_login_at) FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.base_id = b.id) AS last_login
        FROM bases b ORDER BY b.name COLLATE NOCASE`);
   return rows.map((r) => ({ ...r, active: !!r.active, logo_url: undefined, has_logo: !!r.logo_url }));
-}
-
-/** Recuperação de senha por e-mail: está ativa? (precisa do Gmail do administrador conectado) */
-export async function passwordResetStatus(ctx: Ctx) {
-  requireAdmin(ctx);
-  return resetStatus(ctx.env);
 }
 
 export async function hqStats(ctx: Ctx) {

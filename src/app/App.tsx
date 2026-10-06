@@ -127,6 +127,7 @@ function Root() {
     <Routes>
       <Route path="/r/:id" element={<Suspense fallback={<Spinner />}><SharedReportPage /></Suspense>} />
       <Route path="/redefinir-senha" element={<Suspense fallback={<Spinner />}><ResetPasswordPage /></Suspense>} />
+      <Route path="/convite" element={<Suspense fallback={<Spinner />}><ResetPasswordPage /></Suspense>} />
       <Route path="/login" element={loading ? <Spinner /> : session ? <AfterLogin /> : <LoginPage />} />
       <Route path="/*" element={<Protected />} />
     </Routes>

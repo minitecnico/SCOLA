@@ -15,6 +15,11 @@ export interface UserRow {
   must_change_pw: number;
   active_base_id: string | null;
   disabled?: number;
+  google_sub?: string | null;
+  totp_secret?: string | null;
+  totp_enabled?: number;
+  totp_backup?: string | null;
+  totp_last?: number | null;
 }
 
 /** Contexto de cada chamada autenticada. baseId/role se referem à base ativa. */
@@ -25,6 +30,8 @@ export interface Ctx {
   isAdmin: boolean;
   baseId: string | null;
   role: AppRole | null;
+  /** Endereço do site nesta requisição (para montar links de convite). */
+  origin?: string;
 }
 
 export const SESSION_COOKIE = 'scola_sessao';
@@ -89,16 +96,17 @@ async function sha256(s: string) {
   return b64(await crypto.subtle.digest('SHA-256', enc.encode(s)));
 }
 
-export async function createSession(db: D1Database, userId: string): Promise<{ token: string; maxAge: number }> {
+/** `remember` = "manter conectado": 30 dias. Sem isso a sessão acaba ao fechar o navegador (e em 1 dia no servidor). */
+export async function createSession(db: D1Database, userId: string, remember = true): Promise<{ token: string; maxAge: number | undefined }> {
   const token = b64(crypto.getRandomValues(new Uint8Array(32))).replace(/[+/=]/g, (c) => ({ '+': '-', '/': '_', '=': '' })[c]!);
-  const maxAge = SESSION_DAYS * 86400;
+  const maxAge = (remember ? SESSION_DAYS : 1) * 86400;
   const expires = new Date(Date.now() + maxAge * 1000).toISOString();
   await db.batch([
     db.prepare('DELETE FROM sessions WHERE user_id = ? AND expires_at < ?').bind(userId, now()),
     db.prepare('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)').bind(await sha256(token), userId, expires),
     db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').bind(now(), userId),
   ]);
-  return { token, maxAge };
+  return { token, maxAge: remember ? maxAge : undefined };
 }
 
 export async function destroySession(db: D1Database, token: string) {
@@ -224,6 +232,14 @@ export async function assertNotLocked(db: D1Database, email: string, ip?: string
   const row = await first<{ n: number; by_ip: number }>(db,
     'SELECT SUM(email = ?) AS n, SUM(ip IS NOT NULL AND ip = ?) AS by_ip FROM login_failures WHERE at > ? AND (email = ? OR ip = ?)', email, ip ?? '', since, email, ip ?? '');
   if ((row?.n ?? 0) >= MAX_FAILURES || (row?.by_ip ?? 0) >= MAX_FAILURES_IP) fail(`Muitas tentativas. Aguarde ${WINDOW_MIN} minutos e tente de novo.`, 429);
+}
+
+/** Quantas senhas erradas esse e-mail / endereço teve nos últimos 15 minutos (para pedir o CAPTCHA). */
+export async function recentFailures(db: D1Database, email: string, ip?: string | null) {
+  const since = new Date(Date.now() - WINDOW_MIN * 60_000).toISOString();
+  const row = await first<{ n: number; by_ip: number }>(db,
+    'SELECT SUM(email = ?) AS n, SUM(ip IS NOT NULL AND ip = ?) AS by_ip FROM login_failures WHERE at > ? AND (email = ? OR ip = ?)', email, ip ?? '', since, email, ip ?? '');
+  return { byEmail: row?.n ?? 0, byIp: row?.by_ip ?? 0 };
 }
 
 export async function recordFailure(db: D1Database, email: string, ip?: string | null) {

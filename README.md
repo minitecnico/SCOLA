@@ -12,16 +12,17 @@ Multi-escola: **você (administrador) cria as bases**; cada base é uma escola o
 | **Professor(a)** | Dentro da base | Chamadas, notas, avaliações, planejamento, relatórios |
 | **Secretaria** | Dentro da base | Turmas, alunos, relatórios, avisos, calendário |
 
-Não existe autocadastro. Você cria a base e o gestor; o gestor cria a equipe em **Equipe**. Toda conta nova recebe uma
-senha provisória (mostrada uma vez, com botão de enviar pelo WhatsApp) e troca no primeiro acesso.
-Um professor que trabalha em duas escolas usa o mesmo login nas duas e alterna pelo menu.
+Não existe autocadastro: **a escola libera cada pessoa por convite**. Você cria a base e o gestor; o gestor convida a equipe
+em **Equipe**. Ninguém recebe senha provisória: o convite é um **link de uso único (vale 7 dias)** — a pessoa abre, cria a própria
+senha e já entra (ou toca em "Continuar com o Google"). O link sai por e-mail (se o e-mail estiver configurado) e sempre pode ser
+copiado ou enviado pelo WhatsApp. Um professor que trabalha em duas escolas usa o mesmo login nas duas e alterna pelo menu.
 
 ## Arquitetura (100% plano gratuito)
 
 - **GitHub**: código + deploy automático (GitHub Actions) a cada push na `main`.
 - **Cloudflare Workers**: um único Worker serve o site (React) e a API (`/api/*`).
 - **Cloudflare D1**: banco de dados (SQLite). **Cloudflare KV**: anexos (até 20 MB por arquivo).
-- Login próprio (e-mail + senha, cookie seguro de 30 dias). Nenhum outro serviço.
+- Login próprio (e-mail + senha, cookie seguro). Tudo o que está em "Acesso e segurança" abaixo é opcional e gratuito.
 
 ## Colocar no ar (uma vez só)
 
@@ -52,6 +53,24 @@ Domínio próprio: Cloudflare → Workers → scola → Settings → Domains & R
    - `CLOUDFLARE_ACCOUNT_ID` — o Account ID (barra lateral do painel Cloudflare)
 
 Pronto: todo `git push` na `main` aplica as migrações do banco e publica.
+
+## Acesso e segurança
+
+Já vem pronto (sem configurar nada): senha com hash PBKDF2, sessão por cookie HttpOnly, "Manter conectado" (30 dias; desmarcado, a sessão acaba ao fechar o navegador),
+bloqueio por tentativas (8 erros por e-mail ou 30 por endereço em 15 min), convite e "esqueci minha senha" por **link de uso único** (hash no banco; 7 dias no convite,
+1 hora na recuperação) e log de todos os acessos. Sem e-mail configurado, a gestão copia o link e manda pelo WhatsApp.
+
+Cada recurso abaixo liga sozinho quando o segredo existe (`npx wrangler secret put NOME`) e desliga se faltar:
+
+| Recurso | Segredos | Custo |
+|---|---|---|
+| **Entrar com o Google** | os mesmos `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` da integração. Só falta cadastrar a URI `https://SEU-DOMINIO/api/auth/google/callback` no ID do cliente OAuth. Pede só nome e e-mail (escopos básicos, sem verificação do Google). Só entra quem a escola já cadastrou/convidou. | grátis |
+| **E-mail de convite e recuperação** | `MAIL_FROM` (ex.: `SCOLA <acesso@seudominio.com.br>`) + **uma** chave: `RESEND_API_KEY` (3.000/mês; precisa de um domínio verificado) **ou** `BREVO_API_KEY` (300/dia; basta confirmar o remetente) | grátis |
+| **Verificação em duas etapas (TOTP)** | `GOOGLE_TOKEN_KEY` (já usada para cifrar tokens; cifra também o segredo do autenticador). Cada pessoa liga em Configurações › Segurança; recebe 8 códigos de recuperação. | grátis |
+| **CAPTCHA após 3 erros de senha** | `TURNSTILE_SITE_KEY` e `TURNSTILE_SECRET_KEY` (Cloudflare → Turnstile → novo widget, com o domínio do SCOLA) | grátis |
+
+Perdeu o celular? O administrador remove a verificação em duas etapas da pessoa em **Usuários**. Quem esqueceu a senha e não consegue receber e-mail pede à gestão um
+novo link (Equipe › ícone de link). Contas antigas com senha provisória continuam funcionando e pedem a troca no primeiro acesso.
 
 ## Trazer os professores que já usam o sistema antigo (Supabase)
 

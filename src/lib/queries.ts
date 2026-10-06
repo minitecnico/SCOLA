@@ -256,14 +256,19 @@ export interface OrgMember {
   phone: string | null;
   last_login_at: string | null;
   must_change_pw: number;
+  pending: number; // convite ainda não aceito (sem senha e sem Google)
+  totp_enabled: number;
+  google: number;
 }
 export const listOrgMembers = (baseId: string) => rpc<OrgMember[]>('listOrgMembers', baseId);
-/** Cria a conta (senha provisória devolvida uma única vez) ou vincula e-mail já existente. */
+/** Cria a conta SEM senha e devolve o link de convite (a pessoa cria a própria senha); se o e-mail já tem conta, só vincula. */
 export const addMember = (baseId: string, input: { email: string; full_name?: string; role: AppRole }) =>
-  rpc<{ userId: string; email: string; password: string | null }>('addMember', baseId, input);
+  rpc<{ userId: string; email: string; isNew: boolean; inviteUrl: string | null; emailed: boolean }>('addMember', baseId, input);
 export const setMemberRole = (baseId: string, userId: string, role: AppRole) => rpc<void>('setMemberRole', baseId, userId, role);
 export const removeMember = (baseId: string, userId: string) => rpc<void>('removeMember', baseId, userId);
-export const resetMemberPassword = (baseId: string, userId: string) => rpc<{ password: string }>('resetMemberPassword', baseId, userId);
+/** Link de acesso gerado por quem administra (convite ou redefinição). */
+export interface AccessLink { url: string; emailed: boolean; kind: 'invite' | 'reset'; email: string; name: string | null }
+export const memberAccessLink = (baseId: string, userId: string) => rpc<AccessLink>('memberAccessLink', baseId, userId);
 
 /* ------------------------------ Administrador (você) ---------------------------- */
 export interface OrgAdmin {
@@ -301,12 +306,25 @@ export interface AdminUser {
   is_admin: boolean;
   disabled: boolean;
   must_change_pw: boolean;
+  pending: boolean;
+  totp_enabled: boolean;
+  google: boolean;
   created_at: string;
   last_login_at: string | null;
   sessions: number;
   bases: { base_id: string; base_name: string; role: AppRole; active: number }[];
 }
 export const listUsersAdmin = () => rpc<AdminUser[]>('listUsersAdmin');
+export const generateAccessLink = (userId: string) => rpc<AccessLink>('generateAccessLink', userId);
+export const adminResetTwoFactor = (userId: string) => rpc<void>('adminResetTwoFactor', userId);
+export const getAccessStatus = () => rpc<{ mail: { ready: boolean; provider: string | null }; google: boolean; twoFactor: boolean; captcha: boolean }>('getAccessStatus');
+
+/* --------------------------- Segurança da conta (2FA) --------------------------- */
+export interface SecurityStatus { twoFactorAvailable: boolean; twoFactorEnabled: boolean; backupLeft: number; hasPassword: boolean; googleLinked: boolean }
+export const getSecurityStatus = () => rpc<SecurityStatus>('getSecurityStatus');
+export const startTwoFactor = () => rpc<{ secret: string; otpauth: string }>('startTwoFactor');
+export const confirmTwoFactor = (code: string) => rpc<{ backupCodes: string[] }>('confirmTwoFactor', code);
+export const disableTwoFactor = (input: { password?: string; code: string }) => rpc<void>('disableTwoFactor', input);
 export const updateUserAdmin = (userId: string, input: { full_name: string; email: string; phone: string | null }) =>
   rpc<{ id: string; email: string; full_name: string }>('updateUserAdmin', userId, input);
 /** Sem senha = gera provisória (devolvida uma vez). */
@@ -318,7 +336,7 @@ export const setUserBase = (userId: string, baseId: string, role: AppRole | null
 export const deleteUserAdmin = (userId: string) => rpc<void>('deleteUserAdmin', userId);
 export const hqStats = () => rpc<HqStats>('hqStats');
 export const createBase = (input: { name: string; city?: string; plan?: string; max_students?: number | null; subject?: string; manager_name: string; manager_email: string }) =>
-  rpc<{ id: string; userId: string; email: string; password: string | null }>('createBase', input);
+  rpc<{ id: string; userId: string; email: string; isNew: boolean; inviteUrl: string | null; emailed: boolean }>('createBase', input);
 export const updateOrganization = (id: string, input: { name?: string; cnpj?: string | null; plan?: string; max_students?: number | null; notes?: string | null; city?: string | null }) =>
   rpc<void>('updateOrganization', id, input);
 export const setOrgActive = (id: string, active: boolean) => rpc<void>('setOrgActive', id, active);

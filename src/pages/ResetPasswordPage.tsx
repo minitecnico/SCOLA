@@ -1,13 +1,26 @@
-import { CheckCircle2, Eye, EyeOff, Lock } from 'lucide-react';
-import { useState } from 'react';
+import { CheckCircle2, Eye, EyeOff, Lock, User } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Logo } from '../components/Logo';
-import { apiPost } from '../lib/api';
+import { apiGet, apiPost } from '../lib/api';
+import { ROLE_LABEL, type AppRole } from '../lib/types';
 
-/** Página aberta pelo link do e-mail: cria a senha nova. */
+type Preview = { kind: 'invite' | 'reset'; email: string; name: string | null; baseName: string | null; role: string | null; hasPassword: boolean };
+
+const field = 'flex items-center gap-2 rounded-lg border border-neutral-300 px-3.5 focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-neutral-900/15';
+
+/**
+ * Página aberta pelo link recebido (e-mail ou WhatsApp):
+ *  - convite (/convite): a pessoa cria a própria senha e já entra — ou continua com o Google;
+ *  - redefinição (/redefinir-senha): cria uma senha nova e volta ao login.
+ */
 export function ResetPasswordPage() {
   const [params] = useSearchParams();
   const token = params.get('token') ?? '';
+  const [info, setInfo] = useState<Preview | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const [google, setGoogle] = useState(false);
+  const [name, setName] = useState('');
   const [pwd, setPwd] = useState('');
   const [again, setAgain] = useState('');
   const [show, setShow] = useState(false);
@@ -15,21 +28,37 @@ export function ResetPasswordPage() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (!token) return;
+    apiPost<Preview>('/api/auth/link/preview', { token })
+      .then((p) => { setInfo(p); setName(p.name ?? ''); })
+      .catch((e: Error) => setLoadError(e.message));
+    apiGet<{ google: boolean }>('/api/auth/config').then((c) => setGoogle(c.google)).catch(() => {});
+  }, [token]);
+
+  const rules = [
+    { ok: pwd.length >= 8, label: 'Pelo menos 8 caracteres' },
+    { ok: !!pwd && pwd.trim() === pwd, label: 'Sem espaço no começo ou no fim' },
+    { ok: !!pwd && pwd === again, label: 'As duas senhas conferem' },
+  ];
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (pwd.length < 8) return setError('A senha precisa de pelo menos 8 caracteres.');
-    if (pwd !== again) return setError('As duas senhas não são iguais.');
+    if (!rules.every((r) => r.ok)) return setError('Confira os requisitos da senha abaixo do campo.');
     setBusy(true);
     try {
-      await apiPost('/api/auth/reset', { token, password: pwd });
-      setDone(true);
+      const r = await apiPost<{ kind: string; signedIn: boolean }>('/api/auth/reset', { token, password: pwd, name: name.trim() });
+      if (r.signedIn) window.location.assign('/');
+      else setDone(true);
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setBusy(false);
     }
   }
+
+  const invite = info?.kind === 'invite';
 
   return (
     <div className="grid min-h-screen place-items-center bg-white px-5 py-10">
@@ -42,27 +71,54 @@ export function ResetPasswordPage() {
             <p className="mt-2 text-sm text-neutral-600">Pronto! Agora entre com o seu e-mail e a senha nova.</p>
             <Link to="/login" className="mt-6 flex w-full items-center justify-center rounded-lg bg-neutral-950 py-3 text-sm font-semibold text-white hover:bg-black">Ir para o login</Link>
           </div>
-        ) : !token ? (
+        ) : !token || loadError ? (
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-neutral-950">Link inválido</h1>
-            <p className="mt-2 text-sm text-neutral-600">Peça um novo link em “Esqueci minha senha”, na tela de login.</p>
-            <Link to="/login" className="mt-6 inline-block text-sm font-semibold text-neutral-800 underline">Voltar para o login</Link>
+            <h1 className="text-2xl font-extrabold tracking-tight text-neutral-950">Link inválido ou vencido</h1>
+            <p className="mt-2 text-sm text-neutral-600">{loadError || 'Este link está incompleto.'}</p>
+            <Link to="/login" className="mt-6 inline-block text-sm font-semibold text-neutral-800 underline">Ir para o login</Link>
           </div>
+        ) : !info ? (
+          <p className="text-sm text-neutral-500">Verificando o link…</p>
         ) : (
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <h1 className="text-2xl font-extrabold tracking-tight text-neutral-950">Criar nova senha</h1>
-              <p className="mt-1.5 text-sm text-neutral-500">Escolha uma senha com pelo menos 8 caracteres.</p>
+              <h1 className="text-2xl font-extrabold tracking-tight text-neutral-950">{invite ? 'Bem-vindo(a) ao SCOLA' : 'Criar nova senha'}</h1>
+              <p className="mt-1.5 text-sm text-neutral-500">
+                {invite
+                  ? <>{info.baseName ? <><b className="text-neutral-800">{info.baseName}</b> liberou o seu acesso{info.role ? <> como <b className="text-neutral-800">{ROLE_LABEL[info.role as Exclude<AppRole, 'superadmin'>] ?? info.role}</b></> : null}. </> : null}Crie sua senha para começar.</>
+                  : <>Conta <b className="text-neutral-800">{info.email}</b>. Escolha uma senha com pelo menos 8 caracteres.</>}
+              </p>
             </div>
+
+            {invite && google ? (
+              <>
+                <a href="/api/auth/google/start" className="flex w-full items-center justify-center gap-3 rounded-lg border border-neutral-300 bg-white py-3 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-50">
+                  Continuar com o Google
+                </a>
+                <p className="-mt-1 text-center text-xs text-neutral-500">Use a conta Google do e-mail <b>{info.email}</b>.</p>
+                <div className="flex items-center gap-3 text-xs font-medium uppercase tracking-wide text-neutral-400"><span className="h-px flex-1 bg-neutral-200" /> ou crie uma senha <span className="h-px flex-1 bg-neutral-200" /></div>
+              </>
+            ) : null}
+
+            {invite ? (
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold text-neutral-700">Seu nome</span>
+                <span className={field}>
+                  <User size={17} className="shrink-0 text-neutral-400" />
+                  <input value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" className="w-full bg-transparent py-3 text-sm outline-none" />
+                </span>
+              </label>
+            ) : null}
+
             {[
               { label: 'Nova senha', v: pwd, set: setPwd, auto: true },
-              { label: 'Repita a nova senha', v: again, set: setAgain, auto: false },
+              { label: 'Repita a senha', v: again, set: setAgain, auto: false },
             ].map((f) => (
               <label key={f.label} className="block">
                 <span className="mb-1.5 block text-xs font-semibold text-neutral-700">{f.label}</span>
-                <span className="flex items-center gap-2 rounded-lg border border-neutral-300 px-3.5 focus-within:border-neutral-900 focus-within:ring-2 focus-within:ring-neutral-900/15">
+                <span className={field}>
                   <Lock size={17} className="shrink-0 text-neutral-400" />
-                  <input type={show ? 'text' : 'password'} required autoFocus={f.auto} autoComplete="new-password" value={f.v} onChange={(e) => f.set(e.target.value)} className="w-full bg-transparent py-3 text-sm outline-none" />
+                  <input type={show ? 'text' : 'password'} required autoFocus={f.auto && !invite} autoComplete="new-password" value={f.v} onChange={(e) => f.set(e.target.value)} className="w-full bg-transparent py-3 text-sm outline-none" />
                   {f.auto ? (
                     <button type="button" onClick={() => setShow((v) => !v)} className="text-neutral-400 hover:text-neutral-900" aria-label={show ? 'Ocultar senha' : 'Mostrar senha'}>
                       {show ? <EyeOff size={17} /> : <Eye size={17} />}
@@ -71,8 +127,15 @@ export function ResetPasswordPage() {
                 </span>
               </label>
             ))}
-            {error ? <p className="rounded-lg bg-red-50 px-3 py-2.5 text-sm font-medium text-red-700">{error}</p> : null}
-            <button type="submit" disabled={busy} className="w-full rounded-lg bg-neutral-950 py-3 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60">{busy ? 'Salvando…' : 'Salvar nova senha'}</button>
+            <ul className="space-y-1 text-xs">
+              {rules.map((r) => (
+                <li key={r.label} className={r.ok ? 'font-semibold text-neutral-900' : 'text-neutral-500'}>{r.ok ? '✓' : '○'} {r.label}</li>
+              ))}
+            </ul>
+            {error ? <p role="alert" className="rounded-lg bg-red-50 px-3 py-2.5 text-sm font-medium text-red-700">{error}</p> : null}
+            <button type="submit" disabled={busy} className="w-full rounded-lg bg-neutral-950 py-3 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60">
+              {busy ? 'Salvando…' : invite ? 'Criar senha e entrar' : 'Salvar nova senha'}
+            </button>
           </form>
         )}
       </div>

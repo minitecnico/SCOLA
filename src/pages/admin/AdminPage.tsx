@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import { successToast } from '../../components/Feedback';
-import { CredentialsModal, TeamManager, type Credentials } from '../../components/TeamManager';
+import { AccessLinkModal, TeamManager, type AccessLinkInfo } from '../../components/TeamManager';
 import { Button, EmptyState, Field, Input, Loading, Modal, PageHeader, SearchInput, Segmented, Select, StatCard } from '../../components/ui';
 import { cn } from '../../lib/cn';
 import { createBase, deleteOrganization, hqStats, listOrgAdmin, setOrgActive, updateOrganization, type OrgAdmin } from '../../lib/queries';
@@ -28,7 +28,7 @@ export function AdminPage() {
   const [creating, setCreating] = useState(params.get('novo') === '1');
   const [editing, setEditing] = useState<OrgAdmin | null>(null);
   const [team, setTeam] = useState<OrgAdmin | null>(null);
-  const [creds, setCreds] = useState<Credentials | null>(null);
+  const [link, setLink] = useState<AccessLinkInfo | null>(null);
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['admin-bases'] });
@@ -193,8 +193,8 @@ export function AdminPage() {
           onDone={(c) => {
             refresh();
             setCreating(false);
-            if (c) setCreds(c);
-            else successToast('Base criada (o gestor já tinha conta e usa a mesma senha)');
+            if (c) setLink(c);
+            else successToast('Base criada (o gestor já tinha conta e usa o mesmo acesso)');
           }}
         />
       ) : null}
@@ -204,15 +204,15 @@ export function AdminPage() {
           <TeamManager baseId={team.id} />
         </Modal>
       ) : null}
-      <CredentialsModal creds={creds} onClose={() => setCreds(null)} />
+      <AccessLinkModal link={link} onClose={() => setLink(null)} title="Base criada — convite do gestor" />
     </>
   );
 }
 
-function CreateBaseModal({ onClose, onDone }: { onClose: () => void; onDone: (c: Credentials | null) => void }) {
+function CreateBaseModal({ onClose, onDone }: { onClose: () => void; onDone: (c: AccessLinkInfo | null) => void }) {
   const create = useMutation({
     mutationFn: createBase,
-    onSuccess: (r, input) => onDone(r.password ? { name: input.manager_name, email: r.email, password: r.password } : null),
+    onSuccess: (r, input) => onDone(r.inviteUrl ? { name: input.manager_name, email: r.email, url: r.inviteUrl, emailed: r.emailed, kind: 'invite', baseName: input.name } : null),
   });
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -262,7 +262,7 @@ function CreateBaseModal({ onClose, onDone }: { onClose: () => void; onDone: (c:
               <Input name="manager_email" type="email" required placeholder="gestor@escola.com.br" />
             </Field>
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">Uma senha provisória é gerada. O gestor cria a equipe (professores, secretaria) dentro da base.</p>
+          <p className="mt-3 text-xs text-muted-foreground">O gestor recebe um convite por link e cria a própria senha. Depois ele cadastra a equipe (professores, secretaria) dentro da base.</p>
         </div>
         {create.isError ? <p className="text-sm font-medium text-red-600">{(create.error as Error).message}</p> : null}
         <div className="flex justify-end gap-2 border-t border-border pt-4">

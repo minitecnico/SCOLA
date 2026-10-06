@@ -7,7 +7,7 @@ import { DocEditor, useDocEditor, type JSONContent } from '../components/editor/
 import { blankSheets, gridToSheets, SheetEditor, xlsxToSheets, type SheetData, type SheetEditorHandle } from '../components/editor/SheetEditor';
 import { Button, EmptyState, Loading, Modal } from '../components/ui';
 import { cn } from '../lib/cn';
-import { downloadBlob } from '../lib/ia';
+import { downloadBlob } from '../lib/storage';
 import { printDocument } from '../lib/print';
 import {
   getPlanDocMeta, listPlanDocVersions, loadDocContent, loadDocVersion, lockPlanDoc, saveDocContent, unlockPlanDoc, type EditableKind, type PlanDocMeta,

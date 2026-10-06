@@ -1,39 +1,41 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
 import { format, parseISO } from 'date-fns';
+
 import { ptBR } from 'date-fns/locale';
-import { BookOpen, CalendarRange, Check, Eye, Mail, MessageCircle, MessageSquare, Paperclip, Pencil, Plus, Save, Send, Share2, Trash2, Undo2, X } from 'lucide-react';
+
+import { BookOpen, CalendarRange, Check, Eye, Mail, MessageCircle, MessageSquare, Paperclip, Pencil, Save, Send, Share2, Trash2, Undo2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+
 import { useAuth } from '../auth/AuthProvider';
+
 import { AttachmentChips } from '../components/Attachments';
+
 import { Dropzone } from '../components/Dropzone';
+
 import { WeeklyPlanEditor, WeeklyPlanView, emptyWeeklyPlan, weeklyPlanToText } from '../components/WeeklyPlan';
+
 import { PlanDocsCenter } from '../components/PlanDocsCenter';
+
 import type { WeeklyPlanData } from '../lib/types';
+
 import { successToast } from '../components/Feedback';
+
 import { Button, Card, EmptyState, Field, Input, Modal, PageHeader, Segmented, Select, Loading} from '../components/ui';
+
 import { cn } from '../lib/cn';
-import { canReviewPlan } from '../lib/permissions';
+
 import { safeFileName } from '../lib/storage';
-import {
-  deletePlan,
-  listClasses,
-  listMyPlans,
-  listOrgPlans,
-  listPlanMessages,
-  listReviewedPlans,
-  markPlanRead,
-  planUnreadCounts,
-  reviewPlan,
-  savePlan,
-  sendPlanMessage,
-  setMemberContact,
-  submitPlan,
-  uploadPlanAttachment,
-  type PlanInput,
-  type PlanWithMeta,
-} from '../lib/queries';
+
+import { deletePlan, listMyPlans, listOrgPlans, listPlanMessages, listReviewedPlans, markPlanRead, planUnreadCounts, reviewPlan, savePlan, sendPlanMessage, setMemberContact, submitPlan, uploadPlanAttachment, type PlanInput, type PlanWithMeta } from '../lib/queries';
 import { PLAN_STATUS } from '../lib/types';
+
 import { DateInput } from '../components/DateInput';
+
+import { waLink } from '../lib/phone';
+
+import { useClasses } from '../lib/hooks';
+
 
 // Traduz erros técnicos (ex.: módulo ainda não ativado no banco) para algo amigável.
 function friendly(e: unknown): string {
@@ -207,14 +209,6 @@ function Revisados({ onEdit }: { onEdit: (p: PlanWithMeta) => void }) {
   );
 }
 
-/** Só dígitos; garante DDI 55 (Brasil) quando o número não tem código de país. */
-function normalizePhone(raw: string): string {
-  const d = raw.replace(/\D/g, '');
-  if (!d) return '';
-  if (d.startsWith('55')) return d;
-  return d.length <= 11 ? `55${d}` : d;
-}
-
 /** Envio por WhatsApp ou e-mail. `self` = o professor compartilhando o próprio planejamento. */
 function SendModal({ plan, onClose, self = false }: { plan: PlanWithMeta; onClose: () => void; self?: boolean }) {
   const qc = useQueryClient();
@@ -247,9 +241,9 @@ function SendModal({ plan, onClose, self = false }: { plan: PlanWithMeta; onClos
 
   function fire() {
     if (channel === 'whatsapp') {
-      const num = normalizePhone(phone);
-      if (!num) return;
-      window.open(`https://wa.me/${num}?text=${encodeURIComponent(bodyClean)}`, '_blank', 'noopener');
+      const url = waLink(phone, bodyClean);
+      if (!url) return;
+      window.open(url, '_blank', 'noopener');
     } else {
       window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyClean)}`, '_blank', 'noopener');
     }
@@ -257,7 +251,7 @@ function SendModal({ plan, onClose, self = false }: { plan: PlanWithMeta; onClos
     onClose();
   }
 
-  const canFire = channel === 'whatsapp' ? !!normalizePhone(phone) : /\S+@\S+\.\S+/.test(email);
+  const canFire = channel === 'whatsapp' ? !!waLink(phone) : /\S+@\S+\.\S+/.test(email);
 
   return (
     <Modal open onClose={onClose} title={self ? 'Enviar planejamento' : 'Enviar retorno ao professor'}>
@@ -533,7 +527,7 @@ function DevolverModal({ plan, onClose }: { plan: PlanWithMeta; onClose: () => v
 function ComposeModal({ plan, onClose }: { plan: PlanWithMeta | null; onClose: () => void }) {
   const qc = useQueryClient();
   const { user, profile } = useAuth();
-  const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: listClasses });
+  const { data: classes = [] } = useClasses();
   const classOptions = classes.map((c) => c.name);
   const [mode, setMode] = useState<'texto' | 'semanal'>(plan?.plan_data ? 'semanal' : 'texto');
   const [title, setTitle] = useState(plan?.title ?? '');

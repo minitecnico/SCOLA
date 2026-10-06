@@ -1,5 +1,5 @@
 import type { Context, Hono } from 'hono';
-import { hashPassword, iterationsFor, validatePassword, type UserRow } from './auth';
+import { EMAIL_RE, hashPassword, iterationsFor, validatePassword, type UserRow } from './auth';
 import { deviceOf } from './audit';
 import { all, fail, first, now, run, uid, type Env } from './db';
 import { bestMatch, MATCH_SURE } from './match';
@@ -14,7 +14,6 @@ type App = Hono<{ Bindings: Env; Variables: { user: UserRow } }>;
 type C = Context<{ Bindings: Env; Variables: { user: UserRow } }>;
 
 const ROLES = ['professor', 'gestor', 'secretaria'];
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ip = (c: C) => c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
 const clean = (v: unknown, max: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 

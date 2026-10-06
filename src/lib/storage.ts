@@ -13,16 +13,13 @@ export function safeFileName(name: string): string {
     .slice(-120); // evita caminhos absurdamente longos
 }
 
-/** Dispara o download de um único arquivo a partir de um Blob. */
-function triggerDownload(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
+/** Dispara o download de um arquivo a partir de um Blob (troca caracteres inválidos no nome). */
+export function downloadBlob(blob: Blob, name: string) {
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name.replace(/[\\/:*?"<>|]/g, '-') });
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
 /**
@@ -40,7 +37,7 @@ export async function downloadAllAttachments(
     const f = valid[0];
     const res = await fetch(f.url as string);
     if (!res.ok) throw new Error('Não foi possível baixar o arquivo.');
-    triggerDownload(await res.blob(), f.name);
+    downloadBlob(await res.blob(), f.name);
     return;
   }
 
@@ -64,5 +61,5 @@ export async function downloadAllAttachments(
     }),
   );
   const blob = await zip.generateAsync({ type: 'blob' });
-  triggerDownload(blob, `${zipName}.zip`);
+  downloadBlob(blob, `${zipName}.zip`);
 }

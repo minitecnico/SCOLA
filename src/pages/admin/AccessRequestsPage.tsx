@@ -8,9 +8,9 @@ import {
   approveAccessRequest, countAccessRequests, listAccessRequests, listOrgAdmin, rejectAccessRequest, type AccessRequest,
 } from '../../lib/queries';
 import { ASSIGNABLE_ROLES, ROLE_LABEL, type AppRole } from '../../lib/types';
+import { WhatsAppLink } from '../../components/WhatsAppLink';
 
 const when = (s: string) => new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-const waLink = (phone: string | null, text: string) => `https://wa.me/55${(phone ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(text)}`;
 
 /** Fila de pedidos: pessoas novas pedindo cadastro e pessoas que esqueceram a senha. O administrador analisa e aprova. */
 export function AccessRequestsPage() {
@@ -70,11 +70,13 @@ export function AccessRequestsPage() {
                     <p className="truncate text-sm text-muted-foreground">{r.email}</p>
                     <p className="text-xs text-muted-foreground">{when(r.created_at)}{r.device ? ` · ${r.device}` : ''}</p>
                   </div>
-                  {r.phone ? (
-                    <a href={waLink(r.phone, `Olá, ${(r.full_name || '').split(' ')[0]}! Aqui é do SCOLA. ${isPwd ? 'Foi você que pediu uma nova senha?' : 'Recebemos o seu pedido de cadastro.'}`)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold ring-1 ring-inset ring-border hover:bg-muted">
-                      <MessageCircle size={15} /> {r.phone}
-                    </a>
-                  ) : null}
+                  <WhatsAppLink
+                    phone={r.phone}
+                    text={`Olá, ${(r.full_name || '').split(' ')[0]}! Aqui é do SCOLA. ${isPwd ? 'Foi você que pediu uma nova senha?' : 'Recebemos o seu pedido de cadastro.'}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold ring-1 ring-inset ring-border hover:bg-muted"
+                  >
+                    <MessageCircle size={15} /> {r.phone}
+                  </WhatsAppLink>
                 </div>
 
                 <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">

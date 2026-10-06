@@ -1,20 +1,33 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Archive, FileSpreadsheet, GraduationCap } from 'lucide-react';
+
 import { Link } from 'react-router-dom';
+
 import { useAuth } from '../auth/AuthProvider';
+
 import { canManageOrg } from '../lib/permissions';
+
 import { useState } from 'react';
+
 import { ImportModal } from '../components/ImportModal';
+
 import { successToast } from '../components/Feedback';
+
 import { ActionsMenu, AddButton, Button, Card, CheckBox, EmptyState, Field, Input, Modal, PageHeader, Select, SelectionBar, SelectModeButton, Loading} from '../components/ui';
-import { bulkDeleteClasses, bulkImportAll, importResultToModal, deleteClass, listClasses, saveClass } from '../lib/queries';
+
+import { bulkDeleteClasses, bulkImportAll, importResultToModal, deleteClass, saveClass } from '../lib/queries';
 import { useSelection } from '../lib/useSelection';
+
 import { CADASTRO_COLUMNS } from '../lib/importSheet';
+
 import { SHIFTS, type ClassRoom } from '../lib/types';
+
+import { useClasses } from '../lib/hooks';
+
 
 export function ClassesPage() {
   const qc = useQueryClient();
-  const { data: classes = [], isLoading } = useQuery({ queryKey: ['classes'], queryFn: listClasses });
+  const { data: classes = [], isLoading } = useClasses();
   const manager = canManageOrg(useAuth().role);
   const [editing, setEditing] = useState<ClassRoom | null>(null);
   const [open, setOpen] = useState(false);

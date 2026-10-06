@@ -1,24 +1,40 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
 import { BookCheck, BookOpenCheck, Copy, Link2, Tag, Download, FileSpreadsheet, KeyRound, MoreHorizontal, Pencil, Printer, ScanLine, Trash2, Users } from 'lucide-react';
+
 import { useEffect, useMemo, useState } from 'react';
+
 import { useNavigate, useParams } from 'react-router-dom';
+
 import { useAuth } from '../auth/AuthProvider';
+
 import { DateInput } from '../components/DateInput';
+
 import { ExamScanner } from '../components/ExamScanner';
+
 import { successToast } from '../components/Feedback';
+
 import { Button, DropdownMenu, EmptyState, Field, Input, Loading, Modal, PageHeader, SegmentedField, StatTile, StatusBadge, fieldCls } from '../components/ui';
+
 import { cn } from '../lib/cn';
+
 import { downloadXlsx } from '../lib/importSheet';
+
 import { examLink, keyPayload, LETTERS } from '../lib/omr/layout';
+
 import { keyComplete, scoreAnswers } from '../lib/omr/score';
+
 import { examQrPng, printKeyCard, printLabels, printSheets, qrDataUrl, sheetSvg } from '../lib/omr/sheet';
-import {
-  classGradeTargets, deleteExam, deleteExamAnswer, examGradeTargets, getExam, listClasses, listSchools, saveExam, saveExamAnswer, sendExamToGrades, type ExamDetail,
-} from '../lib/queries';
+
+import { classGradeTargets, deleteExam, deleteExamAnswer, examGradeTargets, getExam, saveExam, saveExamAnswer, sendExamToGrades, type ExamDetail } from '../lib/queries';
 import { gradeTone, TONE, type Tone } from '../lib/tone';
 
+import { fmtScore } from '../lib/format';
+
+import { useClasses, useSchools } from '../lib/hooks';
+
+
 type Tab = 'gabarito' | 'folhas' | 'resultados';
-const fmt = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
 export function ProvaDetailPage() {
   const { id = '' } = useParams();
@@ -52,7 +68,7 @@ export function ProvaDetailPage() {
     <>
       <PageHeader
         title={exam.title}
-        subtitle={`${exam.class_name} · ${exam.questions} questões · vale ${fmt(exam.points)} · código ${exam.code}`}
+        subtitle={`${exam.class_name} · ${exam.questions} questões · vale ${fmtScore(exam.points)} · código ${exam.code}`}
         action={
           <div className="flex gap-2">
             <DropdownMenu
@@ -104,7 +120,7 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
   const qc = useQueryClient();
   const { exam } = data;
   const locked = data.answers.length > 0;
-  const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: listClasses });
+  const { data: classes = [] } = useClasses();
   const initial = useMemo(
     () => ({
       title: exam.title,
@@ -278,7 +294,7 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
                   <select value={form.grade_key} onChange={(e) => setForm((f) => ({ ...f, grade_key: e.target.value }))} className={fieldCls} disabled={loadingTargets}>
                     {targets.map((t) => (
                       <option key={t.key} value={t.key}>
-                        {t.name} (vale {fmt(t.max)})
+                        {t.name} (vale {fmtScore(t.max)})
                       </option>
                     ))}
                   </select>
@@ -288,7 +304,7 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
           </div>
           {form.grade_term && target ? (
             <p className="mt-2 text-xs text-muted-foreground">
-              Quem acertar metade recebe {fmt(Math.round(target.max * 50) / 100)} em {target.name}.
+              Quem acertar metade recebe {fmtScore(Math.round(target.max * 50) / 100)} em {target.name}.
               {target.filled ? ` ${target.filled} aluno(s) já têm nota nessa coluna: a de quem fizer a prova será substituída.` : ''}
             </p>
           ) : null}
@@ -363,7 +379,7 @@ function KeyTab({ data, onSaved }: { data: ExamDetail; onSaved: () => void }) {
 function SheetsTab({ data }: { data: ExamDetail }) {
   const { exam, students } = data;
   const { activeBase } = useAuth();
-  const { data: schools = [] } = useQuery({ queryKey: ['schools'], queryFn: listSchools });
+  const { data: schools = [] } = useSchools();
   const school = schools[0];
   const [blanks, setBlanks] = useState(0);
   const [preview, setPreview] = useState('');
@@ -571,9 +587,9 @@ function ResultsTab({ data, onScan }: { data: ExamDetail; onScan: () => void }) 
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         <StatTile label="Corrigidas" value={`${done.length}/${students.length}`} />
-        <StatTile label="Média" value={avg != null ? fmt(Math.round(avg * 100) / 100) : '—'} tone={avg != null ? gradeTone(avg, exam.points) : 'none'} />
-        <StatTile label="Maior nota" value={scores.length ? fmt(Math.max(...scores)) : '—'} />
-        <StatTile label="Menor nota" value={scores.length ? fmt(Math.min(...scores)) : '—'} />
+        <StatTile label="Média" value={avg != null ? fmtScore(Math.round(avg * 100) / 100) : '—'} tone={avg != null ? gradeTone(avg, exam.points) : 'none'} />
+        <StatTile label="Maior nota" value={scores.length ? fmtScore(Math.max(...scores)) : '—'} />
+        <StatTile label="Menor nota" value={scores.length ? fmtScore(Math.min(...scores)) : '—'} />
       </div>
 
       <div className="grid grid-cols-3 gap-2 sm:flex sm:justify-end">
@@ -602,7 +618,7 @@ function ResultsTab({ data, onScan }: { data: ExamDetail; onScan: () => void }) 
                   </span>
                 </span>
                 {x.r ? (
-                  <span className={cn('rounded-lg px-2.5 py-1 text-sm font-bold tabular-nums ring-1 ring-inset', TONE[gradeTone(x.r.score, exam.points)].soft)}>{fmt(x.r.score)}</span>
+                  <span className={cn('rounded-lg px-2.5 py-1 text-sm font-bold tabular-nums ring-1 ring-inset', TONE[gradeTone(x.r.score, exam.points)].soft)}>{fmtScore(x.r.score)}</span>
                 ) : (
                   <StatusBadge tone="none">—</StatusBadge>
                 )}
@@ -695,7 +711,7 @@ function AnswersModal({
   return (
     <Modal open onClose={onClose} title={`Respostas de ${editing.name}`} size="lg">
       <p className="mb-3 text-sm text-muted-foreground">
-        Nota <b className="text-foreground">{fmt(r.score)}</b> · {r.correct}/{r.total} acertos. Toque na alternativa que o aluno marcou (toque de novo para deixar em branco).
+        Nota <b className="text-foreground">{fmtScore(r.score)}</b> · {r.correct}/{r.total} acertos. Toque na alternativa que o aluno marcou (toque de novo para deixar em branco).
       </p>
       <div className="grid max-h-[55vh] gap-x-6 gap-y-1 overflow-y-auto sm:grid-cols-2">
         {ans.map((a, q) => (
@@ -774,14 +790,14 @@ function SendToGradesModal({ open, onClose, data, count }: { open: boolean; onCl
           <select value={key} onChange={(e) => setKey(e.target.value)} className={fieldCls} disabled={isLoading || !targets.length}>
             {targets.map((t) => (
               <option key={t.key} value={t.key}>
-                {t.name} (vale {fmt(t.max)})
+                {t.name} (vale {fmtScore(t.max)})
               </option>
             ))}
           </select>
         </Field>
         {target ? (
           <p className="text-xs text-muted-foreground">
-            Exemplo: quem acertou metade recebe {fmt(Math.round(target.max * 50) / 100)} em {target.name}.
+            Exemplo: quem acertou metade recebe {fmtScore(Math.round(target.max * 50) / 100)} em {target.name}.
             {target.filled ? ` ${target.filled} aluno(s) já têm nota nessa coluna; a nota de quem fez a prova será substituída.` : ''}
           </p>
         ) : null}

@@ -3,6 +3,7 @@
  * Tudo vem de layout.ts — a mesma geometria que a câmera usa para ler.
  */
 import { LETTERS, MARKER, MARKERS, PAGE, QR, examLink, keyPayload, qrPayload, sheetLayout } from './layout';
+import { escapeHtml } from '../format';
 
 export interface SheetInfo {
   school: string;
@@ -15,7 +16,6 @@ export interface SheetInfo {
   choices: number;
 }
 
-const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 const br = (iso?: string | null) => (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
 
 function marker(cx: number, cy: number) {
@@ -66,9 +66,9 @@ export async function keyCardSvg(info: KeyInfo, origin = window.location.origin)
   p.push(`<text x="${PAGE.w - 12}" y="9.2" font-size="3.2" font-weight="600" fill="#fff" text-anchor="end">NÃO ENTREGUE AOS ALUNOS</text>`);
   // Dados da prova (recortados para não invadir o QR)
   p.push(`<clipPath id="khdr"><rect x="0" y="14" width="${Q.x - 4}" height="90"/></clipPath><g clip-path="url(#khdr)">`);
-  p.push(`<text x="12" y="27" font-size="3.4" fill="#444">${esc(info.school.toUpperCase())}</text>`);
-  p.push(`<text x="12" y="36" font-size="6" font-weight="800">${esc(info.title)}</text>`);
-  p.push(`<text x="12" y="43" font-size="3.6" fill="#333">${esc(info.className)}${info.date ? ` · ${br(info.date)}` : ''}</text>`);
+  p.push(`<text x="12" y="27" font-size="3.4" fill="#444">${escapeHtml(info.school.toUpperCase())}</text>`);
+  p.push(`<text x="12" y="36" font-size="6" font-weight="800">${escapeHtml(info.title)}</text>`);
+  p.push(`<text x="12" y="43" font-size="3.6" fill="#333">${escapeHtml(info.className)}${info.date ? ` · ${br(info.date)}` : ''}</text>`);
   const facts = [
     ['Questões', String(n)],
     ['Alternativas', `A a ${LETTERS[k - 1]}`],
@@ -78,7 +78,7 @@ export async function keyCardSvg(info: KeyInfo, origin = window.location.origin)
   facts.forEach(([l, v], i) => {
     const x = 12 + i * 30;
     p.push(`<text x="${x}" y="54" font-size="2.7" fill="#666">${l.toUpperCase()}</text>`);
-    p.push(`<text x="${x}" y="60.5" font-size="5" font-weight="800">${esc(v)}</text>`);
+    p.push(`<text x="${x}" y="60.5" font-size="5" font-weight="800">${escapeHtml(v)}</text>`);
   });
   // Como corrigir
   const steps = [
@@ -126,7 +126,7 @@ export async function keyCardSvg(info: KeyInfo, origin = window.location.origin)
     }
     if (!ans) p.push(`<text x="${x0 + 12.5 + k * 6.2}" y="${y + 1.1}" font-size="2.6" fill="#c00">sem resposta</text>`);
   }
-  p.push(`<text x="${PAGE.w / 2}" y="291.5" font-size="2.5" text-anchor="middle" fill="#888">SCOLA · gabarito da prova ${esc(info.examCode)} · se o gabarito for alterado no sistema, imprima de novo</text>`);
+  p.push(`<text x="${PAGE.w / 2}" y="291.5" font-size="2.5" text-anchor="middle" fill="#888">SCOLA · gabarito da prova ${escapeHtml(info.examCode)} · se o gabarito for alterado no sistema, imprima de novo</text>`);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PAGE.w} ${PAGE.h}" width="${PAGE.w}mm" height="${PAGE.h}mm" font-family="Inter, Arial, sans-serif">
 <rect width="${PAGE.w}" height="${PAGE.h}" fill="#fff"/>
@@ -148,15 +148,15 @@ export async function sheetSvg(info: SheetInfo, student: { id: string; name: str
   const parts: string[] = [];
   // Cabeçalho (recortado para nunca invadir o QR code)
   parts.push(`<clipPath id="hdr"><rect x="0" y="0" width="${QR.x - 4}" height="66"/></clipPath><g clip-path="url(#hdr)">`);
-  if (hasLogo) parts.push(`<image href="${esc(info.logo!)}" x="12" y="12" width="18" height="18" preserveAspectRatio="xMidYMid meet"/>`);
-  parts.push(`<text x="${tx}" y="17.5" font-size="4.6" font-weight="800">${esc(info.school.toUpperCase())}</text>`);
-  parts.push(`<text x="${tx}" y="23" font-size="3.2" fill="#444">FOLHA DE RESPOSTAS · ${esc(info.className)}${info.date ? ` · ${br(info.date)}` : ''}</text>`);
-  parts.push(`<text x="${tx}" y="29.5" font-size="4.2" font-weight="700">${esc(info.title)}</text>`);
+  if (hasLogo) parts.push(`<image href="${escapeHtml(info.logo!)}" x="12" y="12" width="18" height="18" preserveAspectRatio="xMidYMid meet"/>`);
+  parts.push(`<text x="${tx}" y="17.5" font-size="4.6" font-weight="800">${escapeHtml(info.school.toUpperCase())}</text>`);
+  parts.push(`<text x="${tx}" y="23" font-size="3.2" fill="#444">FOLHA DE RESPOSTAS · ${escapeHtml(info.className)}${info.date ? ` · ${br(info.date)}` : ''}</text>`);
+  parts.push(`<text x="${tx}" y="29.5" font-size="4.2" font-weight="700">${escapeHtml(info.title)}</text>`);
 
   // Aluno
   parts.push(`<text x="12" y="41" font-size="3" fill="#555">ALUNO(A)</text>`);
   if (student) {
-    parts.push(`<text x="12" y="47.5" font-size="5" font-weight="700">${esc(student.name)}</text>`);
+    parts.push(`<text x="12" y="47.5" font-size="5" font-weight="700">${escapeHtml(student.name)}</text>`);
   }
   parts.push(`<line x1="12" y1="49.5" x2="${QR.x - 4}" y2="49.5" stroke="#000" stroke-width="0.25"/>`);
 
@@ -172,7 +172,7 @@ export async function sheetSvg(info: SheetInfo, student: { id: string; name: str
 
   // QR + código legível
   parts.push(qr);
-  parts.push(`<text x="${QR.x + QR.size / 2}" y="${QR.y + QR.size + 4}" font-size="2.6" text-anchor="middle" fill="#555">${esc(info.examCode)}</text>`);
+  parts.push(`<text x="${QR.x + QR.size / 2}" y="${QR.y + QR.size + 4}" font-size="2.6" text-anchor="middle" fill="#555">${escapeHtml(info.examCode)}</text>`);
 
   // Marcas de canto
   for (const m of MARKERS) parts.push(marker(m.x, m.y));
@@ -190,7 +190,7 @@ export async function sheetSvg(info: SheetInfo, student: { id: string; name: str
   }
 
   // Rodapé
-  parts.push(`<text x="${PAGE.w / 2}" y="291.5" font-size="2.5" text-anchor="middle" fill="#888">Correção automática SCOLA · prova ${esc(info.examCode)}${student ? '' : ' · folha avulsa'}</text>`);
+  parts.push(`<text x="${PAGE.w / 2}" y="291.5" font-size="2.5" text-anchor="middle" fill="#888">Correção automática SCOLA · prova ${escapeHtml(info.examCode)}${student ? '' : ' · folha avulsa'}</text>`);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PAGE.w} ${PAGE.h}" width="${PAGE.w}mm" height="${PAGE.h}mm" font-family="Inter, Arial, sans-serif">
 <rect width="${PAGE.w}" height="${PAGE.h}" fill="#fff"/>
@@ -298,11 +298,11 @@ export async function labelsSvg(info: Pick<SheetInfo, 'title' | 'className' | 'e
       parts.push(await qrSvg(examLink(origin, info.examCode, st.id), { x: x + 4, y: y + 4.5, size: 26 }, 'M'));
       const tx = x + 33;
       const lines = wrap(st.name, 17, 3);
-      lines.forEach((l, k) => parts.push(`<text x="${tx}" y="${y + 9 + k * 4.3}" font-size="3.6" font-weight="800">${esc(l)}</text>`));
+      lines.forEach((l, k) => parts.push(`<text x="${tx}" y="${y + 9 + k * 4.3}" font-size="3.6" font-weight="800">${escapeHtml(l)}</text>`));
       const ny = y + 9 + lines.length * 4.3 + 1.5;
-      parts.push(`<text x="${tx}" y="${ny}" font-size="2.6" fill="#333">${esc(info.className.slice(0, 22))}</text>`);
-      parts.push(`<text x="${tx}" y="${ny + 3.4}" font-size="2.6" fill="#333">${esc(info.title.slice(0, 22))}</text>`);
-      parts.push(`<text x="${tx}" y="${y + H - 3.5}" font-size="2.2" fill="#888">SCOLA · ${esc(info.examCode)}</text>`);
+      parts.push(`<text x="${tx}" y="${ny}" font-size="2.6" fill="#333">${escapeHtml(info.className.slice(0, 22))}</text>`);
+      parts.push(`<text x="${tx}" y="${ny + 3.4}" font-size="2.6" fill="#333">${escapeHtml(info.title.slice(0, 22))}</text>`);
+      parts.push(`<text x="${tx}" y="${y + H - 3.5}" font-size="2.2" fill="#888">SCOLA · ${escapeHtml(info.examCode)}</text>`);
     }
     pages.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PAGE.w} ${PAGE.h}" width="${PAGE.w}mm" height="${PAGE.h}mm" font-family="Inter, Arial, sans-serif">
 <rect width="${PAGE.w}" height="${PAGE.h}" fill="#fff"/>

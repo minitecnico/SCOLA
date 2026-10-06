@@ -11,6 +11,7 @@ import {
   addMember, deleteUserAdmin, endUserSessions, generateAccessLink, listOrgAdmin, listUsersAdmin, setUserBase, setUserDisabled, setUserPasswordAdmin, updateUserAdmin, type AdminUser,
 } from '../../lib/queries';
 import { ASSIGNABLE_ROLES, ROLE_LABEL, type AppRole } from '../../lib/types';
+import { WhatsAppLink } from '../../components/WhatsAppLink';
 
 /**
  * Usuários da plataforma: todas as contas de todas as bases, num lugar só.
@@ -479,16 +480,9 @@ function UserModal({ user, onClose }: { user: AdminUser; onClose: () => void }) 
           </Section>
         ) : null}
 
-        {user.phone ? (
-          <a
-            href={`https://wa.me/55${user.phone.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '')}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
-          >
-            <Phone size={13} /> Conversar no WhatsApp
-          </a>
-        ) : null}
+        <WhatsAppLink phone={user.phone} className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground">
+          <Phone size={13} /> Conversar no WhatsApp
+        </WhatsAppLink>
       </div>
       <AccessLinkModal link={accessInfo} onClose={() => setAccessInfo(null)} />
     </Modal>

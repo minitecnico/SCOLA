@@ -7,13 +7,13 @@ import { QuickGrade, type QuickResult } from '../components/QuickGrade';
 import { Button, EmptyState, Loading } from '../components/ui';
 import { isOffline, rememberExam, rememberedExam } from '../lib/omr/offline';
 import { getExamByCode, type ExamDetail } from '../lib/queries';
+import { fmtScore } from '../lib/format';
 
 /**
  * Aberta pelo QR da prova da escola (câmera do celular ou leitor do app):
  *   /p/<código>          → escolhe o aluno e corrige
  *   /p/<código>/<aluno>  → já no aluno da etiqueta
  */
-const fmt = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
 export function CorrigirLinkPage() {
   const { code = '', student = '' } = useParams();
@@ -61,7 +61,7 @@ export function CorrigirLinkPage() {
             <Check size={16} />
           </span>
           <p className="min-w-0 flex-1 text-sm">
-            <b>{last.name}</b>: {last.correct}/{last.total} · nota <b>{fmt(last.score)}</b>
+            <b>{last.name}</b>: {last.correct}/{last.total} · nota <b>{fmtScore(last.score)}</b>
             {last.grade?.column && last.grade.value != null ? ' · lançada no diário' : ''}
             {last.queued ? ' · envia quando a internet voltar' : ''}
             <span className="ml-1 text-muted-foreground">

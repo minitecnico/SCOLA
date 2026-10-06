@@ -1,20 +1,37 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Sparkles, Download, ExternalLink, Eye, Folder, FolderInput, FolderPlus, FilePen, FileSpreadsheet, FileText, Loader2, Lock, Mail, Pencil, Presentation, ClipboardList, Plus, Search, Trash2 } from 'lucide-react';
+
+import { ArrowLeft, Sparkles, Download, ExternalLink, Eye, Folder, FolderInput, FolderPlus, FilePen, FileSpreadsheet, FileText, Loader2, Lock, Mail, Pencil, Presentation, ClipboardList, Search, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
 import { useMemo, useState } from 'react';
+
 import { useAuth } from '../auth/AuthProvider';
+
 import { canReviewPlan } from '../lib/permissions';
-import { createClassFolders, createGoogleDoc, createPlanFolder, deletePlanDoc, deletePlanFolder, listPlanFolders, movePlanDocs, renamePlanFolder, disconnectGoogle, getGoogleStatus, googleLink, listClasses, listPlanDocs, updatePlanDoc, uploadPlanDoc, type EditableKind, type GoogleKind } from '../lib/queries';
+
+import { createClassFolders, createGoogleDoc, createPlanFolder, deletePlanDoc, deletePlanFolder, listPlanFolders, movePlanDocs, renamePlanFolder, disconnectGoogle, getGoogleStatus, googleLink, listPlanDocs, updatePlanDoc, uploadPlanDoc, type EditableKind, type GoogleKind } from '../lib/queries';
 import { downloadAllAttachments, safeFileName, translateStorageError } from '../lib/storage';
+
 import type { ClassRoom, PlanDoc, PlanFolder } from '../lib/types';
+
 import { Button, Modal, Select } from './ui';
+
 import { SendMailModal } from './SendMailModal';
+
 import { useSelection } from '../lib/useSelection';
+
 import { GoogleMenus } from './GoogleHub';
+
 import { Dropzone } from './Dropzone';
+
 import { PreviewModal } from './Attachments';
+
 import { successToast } from './Feedback';
+
 import { cn } from '../lib/cn';
+
+import { useClasses } from '../lib/hooks';
+
 
 /** Segmentos da escola — fácil de estender (basta adicionar aqui). */
 export const SEGMENTS: { key: string; label: string; color: string }[] = [
@@ -60,7 +77,7 @@ type SortKey = 'name' | 'size' | 'date';
 
 export function PlanDocsCenter() {
   const { data: docs = [], isLoading, isError, error } = useQuery({ queryKey: ['plan-docs'], queryFn: listPlanDocs, retry: false });
-  const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: listClasses });
+  const { data: classes = [] } = useClasses();
   const { data: folders = [] } = useQuery({ queryKey: ['plan-folders'], queryFn: listPlanFolders, retry: false });
 
   const [seg, setSeg] = useState(SEGMENTS[0].key);

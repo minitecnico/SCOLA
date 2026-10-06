@@ -1,22 +1,32 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
 import { ClipboardCheck, FileText, Plus, Printer, ScanLine } from 'lucide-react';
+
 import { useEffect, useState } from 'react';
+
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+
 import { DateInput } from '../components/DateInput';
+
 import { ExamScanner } from '../components/ExamScanner';
+
 import { Button, EmptyState, Field, Input, Loading, Modal, PageHeader, SegmentedField, StatusBadge, fieldCls } from '../components/ui';
+
 import { cn } from '../lib/cn';
+
 import { MAX_QUESTIONS } from '../lib/omr/layout';
+
 import { keyComplete } from '../lib/omr/score';
-import { listClasses, listExams, saveExam } from '../lib/queries';
+
+import { listExams, saveExam } from '../lib/queries';
 import { gradeTone, TONE } from '../lib/tone';
 
-const fmt = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+import { fmtScore, localIso } from '../lib/format';
+
+import { useClasses } from '../lib/hooks';
+
+
 const br = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
-const localToday = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
 
 export function ProvasPage() {
   const navigate = useNavigate();
@@ -124,7 +134,7 @@ export function ProvasPage() {
                   <div className="text-right">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Média</p>
                     <p className={cn('text-xl font-extrabold tabular-nums leading-none', e.average != null ? TONE[gradeTone(e.average, e.points)].text : 'text-muted-foreground')}>
-                      {e.average != null ? fmt(e.average) : '—'}
+                      {e.average != null ? fmtScore(e.average) : '—'}
                     </p>
                   </div>
                 </div>
@@ -143,8 +153,8 @@ export function ProvasPage() {
 /** Criação rápida: o gabarito é preenchido na tela seguinte. */
 export function NewExamModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
   const qc = useQueryClient();
-  const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: listClasses, enabled: open });
-  const [form, setForm] = useState({ title: '', class_id: '', exam_date: localToday(), questions: '10', choices: 5, points: '10', sheet: 'propria' as 'propria' | 'scola', key: '' });
+  const { data: classes = [] } = useClasses(open);
+  const [form, setForm] = useState({ title: '', class_id: '', exam_date: localIso(), questions: '10', choices: 5, points: '10', sheet: 'propria' as 'propria' | 'scola', key: '' });
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
   const classId = form.class_id || classes[0]?.id || '';
   // Gabarito digitado em sequência ("ABDCE ACBDA…"); X = anulada.

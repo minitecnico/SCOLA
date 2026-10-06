@@ -7,6 +7,7 @@ import { scoreAnswers } from '../lib/omr/score';
 import type { AutoGrade, ExamDetail } from '../lib/queries';
 import { gradeTone, TONE } from '../lib/tone';
 import { Select } from './ui';
+import { fmtScore } from '../lib/format';
 
 /**
  * Correção rápida da prova da escola (sem folha SCOLA): o gabarito já vem marcado
@@ -14,7 +15,6 @@ import { Select } from './ui';
  */
 export type QuickResult = { studentId: string; answers: string[]; name: string; correct: number; total: number; score: number; grade: AutoGrade; queued: boolean; replaced: boolean };
 
-const fmt = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
 export function QuickGrade({
   detail,
@@ -110,8 +110,8 @@ export function QuickGrade({
           </div>
           <div className="text-right">
             <p className={cn('text-3xl font-extrabold tabular-nums leading-none', TONE[gradeTone(r.score, exam.points)].text)}>
-              {fmt(r.score)}
-              <span className="ml-1 text-sm font-semibold text-muted-foreground">/ {fmt(exam.points)}</span>
+              {fmtScore(r.score)}
+              <span className="ml-1 text-sm font-semibold text-muted-foreground">/ {fmtScore(exam.points)}</span>
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {r.correct} de {r.total} certas{wrong ? ` · ${wrong} errada${wrong > 1 ? 's' : ''}` : ''}

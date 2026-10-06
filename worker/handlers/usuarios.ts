@@ -1,13 +1,10 @@
-import { hashPassword, iterationsFor, requireAdmin, tempPassword, validatePassword, type Ctx, type Role } from '../auth';
+import { EMAIL_RE, hashPassword, iterationsFor, normEmail, requireAdmin, ROLES, tempPassword, validatePassword, type Ctx, type Role } from '../auth';
 import { all, fail, first, run, stmt, uid } from '../db';
 
 /**
  * Usuários da plataforma (só o administrador): todas as contas, de todas as bases.
  * Edita dados de login, senha, bloqueio, sessões, vínculos com bases e exclusão.
  */
-const ROLES: Role[] = ['gestor', 'professor', 'secretaria'];
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const normEmail = (e: string) => String(e || '').trim().toLowerCase();
 
 type UserRow = { id: string; email: string; full_name: string | null; is_admin: number; disabled: number };
 

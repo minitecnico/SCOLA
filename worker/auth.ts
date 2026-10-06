@@ -2,6 +2,10 @@ import bcrypt from 'bcryptjs';
 import { all, fail, first, now, run, type Env } from './db';
 
 export type Role = 'gestor' | 'professor' | 'secretaria';
+/** Papéis que uma base pode atribuir (fora do administrador da plataforma). */
+export const ROLES: Role[] = ['gestor', 'professor', 'secretaria'];
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const normEmail = (e: string) => String(e || '').trim().toLowerCase();
 export type AppRole = Role | 'superadmin';
 
 export interface UserRow {

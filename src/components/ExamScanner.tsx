@@ -11,6 +11,7 @@ import { scoreAnswers } from '../lib/omr/score';
 import { getExamByCode, type AutoGrade, type ExamDetail } from '../lib/queries';
 import { gradeTone, TONE } from '../lib/tone';
 import { QuickGrade, type QuickResult } from './QuickGrade';
+import { fmtScore } from '../lib/format';
 
 /**
  * Correção pela câmera.
@@ -34,7 +35,6 @@ type Done = { key: string; name: string; exam: string; correct: number; total: n
 
 const MAX_SIDE = 1600;
 const MODE_KEY = 'scola:correcao:modo';
-const fmt = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 const TERM = ['', '1º tri', '2º tri', '3º tri'];
 
 function toImg(src: CanvasImageSource, w: number, h: number, canvas: HTMLCanvasElement): ImageData {
@@ -356,7 +356,7 @@ export function ExamScanner({ open, onClose, initial, keyText }: { open: boolean
     setDone((l) => [item, ...l.filter((x) => x.key !== item.key)]);
     const g = r?.grade;
     setFlash({
-      text: `${item.name.split(' ')[0]}: ${local.correct}/${local.total} · nota ${fmt(local.score)}${g?.column && g.value != null ? ` · diário ✓` : ''}${!r ? ' · envia quando a internet voltar' : ''}`,
+      text: `${item.name.split(' ')[0]}: ${local.correct}/${local.total} · nota ${fmtScore(local.score)}${g?.column && g.value != null ? ` · diário ✓` : ''}${!r ? ' · envia quando a internet voltar' : ''}`,
       tone: g?.error ? 'warn' : 'ok',
     });
     if (g?.error) setFlash({ text: g.error, tone: 'warn' });
@@ -378,7 +378,7 @@ export function ExamScanner({ open, onClose, initial, keyText }: { open: boolean
       { key: `${d.exam.id}:${q.studentId}`, name: q.name, exam: d.exam.title, correct: q.correct, total: q.total, score: q.score, points: d.exam.points, grade: q.grade, queued: q.queued, replaced: q.replaced },
       ...l.filter((x) => x.key !== `${d.exam.id}:${q.studentId}`),
     ]);
-    setFlash({ text: `${q.name.split(' ')[0]}: ${q.correct}/${q.total} · nota ${fmt(q.score)}${q.grade?.column && q.grade.value != null ? ' · diário ✓' : ''}${q.queued ? ' · envia quando a internet voltar' : ''}`, tone: q.grade?.error ? 'warn' : 'ok' });
+    setFlash({ text: `${q.name.split(' ')[0]}: ${q.correct}/${q.total} · nota ${fmtScore(q.score)}${q.grade?.column && q.grade.value != null ? ' · diário ✓' : ''}${q.queued ? ' · envia quando a internet voltar' : ''}`, tone: q.grade?.error ? 'warn' : 'ok' });
     setQuick(null);
     backToCamera();
   }
@@ -641,7 +641,7 @@ function SessionList({ items, onClose }: { items: Done[]; onClose: () => void })
         <div className="flex items-center gap-3 border-b border-border px-4 py-3">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold">{items.length} folha(s) corrigida(s) agora</p>
-            <p className="text-xs text-muted-foreground">Média desta leva: {fmt(Math.round(avg * 100) / 100)}</p>
+            <p className="text-xs text-muted-foreground">Média desta leva: {fmtScore(Math.round(avg * 100) / 100)}</p>
           </div>
           <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-lg hover:bg-muted" aria-label="Fechar">
             <X size={17} />
@@ -658,7 +658,7 @@ function SessionList({ items, onClose }: { items: Done[]; onClose: () => void })
                   {x.replaced ? ' · substituiu a anterior' : ''}
                 </span>
               </span>
-              <span className={cn('rounded-lg px-2.5 py-1 text-sm font-bold tabular-nums ring-1 ring-inset', TONE[gradeTone(x.score, x.points)].soft)}>{fmt(x.score)}</span>
+              <span className={cn('rounded-lg px-2.5 py-1 text-sm font-bold tabular-nums ring-1 ring-inset', TONE[gradeTone(x.score, x.points)].soft)}>{fmtScore(x.score)}</span>
             </li>
           ))}
         </ul>
@@ -779,8 +779,8 @@ function Review({
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Nota</p>
               <p className={cn('text-4xl font-extrabold tabular-nums leading-none', TONE[tone].text)}>
-                {fmt(r.score)}
-                <span className="ml-1 text-base font-semibold text-muted-foreground">/ {fmt(exam.points)}</span>
+                {fmtScore(r.score)}
+                <span className="ml-1 text-base font-semibold text-muted-foreground">/ {fmtScore(exam.points)}</span>
               </p>
             </div>
             <div className="text-right text-xs text-muted-foreground">

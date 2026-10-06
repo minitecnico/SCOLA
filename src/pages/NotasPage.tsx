@@ -1,39 +1,48 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
 import { Award, Check, ClipboardList, Eye, FileDown, FileText, GraduationCap, List, MoreHorizontal, Pencil, Plus, Printer, Rows3, Save, Search, Send, Sliders, Trash2 } from 'lucide-react';
+
 import { useEffect, useMemo, useState } from 'react';
+
 import { useNavigate } from 'react-router-dom';
+
 import { useAuth } from '../auth/AuthProvider';
-import { ActionFooter, Button, Card, DropdownMenu, EmptyState, Field, FilterBar, FilterField, FooterButton, Input, Modal, Notice, PageHeader, SegmentedField, Select, StatGrid, StatTile, StatusBadge, Loading, fieldCls } from '../components/ui';
+
+import { ActionFooter, Button, Card, DropdownMenu, EmptyState, FilterBar, FilterField, FooterButton, Input, Modal, Notice, PageHeader, SegmentedField, StatGrid, StatTile, StatusBadge, Loading, fieldCls } from '../components/ui';
 import { gradeTone, situationOf, TONE, type Tone } from '../lib/tone';
+
 
 /** Classe CSS de impressão para a cor de significado (ver lib/print.ts). */
 const printCls = (t: Tone) => (t === 'ok' ? 'ok' : t === 'warn' ? 'warn' : t === 'bad' ? 'fail' : '');
 import { successToast } from '../components/Feedback';
+
 import { ConfirmClearModal } from '../components/ConfirmClearModal';
+
 import { ShareModal } from '../components/ShareModal';
+
 import { canManageOrg } from '../lib/permissions';
+
 import { cn } from '../lib/cn';
+
 import { printDocument, escapeHtml } from '../lib/print';
+
 import { downloadXlsx } from '../lib/importSheet';
+
 import { fmtNumber } from '../lib/format';
+
 import { useOnlineStatus } from '../lib/useOnlineStatus';
+
 import { usePersistentState } from '../lib/usePersistentState';
-import {
-  bulkDeleteTermGrades,
-  getCreditoData,
-  getTermConfig,
-  getSavedTermConfig,
-  listClasses,
-  listSchools,
-  listStudentsByClass,
-  listTermGrades,
-  reportTerms,
-  saveTermConfig,
-  saveTermGrades,
-  type TermsReportRow,
-} from '../lib/queries';
+
+import { bulkDeleteTermGrades, getCreditoData, getTermConfig, getSavedTermConfig, listStudentsByClass, listTermGrades, reportTerms, saveTermConfig, saveTermGrades, type TermsReportRow } from '../lib/queries';
 import { CREDITO_OVERRIDE_KEY, DEFAULT_ACTIVITIES, MEDIA_APROVACAO, RECOVERY_ACTIVITY_NAME, SUBJECT, SUBJECT_SHORT, TERMS, TERM_LABEL, actKey, calcMedia, collapseCreditoColumns, creditoSumFrom, isRecoveryActivity, orderGradeActivities, sanitizeGrade, type GradeActivity, type ReportPayload, type School } from '../lib/types';
+
 import { DateInput } from '../components/DateInput';
+
+import { fmtDM } from '../lib/format';
+
+import { useClasses, useSchools } from '../lib/hooks';
+
 
 /** Cabeçalho profissional para impressão (logo, escola, contato) — usado no boletim e no relatório.
  *  compact: versão reduzida p/ empilhar 3 boletins por folha. subject: matéria (aparece no cabeçalho). */
@@ -57,10 +66,6 @@ function schoolHeaderHtml(school: School | undefined, label: string, compact = f
 }
 
 /** yyyy-mm-dd → dd/mm (curto, para prazos no cabeçalho). */
-function fmtDM(d: string): string {
-  return `${d.slice(8, 10)}/${d.slice(5, 7)}`;
-}
-
 export function NotasPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -82,7 +87,7 @@ export function NotasPage() {
   const online = useOnlineStatus();
   const orgReady = !ctxLoading && !!activeOrgId;
 
-  const { data: classes = [] } = useQuery({ queryKey: ['classes', activeOrgId], queryFn: listClasses, enabled: orgReady });
+  const { data: classes = [] } = useClasses(orgReady);
   useEffect(() => {
     if (!orgReady) return;
     if (!classes.length) return;
@@ -677,7 +682,7 @@ function BoletimEscolarModal({
     enabled: open && !!classId,
     retry: false,
   });
-  const { data: schools = [] } = useQuery({ queryKey: ['schools'], queryFn: listSchools, enabled: open });
+  const { data: schools = [] } = useSchools(open);
   const school = schools.find((s) => s.id === schoolId);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -828,7 +833,7 @@ function BoletimModal({
     setShowSituation(false);
     setShowObs(false);
   };
-  const { data: schools = [] } = useQuery({ queryKey: ['schools'], queryFn: listSchools, enabled: open });
+  const { data: schools = [] } = useSchools(open);
   const school = schools.find((s) => s.id === schoolId);
   const titulo = `Relatório — ${className}`;
   const sub = `${TERM_LABEL[term]} • ${year} • aprovação a partir de ${fmtNumber(MEDIA_APROVACAO, 1)}`;

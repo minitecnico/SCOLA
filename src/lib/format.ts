@@ -21,3 +21,13 @@ export function timeAgo(iso: string): string {
   if (d < 30) return `há ${d} dias`;
   return new Date(iso).toLocaleDateString('pt-BR');
 }
+
+/** Número pt-BR com até 2 casas (notas, pontos): 7,5 · 10 · 8,25. */
+export const fmtScore = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
+/** "2026-10-06" → "06/10". */
+export const fmtDM = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+
+export function escapeHtml(s: string): string {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}

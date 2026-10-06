@@ -8,6 +8,7 @@ import { can } from '../lib/permissions';
 import { smartAlerts, type AlertSeverity, type AlertSignal, type ClassAlert, type StudentAlert } from '../lib/queries';
 import { TONE, type Tone } from '../lib/tone';
 import { DropdownMenu, StatusBadge } from './ui';
+import { waLink } from '../lib/phone';
 
 /**
  * Central de alertas do painel. O servidor cruza frequência, faltas seguidas,
@@ -43,13 +44,6 @@ function writeCiente(map: Record<string, number>) {
   } catch {
     /* sem armazenamento: o "Ciente" vale só nesta visita */
   }
-}
-
-function whatsappUrl(phone: string | null, text: string): string | null {
-  let digits = (phone ?? '').replace(/\D/g, '');
-  if (digits.length < 10) return null;
-  if (digits.length <= 11) digits = `55${digits}`;
-  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }
 
 export function SmartAlerts({ side = false }: { side?: boolean }) {
@@ -177,7 +171,7 @@ export function SmartAlerts({ side = false }: { side?: boolean }) {
             const hasGrade = a.signals.some((s) => s.kind === 'grade_low');
             const reasons = a.signals.map((s) => s.label.toLowerCase()).join(', ');
             const guardian = a.guardian_name?.split(' ')[0];
-            const wa = whatsappUrl(
+            const wa = waLink(
               a.guardian_phone,
               `Olá${guardian ? `, ${guardian}` : ''}! Aqui é da ${activeBase?.name ?? 'escola'}. Gostaríamos de conversar sobre ${a.name.split(' ')[0]} (${a.class_name}): ${reasons}. Podemos falar?`,
             );

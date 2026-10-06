@@ -6,6 +6,8 @@ import { addMember, approveAccessRequest, listOrgMembers, listPasswordRequests, 
 import { ASSIGNABLE_ROLES, ROLE_HINT, ROLE_LABEL, type AppRole } from '../lib/types';
 import { successToast } from './Feedback';
 import { Button, Field, Input, Loading, Modal, Select } from './ui';
+import { waShareLink } from '../lib/phone';
+import { WhatsAppLink } from './WhatsAppLink';
 
 export interface AccessLinkInfo {
   url: string;
@@ -38,7 +40,7 @@ export function AccessLinkModal({ link, onClose, title }: { link: AccessLinkInfo
       <div className="mt-4 flex flex-wrap gap-2">
         <Button onClick={() => copy('link')}>{copied === 'link' ? <Check size={16} /> : <Link2 size={16} />} {copied === 'link' ? 'Copiado' : 'Copiar link'}</Button>
         <a
-          href={`https://wa.me/?text=${encodeURIComponent(message)}`}
+          href={waShareLink(message)}
           target="_blank"
           rel="noreferrer"
           className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-semibold ring-1 ring-inset ring-border hover:bg-muted"
@@ -72,7 +74,13 @@ function PasswordRequests({ onChanged }: { onChanged: () => void }) {
               <p className="truncate text-sm font-semibold">{r.full_name || r.email}</p>
               <p className="truncate text-xs text-muted-foreground">{r.email} · pediu em {new Date(r.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}{r.device ? ` · ${r.device}` : ''}</p>
             </div>
-            {r.phone ? <a href={`https://wa.me/55${r.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Oi, ${(r.full_name || '').split(' ')[0]}! Foi você que pediu uma nova senha no SCOLA?`)}`} target="_blank" rel="noreferrer" className="rounded-lg px-3 py-2 text-xs font-semibold ring-1 ring-inset ring-border hover:bg-muted">WhatsApp</a> : null}
+            <WhatsAppLink
+              phone={r.phone}
+              text={`Oi, ${(r.full_name || '').split(' ')[0]}! Foi você que pediu uma nova senha no SCOLA?`}
+              className="rounded-lg px-3 py-2 text-xs font-semibold ring-1 ring-inset ring-border hover:bg-muted"
+            >
+              WhatsApp
+            </WhatsAppLink>
             <Button variant="ghost" onClick={() => reject.mutate(r.id)} disabled={reject.isPending || approve.isPending}>Recusar</Button>
             <Button onClick={() => approve.mutate(r.id)} disabled={approve.isPending || reject.isPending}>É ela — liberar</Button>
           </li>

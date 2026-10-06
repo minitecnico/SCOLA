@@ -1,22 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
 import { format, parseISO } from 'date-fns';
+
 import { ptBR } from 'date-fns/locale';
+
 import { BarChart3, ChevronDown, ClipboardCheck, GraduationCap, MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react';
+
 import { useMemo, useState } from 'react';
+
 import { Link, useNavigate } from 'react-router-dom';
+
 import { cn } from '../lib/cn';
-import {
-  deleteAttendanceSession,
-  listClasses,
-  listDeletedSessions,
-  listRecentSessions,
-  purgeAttendanceSession,
-  restoreAttendanceSession,
-  type RecentSession,
-} from '../lib/queries';
+
+import { deleteAttendanceSession, listDeletedSessions, listRecentSessions, purgeAttendanceSession, restoreAttendanceSession, type RecentSession } from '../lib/queries';
 import type { Tone } from '../lib/tone';
+
 import { successToast, undoToast } from './Feedback';
+
 import { Button, Card, DropdownMenu, Loading, Modal, SectionTitle } from './ui';
+
+import { useClasses } from '../lib/hooks';
+
 
 /** Tom do cartão pela taxa de faltas: até 10% verde · até 25% laranja · acima vermelho (classes literais para o Tailwind). */
 const CARD_TONE: Record<Exclude<Tone, 'none'>, { accent: string; icon: string; bar: string; pill: string }> = {
@@ -31,7 +35,7 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 export function RecentCalls() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: listClasses });
+  const { data: classes = [] } = useClasses();
   const { data: recent = [] } = useQuery({ queryKey: ['recent-sessions'], queryFn: () => listRecentSessions(60) });
   const [open, setOpen] = useState<string | null>(null);
   const [trashOpen, setTrashOpen] = useState(false);

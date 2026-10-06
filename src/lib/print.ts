@@ -96,6 +96,4 @@ export function printDocument(title: string, bodyHtml: string, opts?: { autoPrin
   else printNow(title, bodyHtml);
 }
 
-export function escapeHtml(s: string): string {
-  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
-}
+export { escapeHtml } from './format';

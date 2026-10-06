@@ -1,26 +1,43 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
 import { format } from 'date-fns';
+
 import { Check, CheckCheck, ClipboardCheck, FileSpreadsheet, Layers, Pencil, Save, Search, Users, X } from 'lucide-react';
+
 import { ImportAttendanceModal } from '../components/ImportAttendanceModal';
+
 import { useEffect, useMemo, useState } from 'react';
+
 import { useLocation } from 'react-router-dom';
+
 import { useAuth } from '../auth/AuthProvider';
+
 import { ActionFooter, EmptyState, FilterBar, FilterField, FooterButton, Loading, Notice, PageHeader, Segmented, StatGrid, StatTile, fieldCls } from '../components/ui';
+
 import { freqTone } from '../lib/tone';
+
 import { successToast } from '../components/Feedback';
+
 import { cn } from '../lib/cn';
-import { getRecords, getSession, listClasses, listStudentsByClass, saveAttendance } from '../lib/queries';
+
+import { getRecords, getSession, listStudentsByClass, saveAttendance } from '../lib/queries';
 import { useOnlineStatus } from '../lib/useOnlineStatus';
+
 import { usePersistentState } from '../lib/usePersistentState';
+
 import type { AttendanceStatus, ClassRoom } from '../lib/types';
+
 import { DateInput } from '../components/DateInput';
+
+import { useClasses } from '../lib/hooks';
+
 
 export function AttendancePage() {
   const qc = useQueryClient();
   const { activeOrgId, ctxLoading } = useAuth();
   const today = format(new Date(), 'yyyy-MM-dd');
   const orgReady = !ctxLoading && !!activeOrgId;
-  const { data: classes = [] } = useQuery({ queryKey: ['classes', activeOrgId], queryFn: listClasses, enabled: orgReady });
+  const { data: classes = [] } = useClasses(orgReady);
 
   const [mode, setMode] = usePersistentState<'turma' | 'prova'>('scola:attendance:mode', 'turma');
   const [classId, setClassId] = usePersistentState('scola:attendance:classId', '');

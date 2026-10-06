@@ -1,17 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
 import { Building2, Check, Eye, EyeOff, ImagePlus, KeyRound, LogOut, ShieldCheck, Trash2, User, type LucideIcon } from 'lucide-react';
+
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+
 import { useAuth } from '../auth/AuthProvider';
+
 import { CityPicker } from '../components/CityPicker';
+
 import { successToast } from '../components/Feedback';
+
 import { Button, Field, Input, PageHeader, SegmentedField, StatusBadge, fieldCls } from '../components/ui';
+
 import { cn } from '../lib/cn';
+
 import { fileToCompressedDataUrl } from '../lib/image';
+
 import { can } from '../lib/permissions';
-import {
-  changePassword, getProfile, getSecurityStatus, listOrgAdmin, listSchools, saveSchool, setOrgActive, updateOrganization, updateProfile,
-} from '../lib/queries';
+
+import { changePassword, getProfile, getSecurityStatus, listOrgAdmin, saveSchool, setOrgActive, updateOrganization, updateProfile } from '../lib/queries';
 import { ROLE_LABEL } from '../lib/types';
+
+import { useSchools } from '../lib/hooks';
+
 
 /**
  * Configurações em seções: Perfil, Segurança, Escola (dados da base que aparecem nos
@@ -392,7 +403,7 @@ function SecuritySection() {
 function SchoolSection() {
   const qc = useQueryClient();
   const { refreshContext } = useAuth();
-  const { data: schools, isLoading } = useQuery({ queryKey: ['schools'], queryFn: listSchools });
+  const { data: schools, isLoading } = useSchools();
   const school = schools?.[0] ?? null;
   const initial = useMemo(
     () =>

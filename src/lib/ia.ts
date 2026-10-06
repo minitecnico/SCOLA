@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { marked, type Tokens } from 'marked';
 import { rpc } from './api';
 import { createEditableDoc, saveDocContent } from './queries';
+import { downloadBlob } from './storage';
 
 /**
  * Central de IA do navegador (o servidor correspondente é worker/ia.ts):
@@ -316,14 +317,6 @@ async function htmlToDocJson(html: string) {
   const json = ed.getJSON();
   ed.destroy();
   return json;
-}
-
-export function downloadBlob(blob: Blob, name: string) {
-  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name.replace(/[\\/:*?"<>|]/g, '-') });
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
 export async function downloadDocx(title: string, html: string) {

@@ -1,13 +1,10 @@
 import { issueLink, NO_PASSWORD } from '../access';
 import {
   hashPassword, iterationsFor, requireAdmin, validatePassword, verifyPassword,
-  type Ctx, type Role,
+  type Ctx, type Role, EMAIL_RE, normEmail, ROLES,
 } from '../auth';
 import { all, fail, first, run, stmt, uid } from '../db';
 
-const ROLES: Role[] = ['gestor', 'professor', 'secretaria'];
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const normEmail = (e: string) => String(e || '').trim().toLowerCase();
 
 /* ------------------------------------ Perfil ------------------------------------- */
 export async function getProfile(ctx: Ctx) {

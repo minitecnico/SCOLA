@@ -1,4 +1,4 @@
-import { clearFailures, requireAdmin, type Ctx, type Role } from '../auth';
+import { clearFailures, requireAdmin, ROLES, type Ctx, type Role } from '../auth';
 import { all, fail, first, now, run, stmt, uid } from '../db';
 
 /**
@@ -7,8 +7,6 @@ import { all, fail, first, now, run, stmt, uid } from '../db';
  *  - senha: "esqueci minha senha"; ao aprovar, a senha que ela escolheu passa a valer (confirme que é ela!).
  * Pedidos de senha também podem ser decididos pela coordenação da escola da pessoa.
  */
-const ROLES: Role[] = ['gestor', 'professor', 'secretaria'];
-
 type Req = {
   id: string; kind: 'cadastro' | 'senha'; status: string; full_name: string | null; email: string; phone: string | null; institution: string | null;
   role: string | null; city: string | null; note: string | null; password_hash: string; match_base_id: string | null; match_score: number | null;

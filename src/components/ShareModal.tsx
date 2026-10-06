@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { createSharedReport } from '../lib/queries';
 import type { ReportPayload } from '../lib/types';
 import { Button, Field, Input, Modal, Loading} from './ui';
+import { waLink, waShareLink } from '../lib/phone';
 
 export function ShareModal({ open, onClose, payload }: { open: boolean; onClose: () => void; payload: ReportPayload | null }) {
   const [link, setLink] = useState('');
@@ -25,9 +26,7 @@ export function ShareModal({ open, onClose, payload }: { open: boolean; onClose:
   }, [open]);
 
   const msg = payload ? `${payload.title} — Turma ${payload.className} (${payload.period}).\nAbra o relatório: ${link}` : link;
-  const wa = phone.trim()
-    ? `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
-    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  const wa = waLink(phone, msg) ?? waShareLink(msg);
   const mail = `mailto:?subject=${encodeURIComponent(payload?.title || 'Relatório')}&body=${encodeURIComponent(msg)}`;
 
   async function copy() {

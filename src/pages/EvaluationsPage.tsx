@@ -1,28 +1,36 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
 import { Check, ClipboardList, MoreHorizontal, Pencil, Plus, Save, Search, Sliders, Trash2 } from 'lucide-react';
+
 import { useEffect, useMemo, useState } from 'react';
+
 import { useAuth } from '../auth/AuthProvider';
+
 import { successToast } from '../components/Feedback';
+
 import { ConfirmClearModal } from '../components/ConfirmClearModal';
+
 import { canManageOrg } from '../lib/permissions';
+
 import { ActionFooter, Button, Card, DropdownMenu, EmptyState, FilterBar, FilterField, FooterButton, Input, Loading, Modal, Notice, PageHeader, SegmentedField, StatGrid, StatTile, fieldCls } from '../components/ui';
+
 import { TONE, gradeTone, type Tone } from '../lib/tone';
+
 import { cn } from '../lib/cn';
-import {
-  applyCreditoToGrades,
-  bulkDeleteEvalGrades,
-  getEvalConfig,
-  listClasses,
-  listEvalGrades,
-  listStudentsByClass,
-  saveEvalConfig,
-  saveEvalGrades,
-  type EvalGradeRow,
-} from '../lib/queries';
+
+import { applyCreditoToGrades, bulkDeleteEvalGrades, getEvalConfig, listEvalGrades, listStudentsByClass, saveEvalConfig, saveEvalGrades, type EvalGradeRow } from '../lib/queries';
 import { actKey, CREDITO_ACTIVITIES, sanitizeGrade, TERMS, TERM_LABEL, type GradeActivity } from '../lib/types';
+
 import { useOnlineStatus } from '../lib/useOnlineStatus';
+
 import { usePersistentState } from '../lib/usePersistentState';
+
 import { DateInput } from '../components/DateInput';
+
+import { fmtDM } from '../lib/format';
+
+import { useClasses } from '../lib/hooks';
+
 
 type CellState = { done: boolean; score: string };
 
@@ -35,10 +43,6 @@ function deliveryTone(pct: number, possible: number): Tone {
 }
 
 /** yyyy-mm-dd → dd/mm (prazo curto no cabeçalho). */
-function fmtDM(d: string): string {
-  return `${d.slice(8, 10)}/${d.slice(5, 7)}`;
-}
-
 export function EvaluationsPage() {
   const qc = useQueryClient();
   const { activeOrgId, ctxLoading, role } = useAuth();
@@ -56,7 +60,7 @@ export function EvaluationsPage() {
   const online = useOnlineStatus();
   const orgReady = !ctxLoading && !!activeOrgId;
 
-  const { data: classes = [] } = useQuery({ queryKey: ['classes', activeOrgId], queryFn: listClasses, enabled: orgReady });
+  const { data: classes = [] } = useClasses(orgReady);
 
   useEffect(() => {
     if (!orgReady || !classes.length) return;

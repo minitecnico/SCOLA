@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthProvider";
+
 import { successToast } from "../components/Feedback";
+
 import { canManageCalendar } from "../lib/permissions";
+
 import {
   CALENDAR_CONFLICT,
   createCalendar,
@@ -16,25 +19,41 @@ import {
   saveSchool,
   type CalendarSummary,
 } from "../lib/queries";
+
 import { downloadCalendarTemplate } from "../lib/importCalendar";
+
 import { parseAnyCalendarFile, type ImportedEvent } from "../lib/importCalendarBuilder";
+
 import { holidayKindLabel, listNationalHolidays, mergeHolidays } from "../lib/holidays";
+
 import { CityPicker, type Localidade } from "../components/CityPicker";
+
 import { ArrowLeft, CalendarDays, ChevronDown, Download, List as ListIcon, MapPin, MoreHorizontal, Pencil, Printer, Trash2, Upload, Users } from "lucide-react";
+
 import { Button, DropdownMenu, Modal, type MenuAction } from "../components/ui";
+
 import { Dropzone } from "../components/Dropzone";
+
 import { cn } from "../lib/cn";
+
 import type { CalendarHoliday, OrgPerson } from "../lib/types";
+
 import type {
   CalBuilderEvent as CalEvent,
   CalCategory as Category,
   CalendarBuilderData as CalendarData,
   CalPeriod as Period,
 } from "../lib/types";
+
 import { DateInput } from "../components/DateInput";
+
+import { downloadBlob } from "../lib/storage";
+
 import { CalendarFilters, type FilterChip } from "../components/calendar/CalendarFilters";
+
 import "../components/calendar/calendar.css";
 import { CAT_PALETTE, HOLIDAY_COLOR, LOCAL_HOLIDAY_COLOR, readableText, vividCategories } from "../lib/calendarColors";
+
 
 /* ============================================================================
    Construtor de Calendário Escolar — React + TypeScript
@@ -683,13 +702,7 @@ function CalendarBuilder({
 
   /* ---- exportar / importar JSON ---- */
   const exportJSON = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `calendario-${data.year}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }), `calendario-${data.year}.json`);
   };
   const importJSON = (file: File) => {
     const r = new FileReader();

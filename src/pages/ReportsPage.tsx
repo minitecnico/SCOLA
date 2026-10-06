@@ -1,21 +1,39 @@
 import { useQuery } from '@tanstack/react-query';
+
 import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
+
 import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
+
 import { BarChart3, Check, ChevronDown, Columns3, Eye, FileDown, Printer, Send, Sparkles } from 'lucide-react';
+
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+
 import { useLocation } from 'react-router-dom';
+
 import { ParecerModal } from '../components/ParecerModal';
+
 import { useAi } from '../lib/ia';
+
 import { ReportView } from '../components/ReportView';
+
 import { ShareModal } from '../components/ShareModal';
-import { Button, EmptyState, FilterBar, FilterField, Loading, Modal, PageHeader, SegmentedField, fieldCls } from '../components/ui';
+
+import { EmptyState, FilterBar, FilterField, Loading, Modal, PageHeader, SegmentedField, fieldCls } from '../components/ui';
 import { cn } from '../lib/cn';
+
 import { listNationalHolidays } from '../lib/holidays';
+
 import { downloadXlsx } from '../lib/importSheet';
+
 import { groupByMonth, schoolDaysBetween, weekdayLetter } from '../lib/schooldays';
-import { classLabel, listAllClasses, listSchools, listStudentsByClass, reportAttendance, reportTerms, reportTermDetails } from '../lib/queries';
+
+import { classLabel, listAllClasses, listStudentsByClass, reportAttendance, reportTerms, reportTermDetails } from '../lib/queries';
 import { CREDITO_OVERRIDE_KEY, MONTHS, SCHOOL_YEAR_MONTHS, SUBJECT, SUBJECT_SHORT, TERM_MONTHS, collapseCreditoColumns, creditoSumFrom, isCreditoActivity, type ReportPayload } from '../lib/types';
+
 import { DateInput } from '../components/DateInput';
+
+import { useSchools } from '../lib/hooks';
+
 
 type Tipo = 'freq' | 'notas';
 const today = new Date();
@@ -64,7 +82,7 @@ export function ReportsPage() {
   }, [location.state]);
 
   const { data: classes = [] } = useQuery({ queryKey: ['classes-all'], queryFn: listAllClasses });
-  const { data: schools = [] } = useQuery({ queryKey: ['schools'], queryFn: listSchools });
+  const { data: schools = [] } = useSchools();
   const { data: students = [] } = useQuery({
     queryKey: ['students-by-class', classId],
     queryFn: () => listStudentsByClass(classId),

@@ -31,7 +31,10 @@ import type {
   CalendarBuilderData as CalendarData,
   CalPeriod as Period,
 } from "../lib/types";
-import { DateInput } from '../components/DateInput';
+import { DateInput } from "../components/DateInput";
+import { CalendarFilters, type FilterChip } from "../components/calendar/CalendarFilters";
+import "../components/calendar/calendar.css";
+import { CAT_PALETTE, HOLIDAY_COLOR, LOCAL_HOLIDAY_COLOR, readableText, vividCategories } from "../lib/calendarColors";
 
 /* ============================================================================
    Construtor de Calendário Escolar — React + TypeScript
@@ -51,51 +54,6 @@ const DOW = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"]; // semana inicia na se
 const WEEKDAY = ["dom","seg","ter","qua","qui","sex","sáb"]; // índice de Date.getDay()
 const uid = () => Math.random().toString(36).slice(2, 9);
 const pad2 = (n: number) => String(n).padStart(2, "0");
-/** Paleta categórica de alto contraste: matizes bem espaçados no círculo cromático
- *  para que cores vizinhas (na lista e no calendário) nunca se confundam ao bater o olho. */
-const CAT_PALETTE = ["#DC2626", "#2563EB", "#16A34A", "#EA580C", "#7C3AED", "#0891B2", "#DB2777", "#65A30D", "#4338CA", "#CA8A04", "#92400E", "#475569"];
-/** Cores por tipo de categoria conhecido (feriado = vermelho, avaliação = azul…) — usadas para migrar calendários antigos em cinza. */
-const CAT_BY_NAME: [RegExp, string][] = [
-  [/feriado|recesso|f[ée]rias/i, "#DC2626"],
-  [/avalia|prova|teste/i, "#2563EB"],
-  [/pedag|reuni|conselho|forma[cç]/i, "#7C3AED"],
-  [/evento|cultur|festa|gincana/i, "#16A34A"],
-  [/recupera/i, "#EA580C"],
-  [/comemor/i, "#DB2777"],
-  [/marco|per[ií]odo|trimestre|in[ií]cio|fim/i, "#0891B2"],
-];
-const isGray = (hex: string) => {
-  const { r, g, b } = hexToRgb(hex);
-  return Math.max(r, g, b) - Math.min(r, g, b) < 24;
-};
-/** Calendários criados quando a paleta era toda cinza ganham cores vivas (só quem ainda está em cinza/preto). */
-function vividCategories(cats: Category[]): Category[] {
-  const used = new Set(cats.filter((c) => !isGray(c.color)).map((c) => c.color.toUpperCase()));
-  return cats.map((c) => {
-    if (!isGray(c.color)) return c;
-    const byName = CAT_BY_NAME.find(([re]) => re.test(c.label))?.[1];
-    const color = byName && !used.has(byName) ? byName : CAT_PALETTE.find((p) => !used.has(p)) ?? CAT_PALETTE[0];
-    used.add(color);
-    return { ...c, color };
-  });
-}
-
-function hexToRgb(hex: string) {
-  let h = hex.replace("#", "");
-  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
-  const n = parseInt(h || "000000", 16);
-  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-}
-/** Texto legível (preto/branco) sobre qualquer cor — escolhe o de maior contraste (WCAG). */
-function readableText(hex: string) {
-  const { r, g, b } = hexToRgb(hex);
-  const lin = (v: number) => {
-    const c = v / 255;
-    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  };
-  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
-  return L > 0.3 ? "#111111" : "#FFFFFF";
-}
 const isoOf = (y: number, m: number, d: number) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
 const todayISO = () => {
   const t = new Date();
@@ -576,6 +534,21 @@ function CalendarBuilder({
       ).length,
     [data.events, data.year, months, active]
   );
+  /** Contagem por categoria e por tipo de feriado dentro do período visível (muda ao trocar de aba). */
+  const periodCounts = useMemo(() => {
+    const inPeriod = (iso: string) => +iso.slice(0, 4) === data.year && months.includes(+iso.slice(5, 7) - 1);
+    const byCat: Record<string, number> = {};
+    data.events.forEach((ev) => {
+      if (eventDays(ev).some((x) => x.y === data.year && months.includes(x.m))) byCat[ev.categoryId] = (byCat[ev.categoryId] || 0) + 1;
+    });
+    let national = 0;
+    let state = 0;
+    allHolidays.forEach((h) => {
+      if (!inPeriod(h.date) || eventKeys.has(`${h.date}|${h.title.toLowerCase()}`)) return;
+      h.scope === "national" ? national++ : state++;
+    });
+    return { byCat, national, state };
+  }, [data.events, data.year, months, allHolidays, eventKeys]);
   const next = useMemo(() => {
     const all = [
       ...data.events.filter((e) => active.has(e.categoryId)).map((e) => ({ title: e.title, start: e.start, end: e.end ?? e.start })),
@@ -594,7 +567,27 @@ function CalendarBuilder({
       n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
-  const allCatsOn = data.categories.every((c) => active.has(c.id));
+  const setAllFilters = (on: boolean) => {
+    setActive(on ? new Set(data.categories.map((c) => c.id)) : new Set());
+    setShowHolidays(on);
+    setShowLocal(on);
+  };
+  const filterChips: FilterChip[] = [
+    ...data.categories.map((c) => ({
+      id: c.id,
+      label: c.label,
+      color: c.color,
+      count: periodCounts.byCat[c.id] || 0,
+      on: active.has(c.id),
+      onToggle: () => toggleCat(c.id),
+    })),
+    ...(nationalHolidays.length > 0
+      ? [{ id: "feriados-nacionais", label: "Feriados nacionais", color: HOLIDAY_COLOR, count: periodCounts.national, on: showHolidays, onToggle: () => setShowHolidays((v) => !v), title: "Feriados nacionais (BrasilAPI)" }]
+      : []),
+    ...(localCount > 0
+      ? [{ id: "feriados-locais", label: `Feriados de ${cityShort || "sua cidade"}`, color: LOCAL_HOLIDAY_COLOR, count: periodCounts.state, on: showLocal, onToggle: () => setShowLocal((v) => !v), title: `Feriados do estado e do município (${local?.city ?? ""})` }]
+      : []),
+  ];
 
   const addCategory = () =>
     set({ categories: [...data.categories, { id: uid(), label: "Nova categoria", color: CAT_PALETTE[data.categories.length % CAT_PALETTE.length] }] });
@@ -779,8 +772,6 @@ function CalendarBuilder({
   /* ============================== Render ============================== */
   return (
     <div className="cb-app">
-      <style>{CSS}</style>
-
       {/* Cabeçalho global */}
       <header className="cb-top">
         <div className="cb-brand">
@@ -1035,59 +1026,7 @@ function CalendarBuilder({
             ) : null}
           </div>
 
-          {/* Filtros por categoria */}
-          <div className="cb-filters">
-            <span className="cb-hint">Mostrar:</span>
-            {data.categories.map((c) => {
-              const on = active.has(c.id);
-              return (
-                <button
-                  key={c.id}
-                  className="cb-chip"
-                  aria-pressed={on}
-                  onClick={() => toggleCat(c.id)}
-                  style={on ? { background: c.color, borderColor: c.color, color: readableText(c.color) } : undefined}
-                >
-                  <span className="cb-cdot" style={{ background: c.color }} />
-                  {c.label}
-                  <span className="cb-chip-n">{catCount[c.id] || 0}</span>
-                </button>
-              );
-            })}
-            {nationalHolidays.length > 0 ? (
-              <button
-                className="cb-chip"
-                aria-pressed={showHolidays}
-                onClick={() => setShowHolidays((v) => !v)}
-                style={showHolidays ? { background: HOLIDAY_COLOR, borderColor: HOLIDAY_COLOR, color: readableText(HOLIDAY_COLOR) } : undefined}
-                title="Feriados nacionais (BrasilAPI)"
-              >
-                <span className="cb-cdot" style={{ background: HOLIDAY_COLOR }} />
-                Feriados nacionais
-              </button>
-            ) : null}
-            {localCount > 0 ? (
-              <button
-                className="cb-chip"
-                aria-pressed={showLocal}
-                onClick={() => setShowLocal((v) => !v)}
-                style={showLocal ? { background: LOCAL_HOLIDAY_COLOR, borderColor: LOCAL_HOLIDAY_COLOR, color: readableText(LOCAL_HOLIDAY_COLOR) } : undefined}
-                title={`Feriados do estado e do município (${local?.city ?? ""})`}
-              >
-                <span className="cb-cdot" style={{ background: LOCAL_HOLIDAY_COLOR }} />
-                Feriados de {cityShort || "sua cidade"}
-                <span className="cb-chip-n">{localCount}</span>
-              </button>
-            ) : null}
-            {data.categories.length > 1 ? (
-              <button
-                className="cb-link"
-                onClick={() => setActive(allCatsOn ? new Set() : new Set(data.categories.map((c) => c.id)))}
-              >
-                {allCatsOn ? "Desmarcar todas" : "Marcar todas"}
-              </button>
-            ) : null}
-          </div>
+          <CalendarFilters chips={filterChips} onSetAll={setAllFilters} />
 
           {local && local.status !== "ok" ? (
             <div className="cb-notice">
@@ -1433,8 +1372,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const HOLIDAY_COLOR = "#DC2626"; // feriado nacional (vermelho)
-const LOCAL_HOLIDAY_COLOR = "#92400E"; // feriado estadual/municipal (marrom)
 
 /** Um compromisso (evento ou feriado) dentro de um mês, pronto para listar. */
 type Entry = {
@@ -1635,231 +1572,3 @@ function AgendaView({
     </div>
   );
 }
-
-/* ------------------------------- Estilo ---------------------------------- */
-const CSS = `
-.cb-app{--paper:#FAFAFA;--surface:#fff;--ink:#171717;--ink-soft:#525252;--line:#E5E5E5;--line-soft:#F0F0F0;--accent:#171717;
-  font-family:inherit;color:var(--ink);background:var(--paper);min-height:100%;line-height:1.5;border-radius:16px;overflow:clip;border:1px solid var(--line)}
-.cb-app *{box-sizing:border-box}
-.cb-app button{font-family:inherit}
-
-/* Cabeçalho */
-.cb-top{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center;justify-content:space-between;padding:16px clamp(14px,3vw,28px);border-bottom:1px solid var(--line);background:var(--surface)}
-.cb-brand{display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 280px}
-.cb-titles{min-width:0}
-.cb-eyebrow{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cb-h1{margin:1px 0 0;font-weight:800;font-size:clamp(20px,3vw,28px);letter-spacing:-.02em;line-height:1.15;overflow-wrap:anywhere}
-.cb-stamp{margin-top:3px;font-size:12px;font-weight:500;color:var(--ink-soft)}
-.cb-stamp:empty{display:none}
-.cb-unsaved{color:var(--ink);font-weight:700}
-.cb-top-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.cb-btn{font:inherit;font-weight:600;font-size:14px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);min-height:40px;padding:0 14px;border-radius:10px;transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
-.cb-btn:hover{background:#F5F5F5;border-color:#D4D4D4}
-.cb-btn.is-on{background:#F0F0F0;border-color:#A3A3A3}
-.cb-btn:disabled{opacity:.55;cursor:default}
-.cb-btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.cb-btn-primary:hover{background:#000;border-color:#000}
-.cb-btn-primary:disabled{background:var(--surface);color:var(--ink-soft);border-color:var(--line)}
-.cb-back{cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);width:40px;height:40px;border-radius:10px;flex:none;display:grid;place-items:center;transition:.15s}
-.cb-back:hover{background:#F5F5F5}
-.cb-app :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-
-/* Estrutura: editor + visualização */
-.cb-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:0}
-.cb-layout.with-editor{grid-template-columns:minmax(330px,380px) minmax(0,1fr)}
-
-/* Editor */
-.cb-editor{background:var(--surface);border-right:1px solid var(--line);padding:0 clamp(12px,2vw,20px) 24px}
-.cb-editor-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 0;margin-bottom:4px;background:var(--surface);border-bottom:1px solid var(--line)}
-.cb-editor-head strong{font-size:15px;font-weight:800}
-.cb-editor-head-actions{display:flex;gap:6px}
-.cb-editor-head .cb-btn{min-height:36px;padding:0 12px;font-size:13px}
-@media (min-width:901px){.cb-editor{position:sticky;top:0;align-self:start;max-height:100vh;overflow:auto}}
-/* Celular/tablet: o editor ocupa a tela toda (não empurra o calendário para baixo) */
-@media (max-width:900px){
-  .cb-layout.with-editor{grid-template-columns:minmax(0,1fr)}
-  .cb-editor{position:fixed;inset:0;z-index:55;overflow-y:auto;border-right:none;padding-bottom:calc(32px + env(safe-area-inset-bottom));overscroll-behavior:contain}
-}
-
-.cb-section{border-bottom:1px solid var(--line-soft)}
-.cb-section-head{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:14px 0;min-height:48px}
-.cb-section-head::-webkit-details-marker{display:none}
-.cb-section-head h3{margin:0;flex:1;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink)}
-.cb-chev{color:var(--ink-soft);transition:transform .15s}
-.cb-section[open] .cb-chev{transform:rotate(180deg)}
-.cb-section-body{padding:0 0 16px}
-.cb-section-tools{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.cb-section-tools .cb-help{margin:0}
-.cb-count{font-size:11px;font-weight:700;color:var(--ink-soft);background:#F0F0F0;border-radius:999px;padding:1px 8px;min-width:24px;text-align:center}
-.cb-help{margin:0 0 10px;font-size:12.5px;color:var(--ink-soft)}
-.cb-mt{margin-top:10px;margin-bottom:0}
-.cb-field{display:block;margin-bottom:10px}
-.cb-field>span{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:4px}
-.cb-input{width:100%;font:inherit;font-size:14px;color:var(--ink);background:#fff;border:1px solid #D4D4D4;border-radius:10px;min-height:40px;padding:8px 10px;outline:none;transition:.15s}
-.cb-input:focus{border-color:var(--ink);box-shadow:0 0 0 3px rgba(23,23,23,.12)}
-.cb-area{resize:vertical;line-height:1.4}
-.cb-search{margin-bottom:10px}
-.cb-grow{flex:1;min-width:0}
-.cb-mini{width:74px;padding:8px 6px;flex:none}
-.cb-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
-.cb-prow{display:flex;gap:6px;align-items:center;margin-bottom:8px}
-.cb-to{color:var(--ink-soft);font-size:13px}
-.cb-color{width:40px;height:40px;flex:none;border:1px solid #D4D4D4;border-radius:10px;background:#fff;padding:3px;cursor:pointer}
-.cb-add{font:inherit;font-size:13px;font-weight:600;cursor:pointer;border:1px dashed #A3A3A3;color:var(--ink);background:#F5F5F5;min-height:36px;padding:0 14px;border-radius:999px;white-space:nowrap;flex:none}
-.cb-add:hover{background:#EBEBEB;border-color:var(--ink)}
-.cb-del{font:inherit;font-size:13px;font-weight:600;cursor:pointer;border:none;background:none;color:#B91C1C;min-height:34px;padding:4px 8px;border-radius:8px;white-space:nowrap}
-.cb-del:hover{background:#FEF2F2}
-.cb-event-list{max-height:min(62vh,560px);overflow-y:auto;margin:0 -4px;padding:0 4px}
-.cb-event{border:1px solid var(--line);border-left-width:4px;border-radius:12px;padding:10px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px;background:#fff}
-.cb-event-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
-.cb-span2{grid-column:1 / -1}
-.cb-event .cb-del{align-self:flex-end;margin:-2px -2px 0 0}
-.cb-letivos{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px;margin-bottom:10px}
-.cb-lt span{display:block;font-size:11.5px;font-weight:600;color:var(--ink-soft);margin-bottom:2px}
-.cb-lt .cb-input{padding:6px 8px;text-align:center}
-.cb-lt-total{margin:0 0 10px;font-size:13px;color:var(--ink-soft)}
-.cb-lt-total strong{color:var(--ink)}
-.cb-lt-total.ok strong::after{content:" ✓"}
-
-/* Visualização */
-.cb-preview{padding:clamp(14px,2.4vw,28px) clamp(12px,3vw,32px) 48px;min-width:0}
-.cb-toolbar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;justify-content:space-between;margin-bottom:14px}
-.cb-tabs{position:relative;display:flex;gap:4px;padding:4px;background:#EFEFEF;border-radius:12px;overflow-x:auto;max-width:100%;scrollbar-width:none}
-.cb-tabs::-webkit-scrollbar{display:none}
-.cb-tab{font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--ink-soft);min-height:36px;padding:0 14px;border-radius:9px;white-space:nowrap;transition:.15s;flex:none}
-.cb-tab:hover{color:var(--ink)}
-.cb-tab[aria-selected="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
-.cb-seg{display:inline-flex;padding:4px;gap:4px;background:#EFEFEF;border-radius:12px}
-.cb-seg button{font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--ink-soft);min-height:36px;padding:0 12px;border-radius:9px;display:inline-flex;align-items:center;gap:6px;transition:.15s}
-.cb-seg button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
-
-.cb-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
-.cb-stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px;min-width:0;display:flex;flex-direction:column;gap:1px}
-.cb-stat span{font-size:11.5px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em}
-.cb-stat strong{font-size:20px;font-weight:800;line-height:1.25}
-.cb-stat strong em,.cb-stat>em{font-size:12.5px;font-weight:500;font-style:normal;color:var(--ink-soft)}
-.cb-stat-wide{grid-column:span 2}
-.cb-stat-wide strong{font-size:16px}
-.cb-trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media (max-width:520px){.cb-stat-wide{grid-column:1 / -1}.cb-stats{grid-template-columns:1fr 1fr}}
-
-.cb-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px}
-.cb-hint{font-size:13px;font-weight:600;color:var(--ink-soft);margin-right:2px}
-.cb-chip{font:inherit;font-size:13px;font-weight:600;cursor:pointer;min-height:34px;padding:0 12px 0 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);display:inline-flex;align-items:center;gap:7px;transition:.15s}
-.cb-chip[aria-pressed="false"]{opacity:.55;color:var(--ink-soft)}
-.cb-chip[aria-pressed="true"]{font-weight:700}
-.cb-chip[aria-pressed="true"] .cb-cdot{box-shadow:0 0 0 2px #fff}
-.cb-chip[aria-pressed="true"] .cb-chip-n{background:rgba(255,255,255,.9);color:#171717}
-.cb-chip:hover{border-color:#A3A3A3}
-.cb-chip-n{font-size:11px;font-weight:700;color:var(--ink-soft);background:#F0F0F0;border-radius:999px;padding:0 7px}
-.cb-cdot{width:11px;height:11px;border-radius:50%;flex:none}
-.cb-link{font:inherit;font-size:13px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--ink-soft);text-decoration:underline;min-height:34px;padding:0 6px}
-.cb-link:hover{color:var(--ink)}
-
-.cb-months{display:grid;gap:clamp(12px,2vw,20px);grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
-.cb-month{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04);overflow:hidden;display:flex;flex-direction:column;min-width:0}
-.cb-month.current{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
-.cb-month-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 10px;padding:14px 16px 10px;border-bottom:1px solid var(--line-soft)}
-.cb-month-head h2{margin:0;font-weight:800;font-size:19px;letter-spacing:-.01em}
-.cb-month-tags{display:flex;flex-wrap:wrap;gap:6px}
-.cb-badge{font-size:11.5px;font-weight:600;color:var(--ink);background:#F0F0F0;border:1px solid var(--line);padding:2px 9px;border-radius:999px;white-space:nowrap}
-.cb-badge.now{background:var(--ink);border-color:var(--ink);color:#fff}
-.cb-cal{padding:10px 10px 2px}
-.cb-dow{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));margin-bottom:4px}
-.cb-dow span{text-align:center;font-size:11px;font-weight:700;color:var(--ink-soft);padding:3px 0}
-.cb-dow span.weekend{opacity:.6}
-.cb-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
-.cb-cell{aspect-ratio:1/1;border-radius:9px;display:flex;align-items:center;justify-content:center;position:relative;font-size:13px;font-weight:500;color:var(--ink);border:none;background:transparent;padding:0}
-.cb-cell.empty{visibility:hidden}
-.cb-cell.weekend{color:#8A8A8A;background:#F7F7F7}
-.cb-cell.has{font-weight:800;font-size:14px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
-.cb-cell.holiday{font-weight:800}
-.cb-cell.dim{opacity:.3}
-.cb-cell.today{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--ink);font-weight:800;z-index:1}
-.cb-cell.clickable{cursor:pointer}
-.cb-cell.clickable:hover{filter:brightness(.92)}
-.cb-cell.clickable:not(.has):hover{background:#E8E8E8}
-.cb-stripes{position:absolute;left:0;right:0;bottom:0;height:6px;display:flex;border-radius:0 0 9px 9px;overflow:hidden;box-shadow:0 -1px 0 #fff}
-.cb-stripes i{flex:1}
-.cb-events{padding:6px 12px 14px;display:flex;flex-direction:column;gap:2px;flex:1}
-.cb-empty{font-size:12.5px;color:var(--ink-soft);padding:6px 4px;margin:0}
-.cb-ev{display:flex;gap:11px;padding:7px 6px;border-radius:10px;align-items:flex-start;transition:.12s}
-.cb-ev:hover{background:var(--line-soft)}
-.cb-ev.dim{opacity:.25}
-.cb-ev.past:not(.dim){opacity:.6}
-.cb-date{flex:none;min-width:46px;text-align:center;font-weight:800;font-size:13px;border-radius:9px;padding:4px 6px;line-height:1.15}
-.cb-date small{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;opacity:.85}
-.cb-txt{font-size:14px;color:var(--ink);padding-top:1px;min-width:0;overflow-wrap:anywhere}
-.cb-txt small{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--ink-soft);margin-top:2px}
-.cb-txt small i{width:8px;height:8px;border-radius:50%;flex:none}
-
-/* Visão em lista */
-.cb-agenda{display:flex;flex-direction:column;gap:16px;max-width:820px}
-.cb-agenda-month{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
-.cb-agenda-head{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;padding:14px 16px 10px;border-bottom:1px solid var(--line-soft)}
-.cb-agenda-head h2{margin:0;font-weight:800;font-size:19px}
-.cb-agenda-meta{font-size:12.5px;font-weight:500;color:var(--ink-soft)}
-.cb-agenda-list{padding:8px 12px 12px;display:flex;flex-direction:column;gap:2px}
-.cb-agenda-empty{padding:32px 16px;text-align:center;font-size:14px;font-weight:600;color:var(--ink-soft);background:var(--surface);border:1px dashed var(--line);border-radius:16px}
-
-.cb-notice{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:-6px 0 16px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:13px;color:var(--ink)}
-.cb-notice span{flex:1 1 240px;min-width:0}
-.cb-notice svg{flex:none;color:var(--ink-soft)}
-.cb-notice-soft{background:transparent;border-style:dashed;color:var(--ink-soft);font-size:12.5px}
-.cb-foot{margin-top:24px;padding-top:14px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;font-size:13px;color:var(--ink-soft)}
-.cb-note{max-width:680px;white-space:pre-wrap}
-.cb-foot strong{color:var(--ink)}
-
-/* Telas pequenas: botões do cabeçalho ocupam a linha toda, fáceis de tocar */
-@media (max-width:640px){
-  .cb-top{padding:12px}
-  .cb-top-actions{width:100%}
-  .cb-top-actions>.cb-btn{flex:1}
-  .cb-top-actions>div{flex:none}
-  .cb-toolbar{flex-direction:column;align-items:stretch}
-  .cb-seg{display:grid;grid-template-columns:1fr 1fr}
-  .cb-seg button{justify-content:center}
-  .cb-hint{width:100%}
-  .cb-editor-head-actions .cb-btn{padding:0 10px}
-}
-
-@media print{
-  @page{size:A4 portrait;margin:6mm}
-  .cb-top-actions,.cb-editor,.cb-filters,.cb-back,.cb-stamp,.cb-toolbar,.cb-stats,.cb-notice{display:none!important}
-  .cb-app{background:#fff;border:none;border-radius:0;font-size:10px}
-  .cb-app *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .cb-top{padding:0 0 6px;border:none}
-  .cb-h1{font-size:18px}
-  .cb-eyebrow{font-size:9px}
-  .cb-layout.with-editor{grid-template-columns:1fr}
-  .cb-preview{padding:0}
-  /* 3 meses por linha, bem compacto, p/ caber tudo em poucas folhas */
-  .cb-months{grid-template-columns:repeat(3,1fr);gap:6px}
-  .cb-month{box-shadow:none;border-color:#ddd;border-radius:8px;break-inside:avoid}
-  .cb-month.current{border-color:#ddd;box-shadow:none}
-  .cb-badge.now{display:none}
-  .cb-month-head{padding:6px 8px 4px}
-  .cb-month-head h2{font-size:14px}
-  .cb-badge{font-size:9px;padding:1px 6px}
-  .cb-cal{padding:4px 6px 0}
-  .cb-dow span{font-size:8px;padding:1px 0}
-  .cb-grid{gap:1px}
-  .cb-cell{font-size:9px;border-radius:3px;font-weight:600}
-  .cb-cell.today{box-shadow:none}
-  .cb-stripes{height:3px}
-  .cb-events{padding:3px 8px 8px;gap:0}
-  .cb-empty{font-size:8px;padding:2px}
-  .cb-ev{padding:2px;gap:5px}
-  .cb-ev.dim{display:none}             /* não imprime eventos de categorias ocultas */
-  .cb-ev.past:not(.dim){opacity:1}
-  .cb-date{min-width:26px;font-size:8px;padding:2px 3px;border-radius:4px;line-height:1.1}
-  .cb-date small{display:none}
-  .cb-txt{font-size:8.5px;padding-top:0;line-height:1.2}
-  .cb-txt small{font-size:7px;margin-top:0}
-  .cb-txt small i{display:none}
-  .cb-foot{margin-top:8px;padding-top:6px;font-size:8px}
-  .cb-agenda{max-width:none}
-  .cb-agenda-month{break-inside:avoid;border-radius:6px}
-}
-@media (prefers-reduced-motion:reduce){.cb-app *{transition:none!important}}
-`;

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Building2, CalendarCheck, ChevronRight, LifeBuoy, LogIn, Plus, ScrollText, ShieldAlert, UserCog, Users } from 'lucide-react';
+import { AlertTriangle, Building2, UserPlus, CalendarCheck, ChevronRight, LifeBuoy, LogIn, Plus, ScrollText, ShieldAlert, UserCog, Users } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
@@ -7,7 +7,7 @@ import { AiEngineCard } from '../../components/AiEngineCard';
 import { Button, Card, Loading, PageHeader, StatCard } from '../../components/ui';
 import { cn } from '../../lib/cn';
 import { suporte } from '../../lib/suporte';
-import { hqStats, listLogs, listOrgAdmin, logOverview, type OrgAdmin } from '../../lib/queries';
+import { countAccessRequests, hqStats, listLogs, listOrgAdmin, logOverview, type OrgAdmin } from '../../lib/queries';
 
 const DAY = 86400_000;
 const daysSince = (s: string | null) => (s ? Math.floor((Date.now() - new Date(s.length === 10 ? `${s}T12:00:00` : s).getTime()) / DAY) : null);
@@ -62,6 +62,7 @@ export function AdminOverviewPage() {
   const { profile, user, switchOrg } = useAuth();
   const first = (profile?.full_name || user?.email || '').split(/[ @]/)[0];
   const { data: stats } = useQuery({ queryKey: ['admin-stats'], queryFn: hqStats });
+  const { data: access } = useQuery({ queryKey: ['access-count'], queryFn: countAccessRequests, refetchInterval: 30_000 });
   const { data: bases = [], isLoading } = useQuery({ queryKey: ['admin-bases'], queryFn: listOrgAdmin });
   const { data: ov } = useQuery({ queryKey: ['admin-log-overview'], queryFn: logOverview, refetchInterval: 60_000 });
   const { data: recent } = useQuery({ queryKey: ['admin-recent-logs'], queryFn: () => listLogs({ period: '24h' }, 8), refetchInterval: 60_000 });
@@ -113,6 +114,13 @@ export function AdminOverviewPage() {
             <h2 className="text-base font-bold">Precisa de atenção</h2>
             {alerts.length ? <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-[11px] font-bold text-white">{alerts.length}</span> : null}
           </div>
+          {(access?.cadastros ?? 0) + (access?.senhas ?? 0) > 0 ? (
+            <Link to="/admin/acessos" className="mb-2 flex items-center gap-3 rounded-lg bg-neutral-900 px-3 py-2.5 text-sm text-white hover:bg-black">
+              <UserPlus size={16} className="shrink-0" />
+              <span className="min-w-0 flex-1"><b>{access?.cadastros ?? 0} pedido(s) de cadastro</b>{access?.senhas ? <> e <b>{access.senhas} de nova senha</b></> : null} esperando sua análise</span>
+              <ChevronRight size={15} />
+            </Link>
+          ) : null}
           {pending ? (
             <Link to="/admin/suporte" className="mb-2 flex items-center gap-3 rounded-lg bg-neutral-900 px-3 py-2.5 text-sm text-white hover:bg-black">
               <LifeBuoy size={16} className="shrink-0" />
@@ -129,7 +137,7 @@ export function AdminOverviewPage() {
               <ChevronRight size={15} />
             </Link>
           ) : null}
-          {alerts.length === 0 && !ov?.suspicious?.length && !pending ? (
+          {alerts.length === 0 && !ov?.suspicious?.length && !pending && !((access?.cadastros ?? 0) + (access?.senhas ?? 0)) ? (
             <p className="rounded-lg bg-muted px-3 py-6 text-center text-sm text-muted-foreground">Tudo em ordem. Nenhuma escola precisa de atenção agora.</p>
           ) : (
             <ul className="space-y-1.5">

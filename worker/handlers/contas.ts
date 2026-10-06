@@ -57,7 +57,7 @@ export async function listOrgMembers(ctx: Ctx, baseId: string) {
   assertCanManage(ctx, baseId);
   return all(ctx.db,
     `SELECT u.id AS user_id, m.role, u.full_name, u.email, u.phone, u.last_login_at, u.must_change_pw,
-            (u.password_hash = '${NO_PASSWORD}' AND u.google_sub IS NULL) AS pending, (u.google_sub IS NOT NULL) AS google
+            (u.password_hash = '${NO_PASSWORD}') AS pending
        FROM memberships m JOIN users u ON u.id = m.user_id
       WHERE m.base_id = ? ORDER BY m.role, u.full_name COLLATE NOCASE`, baseId);
 }
@@ -75,14 +75,14 @@ export async function addMember(ctx: Ctx, baseId: string, input: { email: string
   const base = await first<{ name: string }>(ctx.db, 'SELECT name FROM bases WHERE id = ?', baseId);
   if (!base) fail('Base não encontrada.', 404);
 
-  let user = await first<{ id: string; is_admin: number; full_name: string | null; password_hash: string; google_sub: string | null }>(ctx.db, 'SELECT id, is_admin, full_name, password_hash, google_sub FROM users WHERE email = ?', email);
+  let user = await first<{ id: string; is_admin: number; full_name: string | null; password_hash: string }>(ctx.db, 'SELECT id, is_admin, full_name, password_hash FROM users WHERE email = ?', email);
   let isNew = false;
   if (!user) {
     const name = String(input.full_name || '').trim();
     if (!name) fail('Informe o nome da pessoa.');
     const id = uid();
     await run(ctx.db, 'INSERT INTO users (id, email, password_hash, full_name, must_change_pw, active_base_id) VALUES (?, ?, ?, ?, 0, ?)', id, email, NO_PASSWORD, name, baseId);
-    user = { id, is_admin: 0, full_name: name, password_hash: NO_PASSWORD, google_sub: null };
+    user = { id, is_admin: 0, full_name: name, password_hash: NO_PASSWORD };
     isNew = true;
   }
   if (user.is_admin) fail('Esse e-mail é do administrador do sistema.');
@@ -92,7 +92,7 @@ export async function addMember(ctx: Ctx, baseId: string, input: { email: string
 
   // Quem ainda não criou a senha (conta nova ou convite anterior em aberto) recebe o link desta escola.
   let inviteUrl: string | null = null;
-  if (user.password_hash === NO_PASSWORD && !user.google_sub) {
+  if (user.password_hash === NO_PASSWORD) {
     inviteUrl = (await issueLink(ctx.env, { userId: user.id, kind: 'invite', baseId, origin: ctx.origin ?? '' })).url;
   }
   return { userId: user.id, email, isNew, inviteUrl, baseName: base!.name };

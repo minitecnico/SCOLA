@@ -28,6 +28,7 @@ import {
   Settings,
   Sparkles,
   UserCog,
+  UserPlus,
   Users,
   X,
 } from 'lucide-react';
@@ -38,7 +39,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { cn } from '../lib/cn';
 import { can, type ModuleKey } from '../lib/permissions';
-import { planUnreadCounts, unreadNoticeCount } from '../lib/queries';
+import { countAccessRequests, planUnreadCounts, unreadNoticeCount } from '../lib/queries';
 import { suporte } from '../lib/suporte';
 import { useSupportLive } from '../lib/useSupportLive';
 import { ROLE_LABEL } from '../lib/types';
@@ -137,6 +138,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   });
   const planUnread = Object.values(planUnreadMap).reduce((a, b) => a + b, 0);
   const adminUnread = useAdminSupportUnread();
+  const accessPending = useAccessPending();
   const { data: supUnread = 0 } = useQuery({ queryKey: ['support-unread'], queryFn: suporte.unread, enabled: !!user && inBase && !isSuperadmin, refetchInterval: 60_000 });
 
   const visibleGroups = inBase
@@ -163,6 +165,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               <it.icon size={18} />
               <span>{it.label}</span>
               {it.to === '/admin/suporte' && adminUnread > 0 ? <Badge n={adminUnread} /> : null}
+              {it.to === '/admin/acessos' && accessPending > 0 ? <Badge n={accessPending} /> : null}
             </NavLink>
           ))}
         </div>
@@ -249,6 +252,13 @@ function useCounts() {
 }
 
 /** Conversas do suporte aguardando o administrador (só roda para ele, fora de uma escola). */
+/** Pedidos de cadastro e de nova senha esperando o administrador. */
+function useAccessPending() {
+  const { isSuperadmin, activeBase } = useAuth();
+  const n = useQuery({ queryKey: ['access-count'], queryFn: countAccessRequests, enabled: isSuperadmin && !activeBase, refetchInterval: 30_000, retry: false }).data;
+  return (n?.cadastros ?? 0) + (n?.senhas ?? 0);
+}
+
 function useAdminSupportUnread() {
   const { isSuperadmin, activeBase } = useAuth();
   return useQuery({ queryKey: ['support-admin-unread'], queryFn: suporte.admin.unread, enabled: isSuperadmin && !activeBase, refetchInterval: 30_000 }).data ?? 0;
@@ -414,6 +424,10 @@ const ADMIN_NAV: { to?: string; title: string; end?: boolean; icon: LucideIcon; 
     items: [{ to: '/admin/usuarios', label: 'Todos os usuários', icon: UserCog }, { to: '/admin/usuarios?novo=1', label: 'Cadastrar usuário', icon: Plus }],
   },
   {
+    title: 'Acessos', icon: UserPlus, prefix: '/admin/acessos',
+    items: [{ to: '/admin/acessos', label: 'Pedidos de acesso', icon: UserPlus }],
+  },
+  {
     title: 'Atendimento', icon: LifeBuoy, prefix: '/admin/suporte',
     items: [
       { to: '/admin/suporte', label: 'Para responder', icon: LifeBuoy },
@@ -467,6 +481,7 @@ function TopNav() {
   const { pathname } = useLocation();
   const { unread, planUnread } = useCounts();
   const adminUnread = useAdminSupportUnread();
+  const accessPending = useAccessPending();
   const inBase = !!activeBase;
   const badge = (to: string) => (to === '/avisos' ? unread : to === '/planejamento' ? planUnread : 0);
   const visible = inBase
@@ -483,7 +498,7 @@ function TopNav() {
         {isSuperadmin && !inBase
           ? ADMIN_NAV.map((g) =>
               g.items ? (
-                <HoverGroup key={g.title} title={g.title} icon={<g.icon size={16} />} active={pathname.startsWith(g.prefix!)} count={g.title === 'Atendimento' ? adminUnread : 0}>
+                <HoverGroup key={g.title} title={g.title} icon={<g.icon size={16} />} active={pathname.startsWith(g.prefix!)} count={g.title === 'Atendimento' ? adminUnread : g.title === 'Acessos' ? accessPending : 0}>
                   {(close) =>
                     g.items!.map((it) => (
                       <NavLink key={it.to} to={it.to} onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-foreground hover:bg-muted focus-visible:bg-muted focus-visible:outline-none">

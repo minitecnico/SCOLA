@@ -2,7 +2,7 @@ import { CheckCircle2, Eye, EyeOff, Lock, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Logo } from '../components/Logo';
-import { apiGet, apiPost } from '../lib/api';
+import { apiPost } from '../lib/api';
 import { ROLE_LABEL, type AppRole } from '../lib/types';
 
 type Preview = { kind: 'invite' | 'reset'; email: string; name: string | null; baseName: string | null; role: string | null; hasPassword: boolean };
@@ -11,7 +11,7 @@ const field = 'flex items-center gap-2 rounded-lg border border-neutral-300 px-3
 
 /**
  * Página aberta pelo link recebido (e-mail ou WhatsApp):
- *  - convite (/convite): a pessoa cria a própria senha e já entra — ou continua com o Google;
+ *  - convite (/convite): a pessoa cria a própria senha e já entra;
  *  - redefinição (/redefinir-senha): cria uma senha nova e volta ao login.
  */
 export function ResetPasswordPage() {
@@ -19,7 +19,6 @@ export function ResetPasswordPage() {
   const token = params.get('token') ?? '';
   const [info, setInfo] = useState<Preview | null>(null);
   const [loadError, setLoadError] = useState('');
-  const [google, setGoogle] = useState(false);
   const [name, setName] = useState('');
   const [pwd, setPwd] = useState('');
   const [again, setAgain] = useState('');
@@ -33,7 +32,6 @@ export function ResetPasswordPage() {
     apiPost<Preview>('/api/auth/link/preview', { token })
       .then((p) => { setInfo(p); setName(p.name ?? ''); })
       .catch((e: Error) => setLoadError(e.message));
-    apiGet<{ google: boolean }>('/api/auth/config').then((c) => setGoogle(c.google)).catch(() => {});
   }, [token]);
 
   const rules = [
@@ -89,16 +87,6 @@ export function ResetPasswordPage() {
                   : <>Conta <b className="text-neutral-800">{info.email}</b>. Escolha uma senha com pelo menos 8 caracteres.</>}
               </p>
             </div>
-
-            {invite && google ? (
-              <>
-                <a href="/api/auth/google/start" className="flex w-full items-center justify-center gap-3 rounded-lg border border-neutral-300 bg-white py-3 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-50">
-                  Continuar com o Google
-                </a>
-                <p className="-mt-1 text-center text-xs text-neutral-500">Use a conta Google do e-mail <b>{info.email}</b>.</p>
-                <div className="flex items-center gap-3 text-xs font-medium uppercase tracking-wide text-neutral-400"><span className="h-px flex-1 bg-neutral-200" /> ou crie uma senha <span className="h-px flex-1 bg-neutral-200" /></div>
-              </>
-            ) : null}
 
             {invite ? (
               <label className="block">

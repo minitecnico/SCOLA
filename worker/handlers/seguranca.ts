@@ -4,7 +4,7 @@ import { fail, first } from '../db';
 
 /** Situação do acesso da própria conta (a tela de Segurança usa para saber se já existe senha). */
 export async function getSecurityStatus(ctx: Ctx) {
-  return { hasPassword: ctx.user.password_hash !== NO_PASSWORD, googleLinked: !!ctx.user.google_sub };
+  return { hasPassword: ctx.user.password_hash !== NO_PASSWORD };
 }
 
 /**

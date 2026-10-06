@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, Link2, Trash2, UserPlus } from 'lucide-react';
+import { Check, Copy, KeyRound, Link2, Trash2, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
-import { addMember, listOrgMembers, memberAccessLink, removeMember, setMemberRole } from '../lib/queries';
+import { addMember, approveAccessRequest, listOrgMembers, listPasswordRequests, memberAccessLink, rejectAccessRequest, removeMember, setMemberRole } from '../lib/queries';
 import { ASSIGNABLE_ROLES, ROLE_HINT, ROLE_LABEL, type AppRole } from '../lib/types';
 import { successToast } from './Feedback';
 import { Button, Field, Input, Loading, Modal, Select } from './ui';
@@ -22,7 +22,7 @@ export function AccessLinkModal({ link, onClose, title }: { link: AccessLinkInfo
   const invite = link.kind === 'invite';
   const hi = link.name ? `Olá, ${link.name.split(' ')[0]}!` : 'Olá!';
   const message = invite
-    ? `${hi} ${link.baseName ? `A escola ${link.baseName} liberou` : 'Foi liberado'} o seu acesso ao SCOLA. Crie a sua senha por este link (vale 7 dias, uso único):\n${link.url}\nSe você usa Gmail, também pode entrar com o Google usando o e-mail ${link.email}.`
+    ? `${hi} ${link.baseName ? `A escola ${link.baseName} liberou` : 'Foi liberado'} o seu acesso ao SCOLA. Crie a sua senha por este link (vale 7 dias, uso único):\n${link.url}`
     : `${hi} Para criar uma nova senha no SCOLA, abra este link (vale 24 horas, uso único):\n${link.url}`;
   async function copy(what: 'link' | 'msg') {
     await navigator.clipboard.writeText(what === 'link' ? link!.url : message).catch(() => {});
@@ -50,6 +50,36 @@ export function AccessLinkModal({ link, onClose, title }: { link: AccessLinkInfo
       <p className="mt-4 text-xs text-muted-foreground">O link vale {invite ? '7 dias' : '24 horas'} e só funciona uma vez. Gerar outro cancela este.</p>
       <div className="mt-4 flex justify-end border-t border-border pt-4"><Button variant="ghost" onClick={onClose}>Fechar</Button></div>
     </Modal>
+  );
+}
+
+/** "Esqueci minha senha" de quem é da escola: a coordenação confirma que é a pessoa e a senha nova passa a valer. */
+function PasswordRequests({ onChanged }: { onChanged: () => void }) {
+  const qc = useQueryClient();
+  const { data: list = [] } = useQuery({ queryKey: ['password-requests'], queryFn: listPasswordRequests, refetchInterval: 60_000, retry: false });
+  const done = () => { qc.invalidateQueries({ queryKey: ['password-requests'] }); qc.invalidateQueries({ queryKey: ['access-count'] }); onChanged(); };
+  const approve = useMutation({ mutationFn: (id: string) => approveAccessRequest(id), onSuccess: () => { done(); successToast('Nova senha liberada'); } });
+  const reject = useMutation({ mutationFn: (id: string) => rejectAccessRequest(id), onSuccess: () => { done(); successToast('Pedido recusado'); } });
+  if (!list.length) return null;
+  return (
+    <div className="mb-5 rounded-xl border border-neutral-900 bg-card p-4 shadow-soft">
+      <p className="flex items-center gap-2 text-sm font-bold text-foreground"><KeyRound size={16} /> Pedidos de nova senha ({list.length})</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">Confirme com a pessoa (conversa ou WhatsApp) que foi ela. Ao liberar, a senha que ela escolheu passa a valer.</p>
+      <ul className="mt-3 divide-y divide-border">
+        {list.map((r) => (
+          <li key={r.id} className="flex flex-wrap items-center gap-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">{r.full_name || r.email}</p>
+              <p className="truncate text-xs text-muted-foreground">{r.email} · pediu em {new Date(r.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}{r.device ? ` · ${r.device}` : ''}</p>
+            </div>
+            {r.phone ? <a href={`https://wa.me/55${r.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Oi, ${(r.full_name || '').split(' ')[0]}! Foi você que pediu uma nova senha no SCOLA?`)}`} target="_blank" rel="noreferrer" className="rounded-lg px-3 py-2 text-xs font-semibold ring-1 ring-inset ring-border hover:bg-muted">WhatsApp</a> : null}
+            <Button variant="ghost" onClick={() => reject.mutate(r.id)} disabled={reject.isPending || approve.isPending}>Recusar</Button>
+            <Button onClick={() => approve.mutate(r.id)} disabled={approve.isPending || reject.isPending}>É ela — liberar</Button>
+          </li>
+        ))}
+      </ul>
+      {approve.isError || reject.isError ? <p className="mt-2 text-sm font-medium text-red-600">{((approve.error || reject.error) as Error).message}</p> : null}
+    </div>
   );
 }
 
@@ -84,6 +114,7 @@ export function TeamManager({ baseId }: { baseId: string }) {
 
   return (
     <div>
+      <PasswordRequests onChanged={refresh} />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">{members.length} pessoa(s) com acesso.</p>
         <Button onClick={() => setAdding(true)}>
@@ -110,8 +141,7 @@ export function TeamManager({ baseId }: { baseId: string }) {
                     {m.email} · último acesso: {fmtDate(m.last_login_at)}
                     {m.pending ? <span className="ml-1.5 rounded bg-neutral-900 px-1.5 py-0.5 font-semibold text-white">convite pendente</span> : null}
                     {m.must_change_pw ? <span className="ml-1.5 rounded bg-brand/25 px-1.5 py-0.5 font-semibold text-neutral-800">senha provisória</span> : null}
-                    {m.google ? <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 font-semibold text-neutral-700">Google</span> : null}
-                  </p>
+                                      </p>
                 </div>
                 <Select
                   value={m.role}
@@ -194,7 +224,7 @@ function AddMemberModal({ baseId, onClose, onDone }: { baseId: string; onClose: 
           </Select>
         </Field>
         <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">{ROLE_HINT[role as Exclude<AppRole, 'superadmin'>]}</p>
-        <p className="text-xs text-muted-foreground">A pessoa recebe um <b>convite por link</b> (envie pelo WhatsApp) e cria a própria senha — ou entra com o Google, se o e-mail for Gmail.</p>
+        <p className="text-xs text-muted-foreground">A pessoa recebe um <b>convite por link</b> (envie pelo WhatsApp) e cria a própria senha.</p>
         {add.isError ? <p className="text-sm font-medium text-red-600">{(add.error as Error).message}</p> : null}
         <div className="flex justify-end gap-2 border-t border-border pt-4">
           <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>

@@ -1,5 +1,5 @@
 import type { Context, Hono } from 'hono';
-import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
+import { setCookie } from 'hono/cookie';
 import {
   assertNotLocked, burnPasswordCheck, clearFailures, createSession, hashPassword, iterationsFor, needsRehash, recordFailure,
   SESSION_COOKIE, verifyPassword, type UserRow,
@@ -7,9 +7,8 @@ import {
 import { acceptLink, previewLink } from './access';
 import { deviceOf, insertLog, type LogEntry } from './audit';
 import { fail, first, now, run, type Env } from './db';
-import { exchangeLoginCode, googleLoginReady, loginAuthUrl } from './google';
 
-/** Entrada no sistema: Google, e-mail e senha, e links de convite/redefinição. */
+/** Entrada no sistema: e-mail e senha, e links de convite/redefinição. */
 type App = Hono<{ Bindings: Env; Variables: { user: UserRow } }>;
 type C = Context<{ Bindings: Env; Variables: { user: UserRow } }>;
 
@@ -45,9 +44,6 @@ async function startSession(c: C, user: UserRow, remember: boolean, summary: str
 }
 
 export function authRoutes(app: App) {
-  /** O que a tela de login pode oferecer neste servidor (o botão do Google só aparece se estiver configurado). */
-  app.get('/api/auth/config', (c) => c.json({ google: googleLoginReady(c.env) }));
-
   /* ---------------------------------- Senha ---------------------------------- */
   app.post('/api/auth/login', async (c) => {
     const body = await c.req.json<{ email?: string; password?: string; remember?: boolean }>().catch(() => ({}) as { email?: string; password?: string; remember?: boolean });
@@ -72,6 +68,14 @@ export function authRoutes(app: App) {
     }
     if (!user) await burnPasswordCheck(c.env, password);
     if (!matched) {
+      // Quem acabou de pedir cadastro e tenta entrar: com a senha certa, avisa em que pé está o pedido (em vez de "senha incorreta").
+      const req = await first<{ status: string; password_hash: string; decision_note: string | null }>(db,
+        "SELECT status, password_hash, decision_note FROM access_requests WHERE email = ? AND kind = 'cadastro' AND status <> 'aprovado' ORDER BY created_at DESC LIMIT 1", email);
+      if (req && !user && (await verifyPassword(password, req.password_hash))) {
+        fail(req.status === 'pendente'
+          ? 'Seu cadastro ainda está em análise. Assim que o administrador aprovar, você poderá entrar com este e-mail e senha.'
+          : `Seu cadastro não foi aprovado.${req.decision_note ? ` Motivo: ${req.decision_note}` : ''} Fale com a sua escola ou com o suporte do SCOLA.`, 403);
+      }
       await recordFailure(db, email, ip);
       log(c, {
         email, userId: user?.id ?? null, action: 'login_falhou', category: 'acesso', summary: 'Tentativa de login falhou', status: 'negado',
@@ -90,43 +94,6 @@ export function authRoutes(app: App) {
 
     await startSession(c, user!, remember, user!.must_change_pw ? 'Entrou com senha provisória' : 'Entrou no sistema');
     return c.json({ ok: true });
-  });
-
-  /* ------------------------------ Entrar com Google ------------------------------ */
-  // O "state" fica num cookie de curta duração (nada é gravado no servidor).
-  app.get('/api/auth/google/start', (c) => {
-    if (!googleLoginReady(c.env)) return c.redirect('/login?erro=google-indisponivel');
-    const state = randomToken();
-    const remember = c.req.query('remember') === '0' ? '0' : '1';
-    setCookie(c, 'scola_gstate', `${state}.${remember}`, { httpOnly: true, secure: new URL(c.req.url).protocol === 'https:', sameSite: 'Lax', path: '/api/auth/google', maxAge: 600 });
-    return c.redirect(loginAuthUrl(c.env, c.req.url, state));
-  });
-
-  app.get('/api/auth/google/callback', async (c) => {
-    const back = (e: string) => c.redirect(`/login?erro=${e}`);
-    const saved = getCookie(c, 'scola_gstate') ?? '';
-    deleteCookie(c, 'scola_gstate', { path: '/api/auth/google' });
-    const [state, remember] = saved.split('.');
-    const code = c.req.query('code');
-    if (!state || state !== c.req.query('state') || !code) return back(c.req.query('error') ? 'google-cancelado' : 'google-erro');
-    const g = await exchangeLoginCode(c.env, c.req.url, code);
-    if (!g) return back('google-erro');
-    const db = c.env.DB;
-    // Só entra quem já tem cadastro (ou convite): o e-mail do Google, verificado por ele, precisa ser o mesmo da conta.
-    const user = (await first<UserRow>(db, 'SELECT * FROM users WHERE google_sub = ?', g.sub)) ?? (await first<UserRow>(db, 'SELECT * FROM users WHERE email = ?', g.email));
-    if (!user) {
-      log(c, { email: g.email, action: 'login_falhou', category: 'acesso', summary: 'Entrar com Google: e-mail sem cadastro', status: 'negado', detail: 'E-mail não cadastrado' });
-      return back('sem-conta');
-    }
-    if (user.disabled) return back('bloqueado');
-    // Prova de identidade pelo Google: vincula a conta, aceita convites pendentes e dispensa a senha provisória.
-    await db.batch([
-      db.prepare("UPDATE users SET google_sub = COALESCE(google_sub, ?), must_change_pw = 0, full_name = COALESCE(NULLIF(full_name, ''), ?) WHERE id = ?").bind(g.sub, g.name, user.id),
-      db.prepare('UPDATE users SET active_base_id = (SELECT base_id FROM memberships WHERE user_id = ? LIMIT 1) WHERE id = ? AND active_base_id IS NULL').bind(user.id, user.id),
-      db.prepare("UPDATE password_resets SET used_at = ? WHERE user_id = ? AND kind = 'invite' AND used_at IS NULL").bind(now(), user.id),
-    ]);
-    await startSession(c, user, remember !== '0', 'Entrou com o Google');
-    return c.redirect('/');
   });
 
   /* ------------------------------ Convites e redefinição ------------------------------ */

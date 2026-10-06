@@ -15,7 +15,6 @@ export interface UserRow {
   must_change_pw: number;
   active_base_id: string | null;
   disabled?: number;
-  google_sub?: string | null;
 }
 
 /** Contexto de cada chamada autenticada. baseId/role se referem à base ativa. */

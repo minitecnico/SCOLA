@@ -4,6 +4,7 @@ import { buildCtx, destroySession, requireBase, requireRole, SESSION_COOKIE, use
 import { ACTIONS, deviceOf, insertLog, labelOf, type LogEntry, type Refs } from './audit';
 import { clearBaseCache } from './cache';
 import { all, fail, first, HttpError, parse, run, uid, type Env } from './db';
+import * as acessos from './handlers/acessos';
 import * as alertas from './handlers/alertas';
 import * as anoletivo from './handlers/anoletivo';
 import * as cadastros from './handlers/cadastros';
@@ -24,13 +25,14 @@ import * as usuarios from './handlers/usuarios';
 import * as ia from './ia';
 import * as suporte from './handlers/suporte';
 import { authRoutes } from './authflow';
+import { signupRoutes } from './signup';
 export { SupportHub } from './hub';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
 const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades', 'docInBase', 'folderInBase', 'canEditDoc', 'saveEditableContent', 'ragForget', 'chatStream']);
 const handlers: Record<string, Handler> = {};
-for (const mod of [alertas, anoletivo, cadastros, editor, feriados, folders, google, ia, chamadas, comunicacao, contas, logs, notas, painel, provas, seguranca, suporte, usuarios]) {
+for (const mod of [acessos, alertas, anoletivo, cadastros, editor, feriados, folders, google, ia, chamadas, comunicacao, contas, logs, notas, painel, provas, seguranca, suporte, usuarios]) {
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn === 'function' && !INTERNAL.has(name)) handlers[name] = fn as Handler;
   }
@@ -89,6 +91,7 @@ async function authed(c: Context<{ Bindings: Env; Variables: { user: UserRow } }
 
 /* ------------------------------------- Login -------------------------------------- */
 authRoutes(app);
+signupRoutes(app);
 
 app.post('/api/auth/logout', async (c) => {
   const token = getCookie(c, SESSION_COOKIE);

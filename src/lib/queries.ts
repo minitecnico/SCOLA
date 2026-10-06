@@ -256,8 +256,7 @@ export interface OrgMember {
   phone: string | null;
   last_login_at: string | null;
   must_change_pw: number;
-  pending: number; // convite ainda não aceito (sem senha e sem Google)
-  google: number;
+  pending: number; // convite ainda não aceito (ainda sem senha)
 }
 export const listOrgMembers = (baseId: string) => rpc<OrgMember[]>('listOrgMembers', baseId);
 /** Cria a conta SEM senha e devolve o link de convite (a pessoa cria a própria senha); se o e-mail já tem conta, só vincula. */
@@ -306,7 +305,6 @@ export interface AdminUser {
   disabled: boolean;
   must_change_pw: boolean;
   pending: boolean;
-  google: boolean;
   created_at: string;
   last_login_at: string | null;
   sessions: number;
@@ -316,7 +314,7 @@ export const listUsersAdmin = () => rpc<AdminUser[]>('listUsersAdmin');
 export const generateAccessLink = (userId: string) => rpc<AccessLink>('generateAccessLink', userId);
 
 /* ------------------------------- Segurança da conta ------------------------------- */
-export interface SecurityStatus { hasPassword: boolean; googleLinked: boolean }
+export interface SecurityStatus { hasPassword: boolean }
 export const getSecurityStatus = () => rpc<SecurityStatus>('getSecurityStatus');
 export const updateUserAdmin = (userId: string, input: { full_name: string; email: string; phone: string | null }) =>
   rpc<{ id: string; email: string; full_name: string }>('updateUserAdmin', userId, input);
@@ -643,3 +641,35 @@ export const createClassFolders = (segment: string) => rpc<{ created: number }>(
 export const renamePlanFolder = (id: string, name: string) => rpc<void>('renamePlanFolder', id, name);
 export const deletePlanFolder = (id: string) => rpc<void>('deletePlanFolder', id);
 export const movePlanDocs = (ids: string[], folderId: string | null) => rpc<{ moved: number }>('movePlanDocs', ids, folderId);
+
+
+/* ------------------------- Solicitações de acesso (cadastro e nova senha) ------------------------- */
+export interface AccessRequest {
+  id: string;
+  kind: 'cadastro' | 'senha';
+  status: 'pendente' | 'aprovado' | 'recusado';
+  full_name: string | null;
+  email: string;
+  phone: string | null;
+  institution: string | null;
+  role: string | null;
+  city: string | null;
+  note: string | null;
+  match_base_id: string | null;
+  match_name: string | null;
+  match_score: number | null;
+  user_id: string | null;
+  device: string | null;
+  created_at: string;
+  decided_at: string | null;
+  decision_note: string | null;
+  last_login_at: string | null;
+  memberships: { base_name: string; role: string }[];
+}
+export const listAccessRequests = (status: AccessRequest['status'] = 'pendente') => rpc<AccessRequest[]>('listAccessRequests', status);
+export const countAccessRequests = () => rpc<{ cadastros: number; senhas: number }>('countAccessRequests');
+export const approveAccessRequest = (id: string, input: { baseId?: string; newBase?: { name: string; city?: string; plan?: string }; role?: AppRole } = {}) =>
+  rpc<{ kind: string; email: string }>('approveAccessRequest', id, input);
+export const rejectAccessRequest = (id: string, note?: string) => rpc<void>('rejectAccessRequest', id, note);
+export interface PasswordRequest { id: string; full_name: string | null; email: string; phone: string | null; role: string; device: string | null; created_at: string; last_login_at: string | null }
+export const listPasswordRequests = () => rpc<PasswordRequest[]>('listPasswordRequests');

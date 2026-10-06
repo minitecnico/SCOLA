@@ -103,7 +103,6 @@ export function UsersPage() {
                   {u.disabled ? <Tag tone="red">Bloqueado</Tag> : null}
                   {u.pending ? <Tag tone="brand">Convite pendente</Tag> : null}
                   {u.must_change_pw ? <Tag tone="brand">Senha provisória</Tag> : null}
-                  {u.google ? <Tag tone="brand">Google</Tag> : null}
                 </span>
                 <span className="block truncate text-xs text-muted-foreground">
                   {u.email}
@@ -183,7 +182,7 @@ function NewUserModal({ schools, onClose, onDone }: { schools: { id: string; nam
             </Select>
           </Field>
         </div>
-        <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">A pessoa recebe um convite por link (envie pelo WhatsApp) e cria a própria senha — ou entra com o Google. Se o e-mail já tiver conta, ela só é vinculada à escola.</p>
+        <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">A pessoa recebe um convite por link (envie pelo WhatsApp) e cria a própria senha. Se o e-mail já tiver conta, ela só é vinculada à escola.</p>
         {create.error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{(create.error as Error).message}</p> : null}
         <Button type="submit" className="w-full" disabled={create.isPending || !form.baseId}>{create.isPending ? 'Cadastrando…' : 'Cadastrar usuário'}</Button>
       </form>

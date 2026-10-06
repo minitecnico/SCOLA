@@ -11,6 +11,8 @@ import { BlockedGate, ChangePasswordGate } from '../pages/AccountGates';
 import { AttendancePage } from '../pages/AttendancePage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { LoginPage } from '../pages/LoginPage';
+import { ForgotPage } from '../pages/ForgotPage';
+import { SignupPage } from '../pages/SignupPage';
 
 // Telas maiores carregam sob demanda — a chamada (uso diário do professor) abre rápido.
 const lazyPage = <K extends string>(load: () => Promise<Record<K, React.ComponentType>>, name: K) =>
@@ -38,6 +40,7 @@ const CorrigirLinkPage = lazyPage(() => import('../pages/CorrigirLinkPage'), 'Co
 const AnoLetivoPage = lazyPage(() => import('../pages/AnoLetivoPage'), 'AnoLetivoPage');
 const LogsPage = lazyPage(() => import('../pages/admin/LogsPage'), 'LogsPage');
 const UsersPage = lazyPage(() => import('../pages/admin/UsersPage'), 'UsersPage');
+const AccessRequestsPage = lazyPage(() => import('../pages/admin/AccessRequestsPage'), 'AccessRequestsPage');
 const ProvasPage = lazyPage(() => import('../pages/ProvasPage'), 'ProvasPage');
 const ProvaDetailPage = lazyPage(() => import('../pages/ProvaDetailPage'), 'ProvaDetailPage');
 
@@ -86,6 +89,7 @@ function Protected() {
           {isSuperadmin ? <Route path="/admin/suporte" element={<AdminSuportePage />} /> : null}
           {isSuperadmin ? <Route path="/admin/logs" element={<LogsPage />} /> : null}
           {isSuperadmin ? <Route path="/admin/usuarios" element={<UsersPage />} /> : null}
+          {isSuperadmin ? <Route path="/admin/acessos" element={<AccessRequestsPage />} /> : null}
           {adminHome ? (
             <Route path="*" element={<Navigate to="/admin" replace />} />
           ) : (
@@ -129,6 +133,8 @@ function Root() {
       <Route path="/redefinir-senha" element={<Suspense fallback={<Spinner />}><ResetPasswordPage /></Suspense>} />
       <Route path="/convite" element={<Suspense fallback={<Spinner />}><ResetPasswordPage /></Suspense>} />
       <Route path="/login" element={loading ? <Spinner /> : session ? <AfterLogin /> : <LoginPage />} />
+      <Route path="/cadastro" element={loading ? <Spinner /> : session ? <AfterLogin /> : <SignupPage />} />
+      <Route path="/esqueci-senha" element={loading ? <Spinner /> : session ? <AfterLogin /> : <ForgotPage />} />
       <Route path="/*" element={<Protected />} />
     </Routes>
   );

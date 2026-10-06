@@ -12,10 +12,10 @@ Multi-escola: **você (administrador) cria as bases**; cada base é uma escola o
 | **Professor(a)** | Dentro da base | Chamadas, notas, avaliações, planejamento, relatórios |
 | **Secretaria** | Dentro da base | Turmas, alunos, relatórios, avisos, calendário |
 
-Não existe autocadastro: **a escola libera cada pessoa por convite**. Você cria a base e o gestor; o gestor convida a equipe
-em **Equipe**. Ninguém recebe senha provisória: o convite é um **link de uso único (vale 7 dias)** — a pessoa abre, cria a própria
-senha e já entra (ou toca em "Continuar com o Google"). O link sai por e-mail (se o e-mail estiver configurado) e sempre pode ser
-copiado ou enviado pelo WhatsApp. Um professor que trabalha em duas escolas usa o mesmo login nas duas e alterna pelo menu.
+O acesso é por **solicitação com aprovação**: a pessoa clica em **Criar minha conta** na tela de login, informa nome, e-mail, telefone, a instituição de ensino e a função,
+e escolhe a senha. O sistema reconhece a escola mesmo com erro de digitação, acento ou pontuação (ex.: "escola a.b.c" → "Escola ABC"). O pedido cai em **Acessos** no painel do
+administrador, que aprova (vinculando à escola reconhecida, a outra escola ou criando a instituição nova) ou recusa com motivo. Aprovado, a pessoa entra com a senha que escolheu.
+A coordenação também pode convidar pessoas direto em **Equipe** (link pelo WhatsApp). Um professor que trabalha em duas escolas usa o mesmo login nas duas e alterna pelo menu.
 
 ## Arquitetura (100% plano gratuito)
 
@@ -56,15 +56,13 @@ Pronto: todo `git push` na `main` aplica as migrações do banco e publica.
 
 ## Acesso e segurança
 
-O acesso foi pensado para ser simples para a escola e seguro sem configurar nada:
+Sem nenhum serviço externo e sem configurar nada:
 
-- **Convite por link**: a coordenação cadastra a pessoa em **Equipe** e manda o link pelo WhatsApp (botão pronto). O link vale 7 dias e só funciona uma vez; a pessoa cria a própria senha e já entra. Ninguém recebe nem repassa senha.
-- **Esqueci a senha**: a coordenação gera um link novo (Equipe › ícone de link, vale 24 h). Para a coordenação e professores autônomos, o administrador gera em **Usuários**.
-- **Entrar com o Google** (opcional, recomendado): quem usa Gmail não tem senha para esquecer, e o próprio Google protege a conta (inclusive verificação em duas etapas). Só entra quem a escola já cadastrou ou convidou.
-- **Senha** guardada com hash PBKDF2 (nunca em texto), sessão em cookie HttpOnly, "Manter conectado" (30 dias; desmarcado, a sessão acaba ao fechar o navegador), bloqueio de 15 min após 8 erros por e-mail (30 por endereço) e registro de todos os acessos.
-
-Para ligar o "Entrar com o Google" — um passo só, no Google Cloud Console → Credenciais → seu ID do cliente OAuth → **URIs de redirecionamento autorizados** → adicione `https://SEU-DOMINIO/api/auth/google/callback`.
-(Os segredos `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` são os mesmos da integração com o Drive. Sem eles, o botão simplesmente não aparece.)
+- **Cadastro**: pedido público → o administrador aprova em **Acessos**. A senha escolhida fica só como hash dentro do pedido; nada vira conta sozinho. Se o e-mail já tem conta, aprovar só vincula à escola (a senha atual nunca é trocada por um pedido de cadastro).
+- **Esqueci minha senha**: a pessoa informa o e-mail e já escolhe a senha nova; o pedido vai para a **coordenação da escola dela** (em Equipe) ou para o administrador (coordenação e autônomos). Quem aprova confirma que é a própria pessoa (WhatsApp/telefone) e a senha nova passa a valer; as outras sessões são encerradas. Até lá, a senha antiga continua valendo.
+- **Reconhecimento da escola**: ignora acento, pontuação, "escola/colégio/municipal", siglas (E.M.E.F.), números romanos e erros de digitação; números diferentes nunca casem ("João 24" ≠ "João XXIII").
+- **Proteções**: senha com hash PBKDF2, sessão em cookie HttpOnly, "Manter conectado" (30 dias; desmarcado, a sessão acaba ao fechar o navegador), bloqueio de 15 min após 8 erros por e-mail (30 por endereço), limite de pedidos por aparelho, campo-isca contra robôs, aceite dos Termos/Privacidade e registro de todos os acessos.
+- **Convite por link** (Equipe → Adicionar pessoa): link de uso único, válido por 7 dias, para a pessoa criar a própria senha. A coordenação também gera um link novo (ícone de link) se preferir.
 
 Contas antigas com senha provisória continuam funcionando e pedem a troca no primeiro acesso.
 

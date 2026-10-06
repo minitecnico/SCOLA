@@ -6,7 +6,7 @@ import { all, bools, fail, first, inList, json, run, stmt, uid } from '../db';
 type BaseRow = {
   id: string; name: string; cnpj: string | null; city: string | null; logo_url: string | null; director: string | null;
   address: string | null; phone: string | null; inep: string | null; subject: string | null; active: number; created_at: string;
-  max_students: number | null;
+  max_students: number | null; uf: string | null; ibge_code: string | null;
 };
 
 const mapClass = (r: Record<string, unknown>) => ({ ...bools(r, 'does_exams'), school_id: r.base_id });
@@ -19,7 +19,7 @@ export async function listSchools(ctx: Ctx) {
   const base = requireBase(ctx);
   const b = await first<BaseRow>(ctx.db, 'SELECT * FROM bases WHERE id = ?', base);
   if (!b) return [];
-  return [{ id: b.id, name: b.name, cnpj: b.cnpj, city: b.city, logo_url: b.logo_url, director: b.director, address: b.address, phone: b.phone, inep: b.inep, subject: b.subject, active: !!b.active, created_at: b.created_at }];
+  return [{ id: b.id, name: b.name, cnpj: b.cnpj, city: b.city, logo_url: b.logo_url, director: b.director, address: b.address, phone: b.phone, inep: b.inep, subject: b.subject, uf: b.uf, ibge_code: b.ibge_code, active: !!b.active, created_at: b.created_at }];
 }
 
 const clean = (v: unknown) => (v == null ? null : String(v).trim() || null);
@@ -34,6 +34,12 @@ export async function saveSchool(ctx: Ctx, input: Record<string, string | null>)
     name, clean(input.cnpj), clean(input.city), input.logo_url ?? null, clean(input.director), clean(input.address), clean(input.phone), clean(input.inep),
     clean(input.subject), base,
   );
+  // Localidade (feriados locais do calendário): só mexe quando o formulário envia — outros usos não apagam.
+  if ('ibge_code' in input) {
+    const ibge = /^\d{7}$/.test(String(input.ibge_code ?? '')) ? String(input.ibge_code) : null;
+    const uf = /^[A-Za-z]{2}$/.test(String(input.uf ?? '')) ? String(input.uf).toUpperCase() : null;
+    await run(ctx.db, 'UPDATE bases SET uf = ?, ibge_code = ? WHERE id = ?', ibge ? uf : null, ibge, base);
+  }
   return (await listSchools(ctx))[0];
 }
 

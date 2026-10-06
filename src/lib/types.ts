@@ -5,6 +5,8 @@ export interface School {
   name: string;
   cnpj?: string | null;
   city: string | null;
+  uf?: string | null; // localidade (feriados locais do calendário)
+  ibge_code?: string | null;
   logo_url: string | null;
   director: string | null;
   address: string | null;
@@ -331,7 +333,16 @@ export interface CalendarHoliday {
   state?: string | null;
   city?: string | null;
   source?: string | null;
+  generic?: boolean; // feriado municipal sem nome na fonte (só a data é conhecida)
   created_at?: string;
+}
+
+export interface LocalHolidays {
+  status: 'ok' | 'sem-cidade' | 'sem-dados';
+  city: string | null;
+  uf: string | null;
+  year: number;
+  holidays: CalendarHoliday[];
 }
 
 export interface Grade {

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, Check, Eye, EyeOff, ImagePlus, KeyRound, LogOut, ShieldCheck, Trash2, User, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '../auth/AuthProvider';
+import { CityPicker } from '../components/CityPicker';
 import { successToast } from '../components/Feedback';
 import { Button, Field, Input, PageHeader, SegmentedField, StatusBadge, fieldCls } from '../components/ui';
 import { cn } from '../lib/cn';
@@ -399,6 +400,8 @@ function SchoolSection() {
             inep: school.inep ?? '',
             address: school.address ?? '',
             city: school.city ?? '',
+            uf: school.uf ?? '',
+            ibge_code: school.ibge_code ?? '',
             phone: school.phone ?? '',
           }
         : null,
@@ -461,7 +464,14 @@ function SchoolSection() {
           <div className="sm:col-span-2">
             <Field label="Endereço">{text('address', 'Rua, número, bairro')}</Field>
           </div>
-          <Field label="Cidade / UF">{text('city', 'Ex.: Goiânia - GO')}</Field>
+          <CityPicker
+            value={{ city: form.city, uf: form.uf, ibge_code: form.ibge_code }}
+            onChange={(l) => {
+              set('city', l.city);
+              set('uf', l.uf);
+              set('ibge_code', l.ibge_code);
+            }}
+          />
           <Field label="Telefone">
             <Input value={form.phone} onChange={(e) => set('phone', maskPhone(e.target.value))} placeholder="(00) 0000-0000" inputMode="tel" />
           </Field>

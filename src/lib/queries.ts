@@ -10,6 +10,7 @@ import type { PlanFolder,
   AttendanceRecord,
   AttendanceSession,
   CalendarBuilderData,
+  LocalHolidays,
   ClassRoom,
   GradeActivity,
   LessonPlan,
@@ -365,6 +366,8 @@ export interface UpcomingEvent {
 }
 /** Próximos eventos de todos os calendários da base (Início). */
 export const listUpcomingEvents = (limit = 6) => rpc<UpcomingEvent[]>('listUpcomingEvents', limit);
+
+export const listLocalHolidays = (year: number) => rpc<LocalHolidays>('listLocalHolidays', year);
 
 export interface CalendarSummary {
   id: string;

@@ -8,15 +8,19 @@ import {
   createCalendar,
   deleteCalendar,
   listCalendars,
+  listLocalHolidays,
+  listSchools,
   listOrgPeople,
   loadCalendar,
   saveCalendar,
+  saveSchool,
   type CalendarSummary,
 } from "../lib/queries";
 import { downloadCalendarTemplate } from "../lib/importCalendar";
 import { parseAnyCalendarFile, type ImportedEvent } from "../lib/importCalendarBuilder";
-import { listNationalHolidays } from "../lib/holidays";
-import { ArrowLeft, CalendarDays, ChevronDown, Download, List as ListIcon, MoreHorizontal, Pencil, Printer, Trash2, Upload, Users } from "lucide-react";
+import { holidayKindLabel, listNationalHolidays, mergeHolidays } from "../lib/holidays";
+import { CityPicker, type Localidade } from "../components/CityPicker";
+import { ArrowLeft, CalendarDays, ChevronDown, Download, List as ListIcon, MapPin, MoreHorizontal, Pencil, Printer, Trash2, Upload, Users } from "lucide-react";
 import { Button, DropdownMenu, Modal, type MenuAction } from "../components/ui";
 import { Dropzone } from "../components/Dropzone";
 import { cn } from "../lib/cn";
@@ -349,6 +353,7 @@ function CalendarEditorLoader({
   const canEdit = canManage || rec.createdBy === userId || (!!userId && rec.editors.includes(userId));
   const canDelete = role === "superadmin" || role === "gestor" || rec.createdBy === userId;
   const canManageEditors = canManage || rec.createdBy === userId;
+  const canSetCity = role === "gestor" || role === "secretaria" || role === "superadmin";
   const hasData = rec.data && Object.keys(rec.data).length > 0;
 
   return (
@@ -361,6 +366,7 @@ function CalendarEditorLoader({
       canManage={canEdit}
       canDelete={canDelete}
       canManageEditors={canManageEditors}
+      canSetCity={canSetCity}
       people={people}
       initialEditors={rec.editors}
       onBack={onBack}
@@ -415,6 +421,7 @@ function CalendarBuilder({
   canManage,
   canDelete,
   canManageEditors,
+  canSetCity,
   people,
   onBack,
   onDelete,
@@ -428,6 +435,7 @@ function CalendarBuilder({
   canManage: boolean;
   canDelete: boolean;
   canManageEditors: boolean;
+  canSetCity: boolean;
   people: OrgPerson[];
   onBack: () => void;
   onDelete: () => void;
@@ -446,6 +454,9 @@ function CalendarBuilder({
   const [importOpen, setImportOpen] = useState(false);
   const [editorsOpen, setEditorsOpen] = useState(false);
   const [showHolidays, setShowHolidays] = useState(true);
+  const [showLocal, setShowLocal] = useState(true);
+  const [cityOpen, setCityOpen] = useState(false);
+  const { activeOrgId } = useAuth();
   const [eventQuery, setEventQuery] = useState("");
   const [newEventId, setNewEventId] = useState<string | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -462,15 +473,28 @@ function CalendarBuilder({
     queryKey: ["national-holidays", data.year],
     queryFn: () => listNationalHolidays(data.year),
   });
+  // Feriados do estado e do município da escola (cidade definida em Configurações > Escola).
+  const { data: local } = useQuery({
+    queryKey: ["local-holidays", activeOrgId, data.year],
+    queryFn: () => listLocalHolidays(data.year),
+    staleTime: 60 * 60_000,
+    retry: 1,
+  });
+  const allHolidays = useMemo(() => mergeHolidays(nationalHolidays, local?.holidays ?? []), [nationalHolidays, local]);
   // Não duplica: esconde o marcador automático quando o feriado já virou evento (mesma data+título).
   const eventKeys = useMemo(
     () => new Set(data.events.map((e) => `${e.start}|${e.title.toLowerCase()}`)),
     [data.events]
   );
   const holidays = useMemo(
-    () => (showHolidays ? nationalHolidays.filter((h) => !eventKeys.has(`${h.date}|${h.title.toLowerCase()}`)) : []),
-    [showHolidays, nationalHolidays, eventKeys]
+    () =>
+      allHolidays.filter(
+        (h) => (h.scope === "national" ? showHolidays : showLocal) && !eventKeys.has(`${h.date}|${h.title.toLowerCase()}`)
+      ),
+    [showHolidays, showLocal, allHolidays, eventKeys]
   );
+  const cityShort = (local?.city ?? "").replace(/\s*[-–/,]\s*[A-Za-z]{2}$/, "");
+  const localCount = local?.holidays.length ?? 0;
 
   const dirty = JSON.stringify({ data, editors }) !== savedJson;
 
@@ -690,9 +714,9 @@ function CalendarBuilder({
   };
 
   /* ---- feriados nacionais → eventos editáveis (categoria Feriado) ---- */
-  const addNationalHolidays = () => {
-    if (!nationalHolidays.length) {
-      alert("Feriados nacionais ainda carregando. Tente em instantes.");
+  const addHolidays = () => {
+    if (!allHolidays.length) {
+      alert("Feriados ainda carregando. Tente em instantes.");
       return;
     }
     const cats = [...data.categories];
@@ -702,11 +726,11 @@ function CalendarBuilder({
       cats.push(cat);
     }
     const existing = new Set(data.events.map((e) => `${e.start}|${e.title.toLowerCase()}`));
-    const toAdd = nationalHolidays
+    const toAdd = allHolidays
       .filter((h) => !existing.has(`${h.date}|${h.title.toLowerCase()}`))
-      .map((h) => ({ id: uid(), title: h.title, categoryId: cat!.id, start: h.date }));
+      .map((h) => ({ id: uid(), title: h.generic ? "Feriado municipal" : h.title, categoryId: cat!.id, start: h.date }));
     if (!toAdd.length) {
-      alert(`Os feriados nacionais de ${data.year} já estão no calendário.`);
+      alert(`Os feriados de ${data.year} já estão no calendário.`);
       return;
     }
     setData({ ...data, categories: cats, events: [...data.events, ...toAdd] });
@@ -715,6 +739,7 @@ function CalendarBuilder({
 
   const menuItems: MenuAction[] = [
     { label: "Participantes", hint: "Quem mais pode editar", icon: <Users size={16} />, onClick: () => setEditorsOpen(true), hidden: !canManageEditors },
+    { label: "Cidade da escola", hint: local?.city ? `${local.city} · feriados locais` : "Para mostrar feriados locais", icon: <MapPin size={16} />, onClick: () => setCityOpen(true), hidden: !canSetCity },
     { label: "Importar calendário", hint: "Excel, CSV, PDF, Word ou ICS", icon: <Upload size={16} />, onClick: () => setImportOpen(true), hidden: !canManage },
     { label: "Imprimir / PDF", icon: <Printer size={16} />, onClick: () => window.print() },
     { label: "Baixar backup (.json)", icon: <Download size={16} />, onClick: exportJSON },
@@ -895,12 +920,21 @@ function CalendarBuilder({
               <p className="cb-help cb-mt">Conta de segunda a sexta, descontando feriados e eventos de recesso/férias. Ajuste à mão o que for diferente.</p>
             </Section>
 
-            <Section title="Feriados nacionais">
+            <Section title="Feriados" count={allHolidays.length || undefined}>
               <p className="cb-help">
-                Os feriados nacionais de {data.year} já aparecem no calendário (fonte BrasilAPI). Para deixá-los fixos e editáveis,
-                adicione como eventos na categoria “Feriado”.
+                Os feriados nacionais{local?.city ? `, do estado e de ${cityShort}` : ""} de {data.year} já aparecem no calendário.
+                Para deixá-los fixos e editáveis, adicione como eventos na categoria “Feriado”.
               </p>
-              <button className="cb-add" onClick={addNationalHolidays}>+ Adicionar feriados de {data.year}</button>
+              <button className="cb-add" onClick={addHolidays}>+ Adicionar feriados de {data.year}</button>
+              {local?.status === "ok" ? (
+                <p className="cb-help cb-mt">
+                  Feriados locais para <b>{local.city}</b>. {canSetCity ? <button className="cb-link" onClick={() => setCityOpen(true)}>Alterar cidade</button> : null}
+                </p>
+              ) : canSetCity ? (
+                <p className="cb-help cb-mt">
+                  Quer ver também os feriados do estado e do município? <button className="cb-link" onClick={() => setCityOpen(true)}>Definir a cidade da escola</button>
+                </p>
+              ) : null}
             </Section>
 
             <Section title="Identificação e rodapé">
@@ -1013,6 +1047,22 @@ function CalendarBuilder({
                 Feriados nacionais
               </button>
             ) : null}
+            {localCount > 0 ? (
+              <button
+                className="cb-chip"
+                aria-pressed={showLocal}
+                onClick={() => setShowLocal((v) => !v)}
+                style={{
+                  borderColor: showLocal ? rgba(LOCAL_HOLIDAY_COLOR, 0.55) : undefined,
+                  background: showLocal ? rgba(LOCAL_HOLIDAY_COLOR, 0.1) : undefined,
+                }}
+                title={`Feriados do estado e do município (${local?.city ?? ""})`}
+              >
+                <span className="cb-cdot" style={{ background: LOCAL_HOLIDAY_COLOR }} />
+                Feriados de {cityShort || "sua cidade"}
+                <span className="cb-chip-n">{localCount}</span>
+              </button>
+            ) : null}
             {data.categories.length > 1 ? (
               <button
                 className="cb-link"
@@ -1022,6 +1072,32 @@ function CalendarBuilder({
               </button>
             ) : null}
           </div>
+
+          {local && local.status !== "ok" ? (
+            <div className="cb-notice">
+              <MapPin size={16} aria-hidden />
+              <span>
+                {local.status === "sem-cidade"
+                  ? canSetCity
+                    ? "Informe a cidade da escola para ver também os feriados do estado e do município."
+                    : "A coordenação ainda não informou a cidade da escola — por isso só aparecem os feriados nacionais."
+                  : `Ainda não há feriados estaduais/municipais publicados para ${data.year}. Os nacionais continuam aparecendo.`}
+              </span>
+              {local.status === "sem-cidade" && canSetCity ? (
+                <button className="cb-link" onClick={() => setCityOpen(true)}>Definir cidade</button>
+              ) : null}
+            </div>
+          ) : local && local.status === "ok" ? (
+            <div className="cb-notice cb-notice-soft">
+              <MapPin size={16} aria-hidden />
+              <span>
+                {localCount > 0
+                  ? `Feriados do estado e de ${cityShort} (${local.uf}) vêm de dados abertos — confirme com a prefeitura. Onde a fonte não traz o nome, aparece “Feriado municipal”.`
+                  : `Nenhum feriado do estado ou de ${cityShort} encontrado em ${data.year}. Se houver algum, cadastre-o como evento.`}
+              </span>
+              {canSetCity ? <button className="cb-link" onClick={() => setCityOpen(true)}>Alterar cidade</button> : null}
+            </div>
+          ) : null}
 
           {layout === "calendario" ? (
             <div className="cb-months">
@@ -1070,6 +1146,8 @@ function CalendarBuilder({
           onClose={() => setImportOpen(false)}
         />
       ) : null}
+
+      {cityOpen && canSetCity ? <CityModal onClose={() => setCityOpen(false)} /> : null}
 
       {editorsOpen && canManageEditors ? (
         <EditorsModal
@@ -1260,6 +1338,52 @@ function ImportSmartModal({
   );
 }
 
+/* ------------------- Modal: cidade da escola (feriados locais) --------------------- */
+function CityModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: schools } = useQuery({ queryKey: ["schools"], queryFn: listSchools });
+  const school = schools?.[0] ?? null;
+  const [loc, setLoc] = useState<Localidade | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (school && !loc) setLoc({ city: school.city ?? "", uf: school.uf ?? "", ibge_code: school.ibge_code ?? "" });
+  }, [school, loc]);
+
+  const save = async () => {
+    if (!school || !loc?.ibge_code) return;
+    setBusy(true);
+    try {
+      await saveSchool({ ...school, city: loc.city, uf: loc.uf, ibge_code: loc.ibge_code });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["schools"] }),
+        qc.invalidateQueries({ queryKey: ["local-holidays"] }),
+      ]);
+      successToast("Cidade da escola salva");
+      onClose();
+    } catch (e) {
+      alert("Não foi possível salvar: " + (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open onClose={onClose} title="Cidade da escola" size="lg">
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Com a cidade definida, o calendário mostra também os <b>feriados do estado e do município</b> — para toda a escola.
+          Você pode mudar isso depois em Configurações › Escola.
+        </p>
+        {loc ? <CityPicker value={loc} onChange={setLoc} /> : <p className="text-sm font-bold text-muted-foreground">Carregando…</p>}
+        <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button onClick={save} disabled={busy || !loc?.ibge_code}>{busy ? "Salvando…" : "Salvar cidade"}</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 /* --------------------------- Subcomponentes ------------------------------ */
 /** Seção recolhível do editor — a coordenação abre só o que está usando. */
 function Section({
@@ -1293,7 +1417,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const HOLIDAY_COLOR = "#525252";
+const HOLIDAY_COLOR = "#525252"; // feriado nacional
+const LOCAL_HOLIDAY_COLOR = "#737373"; // feriado estadual/municipal
 
 /** Um compromisso (evento ou feriado) dentro de um mês, pronto para listar. */
 type Entry = {
@@ -1321,7 +1446,16 @@ function monthEntries(
   holidays.forEach((h) => {
     if (+h.date.slice(0, 4) !== year || +h.date.slice(5, 7) - 1 !== month) return;
     const day = +h.date.slice(8, 10);
-    out.push({ key: `h-${h.id}`, days: [day], title: h.title, label: "Feriado nacional", color: HOLIDAY_COLOR, holiday: true, endISO: h.date, weekday: wd(day) });
+    out.push({
+      key: `h-${h.id}`,
+      days: [day],
+      title: h.generic ? "Feriado municipal" : h.title,
+      label: holidayKindLabel(h) + (h.generic ? " · confirme o nome" : ""),
+      color: h.scope === "national" ? HOLIDAY_COLOR : LOCAL_HOLIDAY_COLOR,
+      holiday: true,
+      endISO: h.date,
+      weekday: wd(day),
+    });
   });
   events.forEach((ev) => {
     const days = daysInMonthFor(ev, year, month);
@@ -1646,6 +1780,10 @@ const CSS = `
 .cb-agenda-list{padding:8px 12px 12px;display:flex;flex-direction:column;gap:2px}
 .cb-agenda-empty{padding:32px 16px;text-align:center;font-size:14px;font-weight:600;color:var(--ink-soft);background:var(--surface);border:1px dashed var(--line);border-radius:16px}
 
+.cb-notice{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:-6px 0 16px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:13px;color:var(--ink)}
+.cb-notice span{flex:1 1 240px;min-width:0}
+.cb-notice svg{flex:none;color:var(--ink-soft)}
+.cb-notice-soft{background:transparent;border-style:dashed;color:var(--ink-soft);font-size:12.5px}
 .cb-foot{margin-top:24px;padding-top:14px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;font-size:13px;color:var(--ink-soft)}
 .cb-note{max-width:680px;white-space:pre-wrap}
 .cb-foot strong{color:var(--ink)}
@@ -1665,7 +1803,7 @@ const CSS = `
 
 @media print{
   @page{size:A4 portrait;margin:6mm}
-  .cb-top-actions,.cb-editor,.cb-filters,.cb-back,.cb-stamp,.cb-toolbar,.cb-stats{display:none!important}
+  .cb-top-actions,.cb-editor,.cb-filters,.cb-back,.cb-stamp,.cb-toolbar,.cb-stats,.cb-notice{display:none!important}
   .cb-app{background:#fff;border:none;border-radius:0;font-size:10px}
   .cb-app *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .cb-top{padding:0 0 6px;border:none}

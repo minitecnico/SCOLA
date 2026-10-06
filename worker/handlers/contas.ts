@@ -188,6 +188,10 @@ export async function updateOrganization(ctx: Ctx, id: string, input: {
   await run(ctx.db, 'UPDATE bases SET name = ?, cnpj = ?, plan = ?, max_students = ?, notes = ?, city = ? WHERE id = ?',
     String(n.name).trim(), (n.cnpj as string) || null, (n.plan as string) || 'ativo', (n.max_students as number) || null,
     (n.notes as string) || null, (n.city as string) || null, id);
+  // Mudou a cidade à mão: o código IBGE antigo deixa de valer (a escola escolhe de novo em Configurações).
+  if (input.city !== undefined && (input.city || null) !== ((cur?.city as string | null) || null)) {
+    await run(ctx.db, 'UPDATE bases SET uf = NULL, ibge_code = NULL WHERE id = ?', id);
+  }
 }
 
 export async function setOrgActive(ctx: Ctx, id: string, active: boolean) {

@@ -80,3 +80,17 @@ function easterDate(year: number) {
   const day = ((h + l - 7 * m + 114) % 31) + 1;
   return new Date(year, month - 1, day);
 }
+
+/** Une os feriados nacionais aos locais (estado/município). Se a data já é feriado nacional, o local é descartado
+ *  (muitas cidades repetem Sexta-feira Santa, Corpus Christi etc. como feriado municipal). */
+export function mergeHolidays(national: CalendarHoliday[], local: CalendarHoliday[]): CalendarHoliday[] {
+  const nationalDates = new Set(national.map((h) => h.date));
+  return [...national, ...local.filter((h) => !nationalDates.has(h.date))].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Texto curto do tipo de feriado: "Feriado nacional", "Feriado estadual · GO", "Feriado municipal · Goiânia". */
+export function holidayKindLabel(h: CalendarHoliday): string {
+  if (h.scope === 'state') return `Feriado estadual${h.state ? ` · ${h.state}` : ''}`;
+  if (h.scope === 'city') return `Feriado municipal${h.city ? ` · ${h.city.replace(/\s*[-–/,]\s*[A-Za-z]{2}$/, '')}` : ''}`;
+  return 'Feriado nacional';
+}

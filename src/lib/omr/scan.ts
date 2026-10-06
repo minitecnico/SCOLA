@@ -301,11 +301,6 @@ function sample(g: Uint8Array, w: number, h: number, x: number, y: number): numb
 }
 
 /* ------------------------------ Leitura completa ----------------------------- */
-export function readSheet(img: Img, questions: number, choices: number, qr?: Pt[] | null): ScanResult | null {
-  const corners = locateCorners(img, qr);
-  return corners ? readAt(img, questions, choices, corners) : null;
-}
-
 /** Lê as bolinhas a partir dos 4 cantos já localizados (TL, TR, BR, BL). */
 export function readAt(img: Img, questions: number, choices: number, corners: Pt[]): ScanResult {
   const layout = sheetLayout(questions, choices);

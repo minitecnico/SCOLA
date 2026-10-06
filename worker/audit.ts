@@ -198,4 +198,3 @@ export const ACTIONS: Record<string, Spec> = {
 export const labelOf = (spec: Spec, args: unknown[]) => (typeof spec.label === 'function' ? spec.label(args) : spec.label);
 
 /** Ações de leitura que não entram no log (a não ser que deem erro/acesso negado). */
-export const isSilent = (name: string) => !ACTIONS[name];

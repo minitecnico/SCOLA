@@ -134,8 +134,6 @@ export interface NoticeAttachment {
 }
 
 /* ----------------------------- Calendário (Fase 4) ---------------------------- */
-export type EventAudience = 'all' | 'role' | 'user';
-
 export const EVENT_CATEGORIES: { key: string; label: string; color: string }[] = [
   { key: 'evento', label: 'Evento', color: '#16A34A' },
   { key: 'atividade', label: 'Atividade', color: '#0891B2' },
@@ -144,19 +142,6 @@ export const EVENT_CATEGORIES: { key: string; label: string; color: string }[] =
   { key: 'reuniao', label: 'Reunião', color: '#7C3AED' },
   { key: 'outro', label: 'Outro', color: '#475569' },
 ];
-export const eventColor = (cat: string) => EVENT_CATEGORIES.find((c) => c.key === cat)?.color ?? '#737373';
-export const eventCatLabel = (cat: string) => EVENT_CATEGORIES.find((c) => c.key === cat)?.label ?? cat;
-export const eventSoftColor = (cat: string) => {
-  const map: Record<string, string> = {
-    evento: '#f5f5f5',
-    atividade: '#f5f5f5',
-    gincana: '#f5f5f5',
-    prova: '#f5f5f5',
-    reuniao: '#f5f5f5',
-    outro: '#f5f5f5',
-  };
-  return map[cat] ?? '#f5f5f5';
-};
 
 /* --------------------- Construtor de calendário (visual) ---------------------
  * Documento único por organização: o coordenador monta o calendário inteiro
@@ -181,30 +166,6 @@ export interface CalendarBuilderData {
   events: CalBuilderEvent[];
   letivosByMonth: Record<number, number>;
   notes: string;
-}
-
-export interface CalendarEvent {
-  id: string;
-  org_id: string;
-  author_id: string;
-  title: string;
-  description: string;
-  category: string;
-  event_date: string; // yyyy-mm-dd
-  end_date: string | null;
-  audience: EventAudience;
-  target_role: AppRole | null;
-  target_user: string | null;
-  created_at: string;
-}
-
-export interface EventAttachment {
-  id: string;
-  event_id: string;
-  name: string;
-  path: string;
-  mime: string | null;
-  url?: string;
 }
 
 /* ------------------------ Planejamento do professor (Fase 3) ------------------ */
@@ -305,21 +266,6 @@ export interface PlanMessage {
   body: string;
   created_at: string;
   authorName: string | null;
-}
-
-export type CalendarUploadSlot = 'annual' | 'term1' | 'term2' | 'term3';
-
-export interface CalendarUpload {
-  id: string;
-  org_id: string;
-  slot: CalendarUploadSlot;
-  title: string;
-  name: string;
-  path: string;
-  mime: string | null;
-  uploaded_by: string | null;
-  created_at: string;
-  url?: string;
 }
 
 export type HolidayScope = 'national' | 'state' | 'city';
@@ -632,13 +578,6 @@ export function calcMedia(scores: Record<string, number>, activities?: GradeActi
   }
   return Math.round(baseMedia * 10) / 10;
 }
-
-export const STATUS_LABEL: Record<AttendanceStatus, string> = {
-  present: 'Presente',
-  absent: 'Ausente',
-  late: 'Atrasado',
-  justified: 'Justificado',
-};
 
 /** Pasta da central de planejamento. */
 export interface PlanFolder {

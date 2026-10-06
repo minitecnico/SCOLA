@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, Cpu, Loader2, Pencil, Plus, RefreshCw, Trash2, Zap } from 'lucide-react';
 import { useState } from 'react';
+import { timeAgo } from '../lib/format';
 import { cn } from '../lib/cn';
 import { ia, type EngineHealth, type EngineInfo, type EngineMode } from '../lib/ia';
 import { Button, Card, Field, Input, Modal } from './ui';
@@ -26,11 +27,7 @@ const TASK = { texto: 'Texto', visao: 'Imagens (leitura)', imagem: 'Imagens (cri
 type Form = { id?: string; baseUrl: string; key: string; model: string; label: string };
 const EMPTY: Form = { baseUrl: PRESETS[0].baseUrl, key: '', model: PRESETS[0].model, label: '' };
 
-const ago = (iso: string | null) => {
-  if (!iso) return null;
-  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  return m < 1 ? 'agora' : m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.floor(m / 60)} h` : `há ${Math.floor(m / 1440)} d`;
-};
+const ago = (iso: string | null) => (iso ? timeAgo(iso) : null);
 
 /** Verde-escuro/cinza/vermelho: estado de saúde pelo histórico recente. */
 function health(h: EngineHealth, enabled: boolean) {

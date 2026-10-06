@@ -63,4 +63,3 @@ export async function readQrCodes(img: Pixels, hard = false): Promise<QrRead[]> 
 }
 
 /** Qual leitor está ativo (diagnóstico). */
-export const qrEngine = async () => ((await loadZxing()) ? 'zxing' : 'jsqr');

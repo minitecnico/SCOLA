@@ -19,6 +19,14 @@ const isGray = (hex: string) => {
   const { r, g, b } = hexToRgb(hex);
   return Math.max(r, g, b) - Math.min(r, g, b) < 24;
 };
+/** Cor viva para uma categoria só pelo nome/cor (Início): mesma regra do calendário, sem depender da ordem das outras categorias. */
+export function vividColor(label: string, color: string): string {
+  if (!isGray(color)) return color;
+  const byName = CAT_BY_NAME.find(([re]) => re.test(label))?.[1];
+  if (byName) return byName;
+  const hash = [...label].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  return CAT_PALETTE[hash % CAT_PALETTE.length];
+}
 /** Calendários criados quando a paleta era toda cinza ganham cores vivas (só quem ainda está em cinza/preto). */
 export function vividCategories(cats: CalCategory[]): CalCategory[] {
   const used = new Set(cats.filter((c) => !isGray(c.color)).map((c) => c.color.toUpperCase()));

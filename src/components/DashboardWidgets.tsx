@@ -1,19 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, CalendarDays, ChevronLeft, ChevronRight, ClipboardCheck } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/cn';
-import { dashboardMonth, type DashboardMonth } from '../lib/queries';
-import { freqTone, TONE, type Tone } from '../lib/tone';
+import { localIso } from '../lib/format';
+import { readableText, vividColor } from '../lib/calendarColors';
+import { dashboardMonth, type DashboardMonth, type UpcomingEvent } from '../lib/queries';
+import type { Tone } from '../lib/tone';
+import { UpcomingList } from './DashboardAgenda';
 
 /**
- * Painéis do Início no estilo "widget": título em caixa alta com ícone,
- * corpo limpo. Calendário de chamadas, calendário escolar e frequência por turma.
+ * Painéis do Início no estilo "widget": título em caixa alta com ícone, corpo limpo.
+ * Um único calendário do mês, com duas visões: eventos da escola e presença das chamadas.
  */
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const SEMANA = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D']; // começa na segunda
 const pad = (n: number) => String(n).padStart(2, '0');
-const localIso = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const pct = (n: number) => `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
 
 export function Widget({ icon, title, action, children, className, bodyClassName }: { icon: ReactNode; title: string; action?: ReactNode; children: ReactNode; className?: string; bodyClassName?: string }) {
@@ -123,141 +125,104 @@ const DAY_CLS: Record<Tone, string> = {
 };
 
 /** Dias com chamada, coloridos pela presença do dia (todas as turmas). */
-export function AttendanceCalendarWidget() {
-  const navigate = useNavigate();
-  const { y, m, move, data } = useMonth();
-  const marks = useMemo(() => {
-    const map = new Map<string, DayMark>();
-    for (const d of data?.days ?? []) {
-      map.set(d.date, {
-        cls: DAY_CLS[dayTone(d.pct)],
-        tip: (
-          <>
-            <b>{d.date.split('-').reverse().join('/')}</b>
-            <br />
-            {d.sessions} chamada(s) · {d.pct != null ? `${pct(d.pct)} de presença` : 'sem alunos'}
-            <br />
-            {d.total - d.present} falta(s)
-          </>
-        ),
-        onClick: () => navigate('/chamadas', { state: { date: d.date } }),
-      });
+function attendanceMarks(data: DashboardMonth | undefined, open: (date: string) => void) {
+  const marks = new Map<string, DayMark>();
+  for (const d of data?.days ?? []) {
+    marks.set(d.date, {
+      cls: DAY_CLS[dayTone(d.pct)],
+      tip: (
+        <>
+          <b>{d.date.split('-').reverse().join('/')}</b>
+          <br />
+          {d.sessions} chamada(s) · {d.pct != null ? `${pct(d.pct)} de presença` : 'sem alunos'}
+          <br />
+          {d.total - d.present} falta(s)
+        </>
+      ),
+      onClick: () => open(d.date),
+    });
+  }
+  return { marks, legend: ATTENDANCE_LEGEND };
+}
+const ATTENDANCE_LEGEND = [
+  { dot: 'bg-green-500', label: '90% ou mais' },
+  { dot: 'bg-orange-500', label: '75–89%' },
+  { dot: 'bg-red-500', label: 'abaixo de 75%' },
+];
+
+/** Eventos do calendário escolar no mês, em cor sólida por categoria (evento de vários dias marca cada dia). */
+function schoolMarks(data: DashboardMonth | undefined, y: number, m: number, open: () => void) {
+  const byDay = new Map<string, DashboardMonth['events']>();
+  for (const e of data?.events ?? []) {
+    const end = new Date(`${e.end || e.date}T12:00:00`);
+    for (let d = new Date(`${e.date}T12:00:00`); d <= end; d = new Date(d.getTime() + 86400_000)) {
+      const iso = localIso(d);
+      if (iso.startsWith(`${y}-${pad(m)}`)) byDay.set(iso, [...(byDay.get(iso) ?? []), e]);
     }
-    return map;
-  }, [data, navigate]);
-  return (
-    <Widget icon={<ClipboardCheck size={17} />} title="Calendário de chamadas">
-      <MonthGrid y={y} m={m} move={move} marks={marks} />
-      <Legend
-        items={[
-          { dot: 'bg-green-500', label: '90% ou mais' },
-          { dot: 'bg-orange-500', label: '75–89%' },
-          { dot: 'bg-red-500', label: 'abaixo de 75%' },
-        ]}
-      />
-    </Widget>
-  );
+  }
+  const marks = new Map<string, DayMark>();
+  for (const [iso, list] of byDay) {
+    const color = vividColor(list[0].category, list[0].color);
+    marks.set(iso, {
+      cls: 'font-bold',
+      style: { background: color, color: readableText(color) },
+      tip: list.map((e, i) => (
+        <span key={i} className="block">
+          <b>{e.title}</b> · {e.category}
+        </span>
+      )),
+      onClick: open,
+    });
+  }
+  const cats = new Map<string, string>();
+  (data?.events ?? []).forEach((e) => cats.set(e.category, vividColor(e.category, e.color)));
+  return { marks, legend: [...cats.entries()].map(([label, color]) => ({ dot: '', label, style: { background: color } })) };
 }
 
-/** Eventos do calendário escolar no mês (feriados, provas, reuniões…). */
-export function SchoolCalendarWidget() {
+type View = 'escola' | 'chamadas';
+
+/**
+ * Calendário do mês do Início: uma só grade, duas visões (Escola · Chamadas).
+ * Na visão da escola, os próximos compromissos ficam logo abaixo — sem painel repetido.
+ */
+export function MonthCalendarWidget({ upcoming, showAttendance }: { upcoming: UpcomingEvent[]; showAttendance: boolean }) {
   const navigate = useNavigate();
   const { y, m, move, data } = useMonth();
-  const { marks, cats } = useMemo(() => {
-    const byDay = new Map<string, DashboardMonth['events']>();
-    for (const e of data?.events ?? []) {
-      // Evento de vários dias marca cada dia do intervalo (dentro do mês).
-      const end = new Date(`${e.end || e.date}T12:00:00`);
-      for (let d = new Date(`${e.date}T12:00:00`); d <= end; d = new Date(d.getTime() + 86400_000)) {
-        const iso = localIso(d);
-        if (!iso.startsWith(`${y}-${pad(m)}`)) continue;
-        byDay.set(iso, [...(byDay.get(iso) ?? []), e]);
-      }
-    }
-    const marks = new Map<string, DayMark>();
-    for (const [iso, list] of byDay) {
-      marks.set(iso, {
-        cls: 'font-semibold text-white',
-        style: { background: list[0].color }, // cor da categoria do primeiro evento
-        tip: list.map((e, i) => (
-          <span key={i} className="block">
-            <b>{e.title}</b> · {e.category}
-          </span>
-        )),
-        onClick: () => navigate('/calendario'),
-      });
-    }
-    const cats = new Map<string, string>();
-    (data?.events ?? []).forEach((e) => cats.set(e.category, e.color));
-    return { marks, cats };
-  }, [data, y, m, navigate]);
+  const [view, setView] = useState<View>('escola');
+  const current: View = showAttendance ? view : 'escola';
 
-  return (
-    <Widget icon={<CalendarDays size={17} />} title="Calendário escolar">
-      <MonthGrid y={y} m={m} move={move} marks={marks} />
-      {cats.size ? (
-        <Legend items={[...cats.entries()].map(([label, color]) => ({ dot: '', label, style: { background: color } }))} />
-      ) : (
-        <p className="border-t border-border px-4 py-2.5 text-[11px] text-muted-foreground">Nenhum evento neste mês.</p>
-      )}
-    </Widget>
+  const { marks, legend } = useMemo(
+    () => (current === 'chamadas' ? attendanceMarks(data, (date) => navigate('/chamadas', { state: { date } })) : schoolMarks(data, y, m, () => navigate('/calendario'))),
+    [current, data, y, m, navigate],
   );
-}
 
-/** Frequência de cada turma no ano, com a linha do mínimo (75%). */
-export function ClassFrequencyWidget({ min = 75 }: { min?: number }) {
-  const navigate = useNavigate();
-  const { data } = useQuery({
-    queryKey: ['dash-month', new Date().getFullYear(), new Date().getMonth() + 1],
-    queryFn: () => dashboardMonth(new Date().getFullYear(), new Date().getMonth() + 1),
-    staleTime: 60_000,
-  });
-  const rows = data?.classes ?? [];
-  const lo = 50; // eixo começa em 50% para as diferenças aparecerem
-  const x = (v: number) => `${Math.max(0, Math.min(100, ((v - lo) / (100 - lo)) * 100))}%`;
+  const tabs = (
+    <div className="inline-flex gap-0.5 rounded-lg bg-muted p-0.5 text-xs font-semibold" role="tablist" aria-label="Visão do calendário">
+      {([['escola', 'Escola'], ['chamadas', 'Chamadas']] as const).map(([id, label]) => (
+        <button
+          key={id}
+          role="tab"
+          aria-selected={current === id}
+          onClick={() => setView(id)}
+          className={cn('rounded-md px-2.5 py-1 transition', current === id ? 'bg-card text-foreground shadow-soft' : 'text-muted-foreground hover:text-foreground')}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
-    <Widget icon={<BarChart3 size={17} />} title={`Frequência por turma em ${new Date().getFullYear()}`} bodyClassName="px-4 py-4">
-      {!rows.length ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">As turmas aparecem aqui depois das primeiras chamadas.</p>
+    <Widget icon={<CalendarDays size={17} />} title="Calendário" action={showAttendance ? tabs : undefined}>
+      <MonthGrid y={y} m={m} move={move} marks={marks} />
+      {legend.length ? (
+        <Legend items={legend} />
       ) : (
-        <div>
-          <div className="space-y-2.5">
-            {rows.map((r) => {
-              const tone = freqTone(r.pct, min);
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => navigate('/relatorios', { state: { classId: r.id, tipo: 'freq' } })}
-                  className="group grid w-full grid-cols-[minmax(0,9rem)_1fr_3.5rem] items-center gap-3 rounded-md text-left sm:grid-cols-[minmax(0,12rem)_1fr_3.5rem]"
-                  title={`${r.name}: ${pct(r.pct)} de presença em ${r.sessions} chamada(s)`}
-                >
-                  <span className="truncate text-right text-xs text-muted-foreground group-hover:text-foreground">{r.name}</span>
-                  <span className="relative h-5">
-                    <span className="absolute inset-y-0 left-0 my-auto h-3 rounded-r-[4px] transition-[width] group-hover:brightness-95" style={{ width: x(r.pct) }}>
-                      <span className={cn('block h-full rounded-r-[4px]', TONE[tone].bar)} />
-                    </span>
-                    <span className="absolute inset-y-0 border-l border-dashed border-neutral-400" style={{ left: x(min) }} aria-hidden="true" />
-                  </span>
-                  <span className="text-right text-xs font-semibold tabular-nums text-foreground">{pct(r.pct)}</span>
-                </button>
-              );
-            })}
-          </div>
-          {/* Eixo */}
-          <div className="mt-2 grid grid-cols-[minmax(0,9rem)_1fr_3.5rem] gap-3 sm:grid-cols-[minmax(0,12rem)_1fr_3.5rem]">
-            <span />
-            <span className="relative h-4 border-t border-border text-[10px] text-muted-foreground">
-              {[50, 75, 100].map((v) => (
-                <span key={v} className="absolute top-1 -translate-x-1/2" style={{ left: x(v) }}>
-                  {v}%{v === min ? ' mín.' : ''}
-                </span>
-              ))}
-            </span>
-            <span />
-          </div>
-        </div>
+        <p className="border-t border-border px-4 py-2.5 text-[11px] text-muted-foreground">
+          {current === 'chamadas' ? 'Nenhuma chamada neste mês.' : 'Nenhum evento neste mês.'}
+        </p>
       )}
+      {current === 'escola' ? <UpcomingList events={upcoming} /> : null}
     </Widget>
   );
 }

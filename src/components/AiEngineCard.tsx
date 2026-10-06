@@ -54,6 +54,7 @@ export function AiEngineCard() {
   const test = useMutation({ mutationFn: ia.testEngine, onSettled: refresh });
   const remove = useMutation({ mutationFn: (id: string) => ia.clearEngine(id), onSuccess: refresh });
   const [testing, setTesting] = useState<string | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   if (!data) return <Card><p className="text-sm text-muted-foreground">Carregando o motor de IA…</p></Card>;
 
@@ -66,7 +67,16 @@ export function AiEngineCard() {
 
   async function runTest(id: string) {
     setTesting(id);
-    try { await test.mutateAsync(id); } finally { setTesting(null); }
+    setResult(null);
+    const label = all.find((e) => e.id === id)?.label ?? 'Motor';
+    try {
+      const r = await test.mutateAsync(id);
+      setResult(r.ok ? { ok: true, text: `${label}: funcionando (${(r.ms / 1000).toFixed(1)} s).` } : { ok: false, text: `${label}: falhou — ${r.error ?? 'sem detalhe'}` });
+    } catch (e) {
+      setResult({ ok: false, text: `${label}: ${(e as Error).message}` });
+    } finally {
+      setTesting(null);
+    }
   }
   function move(id: string, dir: -1 | 1) {
     const ids = data!.engines.map((e) => e.id);
@@ -129,7 +139,8 @@ export function AiEngineCard() {
           </div>
 
           {data.nvidia ? <Nvidia data={data} testing={testing} onToggle={(id, v) => config.mutate({ enabled: { [id]: v } })} onTest={(id) => void runTest(id)} /> : null}
-          <p className="text-[11px] text-muted-foreground">Cada chamada alimenta a saúde dos motores. Quem falha várias vezes descansa (2 min, depois 4, 8… até 1 hora) e volta sozinho. O botão de teste faz uma pergunta curta ao motor.</p>
+          {result ? <p role="status" className={cn('rounded-lg px-3 py-2 text-sm font-medium', result.ok ? 'bg-neutral-100 text-neutral-900' : 'bg-red-50 text-red-700')}>{result.text}</p> : null}
+          <p className="text-[11px] text-muted-foreground">Cada chamada alimenta a saúde dos motores. Quem falha várias vezes descansa (2 min, depois 4, 8… até 1 hora) e volta sozinho. O botão de teste faz uma pergunta curta ao motor (nos de imagem, desenha uma figura pequena).</p>
         </div>
       ) : null}
 

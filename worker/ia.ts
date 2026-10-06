@@ -619,6 +619,25 @@ async function probe(baseUrl: string, key: string, model: string) {
   return { ok: false as const, ms: Date.now() - t0, error: `${res.status ? `(${res.status}) ` : ''}${(typeof j.error === 'string' ? j.error : j.error?.message) || j.message || body.slice(0, 200)}` };
 }
 
+/** Teste de um modelo de imagem: desenha algo pequeno e confere se voltou uma imagem. */
+async function probeImage(key: string, model: string) {
+  const t0 = Date.now();
+  const klein = model.includes('klein');
+  const res = await fetch(`${NV_IMAGE}/${model}`, {
+    method: 'POST', signal: AbortSignal.timeout(50_000), headers: HEADERS(key),
+    body: JSON.stringify({ prompt: 'A single red apple on a white table, simple illustration', width: 768, height: 768, seed: 7, ...(klein ? { steps: 4 } : { steps: 10, cfg_scale: 3.5, mode: 'base' }) }),
+  }).catch((e) => ({ ok: false as const, status: 0, text: async () => ((e as Error)?.name === 'TimeoutError' ? 'demorou mais de 50 s' : (e as Error)?.message || 'sem resposta'), json: async () => ({}) }));
+  const ms = Date.now() - t0;
+  if (res.ok) {
+    const a = ((await res.json().catch(() => ({}))) as { artifacts?: { base64?: string }[] }).artifacts?.[0];
+    return a?.base64 ? { ok: true as const, ms } : { ok: false as const, ms, error: 'O modelo respondeu, mas sem imagem.' };
+  }
+  const body = await res.text().catch(() => '');
+  const j = parse<{ detail?: string; title?: string; error?: { message?: string } | string; message?: string }>(body, {});
+  const why = typeof j.detail === 'string' ? j.detail : typeof j.error === 'string' ? j.error : j.error?.message || j.message || j.title || body.slice(0, 200);
+  return { ok: false as const, ms, error: `${res.status ? `(${res.status}) ` : ''}${why}` };
+}
+
 /** Testa um motor já conectado (id do motor externo ou de um modelo da NVIDIA) e atualiza a saúde dele. */
 export async function testAiEngine(ctx: Ctx, id: string) {
   requireAdmin(ctx);
@@ -629,6 +648,9 @@ export async function testAiEngine(ctx: Ctx, id: string) {
   else if (CHAINS.texto.includes(id) || CHAINS.visao.includes(id)) {
     if (!ctx.env.AI_API_KEY) fail('A NVIDIA não está configurada.');
     r = await probe(NV_CHAT, ctx.env.AI_API_KEY!, id);
+  } else if (CHAINS.imagem.includes(id)) {
+    if (!ctx.env.AI_API_KEY) fail('A NVIDIA não está configurada.');
+    r = await probeImage(ctx.env.AI_API_KEY!, id);
   } else return fail('Motor não encontrado.', 404);
   await stats(ctx.env, true);
   await record(ctx.env, id, r.ok, r.ms, r.ok ? undefined : r.error);

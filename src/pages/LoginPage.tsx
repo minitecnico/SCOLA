@@ -1,10 +1,10 @@
-import { ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, Lock, Mail, ShieldCheck } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail, MessageCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { Logo, LogoMark } from '../components/Logo';
-import { ApiError, apiGet, apiPost } from '../lib/api';
+import { apiGet } from '../lib/api';
 
-type AuthConfig = { google: boolean; turnstileSiteKey: string | null; mail: boolean; twoFactor: boolean };
+type AuthConfig = { google: boolean };
 
 /** Mensagens para os retornos do "Entrar com Google" (/login?erro=...). */
 const GOOGLE_ERRORS: Record<string, string> = {
@@ -29,37 +29,8 @@ function GoogleG() {
   );
 }
 
-/** Caixa "não sou um robô" (Cloudflare Turnstile), só depois de várias senhas erradas. */
-function Captcha({ siteKey, onToken }: { siteKey: string; onToken: (t: string) => void }) {
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    type TS = { render: (el: HTMLElement, o: Record<string, unknown>) => string; remove: (id: string) => void };
-    let id: string | undefined;
-    let dead = false;
-    const draw = () => {
-      const ts = (window as unknown as { turnstile?: TS }).turnstile;
-      if (dead || !ts || !box.current) return;
-      id = ts.render(box.current, { sitekey: siteKey, callback: onToken, 'expired-callback': () => onToken(''), language: 'pt-br' });
-    };
-    if ((window as unknown as { turnstile?: unknown }).turnstile) draw();
-    else {
-      const s = document.createElement('script');
-      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-      s.async = true;
-      s.onload = draw;
-      document.head.appendChild(s);
-    }
-    return () => {
-      dead = true;
-      const ts = (window as unknown as { turnstile?: TS }).turnstile;
-      if (id && ts) ts.remove(id);
-    };
-  }, [siteKey, onToken]);
-  return <div ref={box} className="flex justify-center" />;
-}
-
 export function LoginPage() {
-  const { signIn, verifyTwoFactor } = useAuth();
+  const { signIn } = useAuth();
   const [cfg, setCfg] = useState<AuthConfig | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -68,12 +39,9 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(() => GOOGLE_ERRORS[new URLSearchParams(window.location.search).get('erro') ?? ''] ?? '');
   const [forgot, setForgot] = useState(false);
-  const [challenge, setChallenge] = useState<string | null>(null);
-  const [needCaptcha, setNeedCaptcha] = useState(false);
-  const [captcha, setCaptcha] = useState('');
 
   useEffect(() => {
-    apiGet<AuthConfig>('/api/auth/config').then(setCfg).catch(() => setCfg({ google: false, turnstileSiteKey: null, mail: false, twoFactor: false }));
+    apiGet<AuthConfig>('/api/auth/config').then(setCfg).catch(() => setCfg({ google: false }));
   }, []);
 
   async function onSubmit(e: React.FormEvent) {
@@ -81,12 +49,8 @@ export function LoginPage() {
     setError('');
     setBusy(true);
     try {
-      const r = await signIn(email.trim(), password, { remember, captcha: captcha || undefined });
-      if (r) setChallenge(r.challenge);
+      await signIn(email.trim(), password, remember);
     } catch (err) {
-      const status = (err as ApiError).status;
-      if (status === 428 && cfg?.turnstileSiteKey) setNeedCaptcha(true);
-      setCaptcha('');
       setError((err as Error).message);
     } finally {
       setBusy(false);
@@ -122,18 +86,9 @@ export function LoginPage() {
             <Logo compact height={36} />
           </div>
 
-          {forgot ? <Recover initialEmail={email} onBack={() => setForgot(false)} /> : null}
+          {forgot ? <Recover onBack={() => setForgot(false)} /> : null}
 
-          {!forgot && challenge ? (
-            <TwoFactorStep
-              onBack={() => { setChallenge(null); setPassword(''); }}
-              onVerify={async (code) => {
-                await verifyTwoFactor(challenge, code);
-              }}
-            />
-          ) : null}
-
-          {!forgot && !challenge ? (
+          {!forgot ? (
             <div>
               <h2 className="text-2xl font-extrabold tracking-tight text-neutral-950">Entrar</h2>
               <p className="mt-1.5 text-sm text-neutral-500">Acesse o SCOLA com a sua conta.</p>
@@ -181,17 +136,15 @@ export function LoginPage() {
                   </button>
                 </div>
 
-                {needCaptcha && cfg?.turnstileSiteKey ? <Captcha siteKey={cfg.turnstileSiteKey} onToken={setCaptcha} /> : null}
-
                 {error ? <p role="alert" className="rounded-lg bg-red-50 px-3 py-2.5 text-sm font-medium text-red-700">{error}</p> : null}
 
-                <button type="submit" disabled={busy || (needCaptcha && !captcha)} className={primary}>
+                <button type="submit" disabled={busy} className={primary}>
                   {busy ? 'Entrando…' : 'Entrar'} {busy ? null : <ArrowRight size={17} />}
                 </button>
               </form>
 
               <p className="mt-6 border-t border-neutral-200 pt-5 text-center text-xs leading-relaxed text-neutral-500">
-                Primeiro acesso? Abra o <b className="text-neutral-700">link de convite</b> que a sua escola enviou por e-mail ou WhatsApp. Não há cadastro aberto: a escola libera cada pessoa.
+                Primeiro acesso? Abra o <b className="text-neutral-700">link de convite</b> que a sua escola enviou pelo WhatsApp. Não há cadastro aberto: a escola libera cada pessoa.
               </p>
             </div>
           ) : null}
@@ -201,109 +154,20 @@ export function LoginPage() {
   );
 }
 
-/** Segundo passo: código do aplicativo autenticador (ou código de recuperação). */
-function TwoFactorStep({ onVerify, onBack }: { onVerify: (code: string) => Promise<void>; onBack: () => void }) {
-  const [code, setCode] = useState('');
-  const [recovery, setRecovery] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError('');
-    try {
-      await onVerify(code.trim());
-    } catch (err) {
-      setError((err as Error).message);
-      setBusy(false);
-    }
-  }
-
+/** "Esqueci minha senha": sem e-mail automático — quem libera o acesso (a coordenação) gera um link novo. */
+function Recover({ onBack }: { onBack: () => void }) {
   return (
-    <form onSubmit={submit}>
-      <span className="grid h-12 w-12 place-items-center rounded-full bg-neutral-950 text-white"><ShieldCheck size={24} /></span>
-      <h2 className="mt-5 text-2xl font-extrabold tracking-tight text-neutral-950">Verificação em duas etapas</h2>
-      <p className="mt-1.5 text-sm text-neutral-500">
-        {recovery ? 'Digite um dos seus códigos de recuperação (cada um vale uma vez).' : 'Digite o código de 6 dígitos do seu aplicativo autenticador.'}
+    <div>
+      <span className="grid h-12 w-12 place-items-center rounded-full bg-neutral-950 text-white"><MessageCircle size={22} /></span>
+      <h2 className="mt-5 text-2xl font-extrabold tracking-tight text-neutral-950">Esqueceu a senha?</h2>
+      <p className="mt-2 text-sm leading-relaxed text-neutral-600">
+        Peça um <b className="text-neutral-900">novo link de acesso</b> à coordenação da sua escola. Ela gera o link em <b className="text-neutral-900">Equipe</b> e envia pelo WhatsApp; você abre e cria uma senha nova em segundos.
       </p>
-      <label className="mt-7 block">
-        <span className="mb-1.5 block text-xs font-semibold text-neutral-700">{recovery ? 'Código de recuperação' : 'Código'}</span>
-        <span className={field}>
-          <KeyRound size={17} className="shrink-0 text-neutral-400" />
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            required
-            autoFocus
-            autoComplete="one-time-code"
-            inputMode={recovery ? 'text' : 'numeric'}
-            maxLength={recovery ? 16 : 7}
-            className="w-full bg-transparent py-3 text-sm tracking-widest outline-none"
-            placeholder={recovery ? 'xxxxx-xxxxx' : '000000'}
-          />
-        </span>
-      </label>
-      {error ? <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2.5 text-sm font-medium text-red-700">{error}</p> : null}
-      <button type="submit" disabled={busy || !code.trim()} className={`${primary} mt-5`}>{busy ? 'Verificando…' : 'Verificar e entrar'}</button>
-      <div className="mt-5 flex items-center justify-between text-sm font-semibold text-neutral-700">
-        <button type="button" onClick={() => { setRecovery((v) => !v); setCode(''); setError(''); }} className="hover:text-neutral-950">
-          {recovery ? 'Usar o aplicativo' : 'Usar código de recuperação'}
-        </button>
-        <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 hover:text-neutral-950"><ArrowLeft size={15} /> Voltar</button>
-      </div>
-    </form>
-  );
-}
-
-/** "Esqueci minha senha": pede o e-mail e manda o link para criar uma senha nova. */
-function Recover({ initialEmail, onBack }: { initialEmail: string; onBack: () => void }) {
-  const [email, setEmail] = useState(initialEmail);
-  const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState('');
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError('');
-    try {
-      await apiPost('/api/auth/forgot', { email: email.trim() });
-      setSent(true);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (sent) {
-    return (
-      <div>
-        <span className="grid h-12 w-12 place-items-center rounded-full bg-neutral-950 text-white"><CheckCircle2 size={24} /></span>
-        <h2 className="mt-5 text-2xl font-extrabold tracking-tight text-neutral-950">Confira seu e-mail</h2>
-        <p className="mt-2 text-sm leading-relaxed text-neutral-600">
-          Se <b className="text-neutral-900">{email}</b> estiver cadastrado, enviamos um link para criar uma nova senha. Ele vale por 1 hora e só pode ser usado uma vez.
-        </p>
-        <p className="mt-3 rounded-lg bg-neutral-100 px-3 py-2.5 text-xs text-neutral-600">Não chegou? Veja a pasta de spam ou lixo eletrônico. Se o e-mail não estiver cadastrado, fale com a gestão da sua escola.</p>
-        <button onClick={onBack} className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-neutral-700 hover:text-neutral-950"><ArrowLeft size={16} /> Voltar para o login</button>
-      </div>
-    );
-  }
-  return (
-    <form onSubmit={submit}>
-      <h2 className="text-2xl font-extrabold tracking-tight text-neutral-950">Esqueci minha senha</h2>
-      <p className="mt-1.5 text-sm text-neutral-500">Informe o e-mail da sua conta. Enviaremos um link para você criar uma nova senha.</p>
-      <label className="mt-8 block">
-        <span className="mb-1.5 block text-xs font-semibold text-neutral-700">E-mail</span>
-        <span className={field}>
-          <Mail size={17} className="shrink-0 text-neutral-400" />
-          <input type="email" required autoFocus autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-transparent py-3 text-sm outline-none" placeholder="voce@escola.com.br" />
-        </span>
-      </label>
-      {error ? <p className="mt-4 rounded-lg bg-red-50 px-3 py-2.5 text-sm font-medium text-red-700">{error}</p> : null}
-      <button type="submit" disabled={busy} className={`${primary} mt-5`}>{busy ? 'Enviando…' : 'Enviar link por e-mail'}</button>
-      <button type="button" onClick={onBack} className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-neutral-700 hover:text-neutral-950"><ArrowLeft size={16} /> Voltar para o login</button>
-    </form>
+      <ul className="mt-4 space-y-2 rounded-lg bg-neutral-100 px-4 py-3 text-sm text-neutral-700">
+        <li>• Sua conta é do Gmail? Use <b>Continuar com o Google</b> e não precisa de senha.</li>
+        <li>• É da coordenação ou professor autônomo? Chame o suporte do SCOLA.</li>
+      </ul>
+      <button onClick={onBack} className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-neutral-700 hover:text-neutral-950"><ArrowLeft size={16} /> Voltar para o login</button>
+    </div>
   );
 }

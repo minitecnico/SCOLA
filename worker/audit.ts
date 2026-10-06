@@ -162,10 +162,6 @@ export const ACTIONS: Record<string, Spec> = {
   // Conta e equipe
   updateProfile: { cat: 'acesso', label: 'Atualizou o próprio perfil' },
   changePassword: { cat: 'acesso', label: 'Trocou a senha' },
-  startTwoFactor: { cat: 'acesso', label: 'Começou a ativar a verificação em duas etapas' },
-  confirmTwoFactor: { cat: 'acesso', label: 'Ativou a verificação em duas etapas' },
-  disableTwoFactor: { cat: 'acesso', label: 'Desativou a verificação em duas etapas' },
-  adminResetTwoFactor: { cat: 'admin', label: 'Removeu a verificação em duas etapas de usuário', refs: (a) => ({ userId: a[0] }) },
   generateAccessLink: { cat: 'admin', label: 'Gerou link de acesso para usuário', refs: (a) => ({ userId: a[0] }) },
   setActiveOrg: { cat: 'admin', label: (a) => (a[0] ? 'Entrou em modo suporte' : 'Saiu do modo suporte'), refs: (a) => ({ baseId: a[0] ?? null }) },
   addMember: { cat: 'equipe', label: 'Adicionou membro à equipe', refs: (a) => ({ baseId: a[0], text: `${s(a[1]?.email) ?? ''} (${ROLE_PT[a[1]?.role] ?? a[1]?.role ?? ''})` }) },

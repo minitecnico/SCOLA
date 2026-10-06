@@ -1,17 +1,15 @@
 import type { Context, Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import {
-  assertNotLocked, burnPasswordCheck, clearFailures, createSession, hashPassword, iterationsFor, needsRehash, recentFailures, recordFailure,
+  assertNotLocked, burnPasswordCheck, clearFailures, createSession, hashPassword, iterationsFor, needsRehash, recordFailure,
   SESSION_COOKIE, verifyPassword, type UserRow,
 } from './auth';
-import { acceptLink, previewLink, requestReset } from './access';
+import { acceptLink, previewLink } from './access';
 import { deviceOf, insertLog, type LogEntry } from './audit';
 import { fail, first, now, run, type Env } from './db';
-import { exchangeLoginCode, googleLoginReady, loginAuthUrl, openToken } from './google';
-import { mailReady } from './mail';
-import { hashBackup, normBackup, verifyTotp } from './totp';
+import { exchangeLoginCode, googleLoginReady, loginAuthUrl } from './google';
 
-/** Entrada no sistema: login com senha, segundo passo (TOTP), Google, "esqueci minha senha" e links de convite. */
+/** Entrada no sistema: Google, e-mail e senha, e links de convite/redefinição. */
 type App = Hono<{ Bindings: Env; Variables: { user: UserRow } }>;
 type C = Context<{ Bindings: Env; Variables: { user: UserRow } }>;
 
@@ -29,23 +27,7 @@ function bg(c: C, p: Promise<unknown>) {
 }
 const log = (c: C, e: LogEntry) => bg(c, insertLog(c.env.DB, { ...e, ...origin(c) }));
 
-const sha = async (s: string) => btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))));
 const randomToken = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/[+/=]/g, (ch) => ({ '+': '-', '/': '_', '=': '' })[ch]!);
-
-export const twoFactorAvailable = (env: Env) => !!env.GOOGLE_TOKEN_KEY;
-const turnstileReady = (env: Env) => !!(env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY);
-
-async function turnstileOk(env: Env, token: string | undefined, ip: string | null) {
-  if (!token) return false;
-  try {
-    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-      method: 'POST', body: new URLSearchParams({ secret: env.TURNSTILE_SECRET_KEY!, response: token, remoteip: ip ?? '' }),
-    });
-    return !!((await r.json().catch(() => ({}))) as { success?: boolean }).success;
-  } catch {
-    return false;
-  }
-}
 
 /** Abre a sessão (cookie HttpOnly) e registra o acesso no log. */
 async function startSession(c: C, user: UserRow, remember: boolean, summary: string) {
@@ -63,19 +45,12 @@ async function startSession(c: C, user: UserRow, remember: boolean, summary: str
 }
 
 export function authRoutes(app: App) {
-  /** O que a tela de login pode oferecer neste servidor (cada item só aparece se estiver configurado). */
-  app.get('/api/auth/config', (c) =>
-    c.json({
-      google: googleLoginReady(c.env),
-      turnstileSiteKey: turnstileReady(c.env) ? c.env.TURNSTILE_SITE_KEY : null,
-      mail: mailReady(c.env),
-      twoFactor: twoFactorAvailable(c.env),
-    }),
-  );
+  /** O que a tela de login pode oferecer neste servidor (o botão do Google só aparece se estiver configurado). */
+  app.get('/api/auth/config', (c) => c.json({ google: googleLoginReady(c.env) }));
 
   /* ---------------------------------- Senha ---------------------------------- */
   app.post('/api/auth/login', async (c) => {
-    const body = await c.req.json<{ email?: string; password?: string; remember?: boolean; captcha?: string }>().catch(() => ({}) as { email?: string; password?: string; remember?: boolean; captcha?: string });
+    const body = await c.req.json<{ email?: string; password?: string; remember?: boolean }>().catch(() => ({}) as { email?: string; password?: string; remember?: boolean });
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
     const remember = body.remember !== false;
@@ -87,11 +62,6 @@ export function authRoutes(app: App) {
     } catch (err) {
       log(c, { email, action: 'login_bloqueado', category: 'acesso', summary: 'Login bloqueado por excesso de tentativas', status: 'negado' });
       throw err;
-    }
-    // Depois de 3 senhas erradas, pede o CAPTCHA (se estiver configurado) antes de testar a senha de novo.
-    if (turnstileReady(c.env)) {
-      const f = await recentFailures(db, email, ip);
-      if ((f.byEmail >= 3 || f.byIp >= 10) && !(await turnstileOk(c.env, body.captcha, ip))) fail('Por segurança, confirme que você não é um robô.', 428);
     }
     const user = await first<UserRow>(db, 'SELECT * FROM users WHERE email = ?', email);
     // Senha copiada do WhatsApp/e-mail costuma vir com espaço no fim: tenta também sem os espaços das pontas.
@@ -118,55 +88,7 @@ export function authRoutes(app: App) {
     const it = iterationsFor(c.env);
     if (needsRehash(user!.password_hash, it)) await run(db, 'UPDATE users SET password_hash = ? WHERE id = ?', await hashPassword(matched!, it), user!.id);
 
-    // Verificação em duas etapas: a senha está certa, falta o código do aplicativo.
-    if (user!.totp_enabled && user!.totp_secret && twoFactorAvailable(c.env)) {
-      const challenge = randomToken();
-      const t = now();
-      await run(db, 'DELETE FROM login_challenges WHERE expires_at < ?', t).catch(() => null);
-      await run(db, 'INSERT INTO login_challenges (id, user_id, remember, created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
-        await sha(challenge), user!.id, remember, t, new Date(Date.now() + 5 * 60_000).toISOString());
-      return c.json({ needs2fa: true, challenge });
-    }
     await startSession(c, user!, remember, user!.must_change_pw ? 'Entrou com senha provisória' : 'Entrou no sistema');
-    return c.json({ ok: true });
-  });
-
-  app.post('/api/auth/2fa', async (c) => {
-    const body = await c.req.json<{ challenge?: string; code?: string }>().catch(() => ({}) as { challenge?: string; code?: string });
-    const db = c.env.DB;
-    const id = await sha(String(body.challenge ?? ''));
-    const ch = await first<{ user_id: string; remember: number; attempts: number; expires_at: string }>(db, 'SELECT user_id, remember, attempts, expires_at FROM login_challenges WHERE id = ?', id);
-    if (!ch || ch.expires_at < now()) fail('Tempo esgotado. Entre de novo com e-mail e senha.', 401);
-    if (ch!.attempts >= 5) {
-      await run(db, 'DELETE FROM login_challenges WHERE id = ?', id);
-      fail('Muitas tentativas. Entre de novo com e-mail e senha.', 429);
-    }
-    const user = await first<UserRow>(db, 'SELECT * FROM users WHERE id = ? AND disabled = 0', ch!.user_id);
-    const code = String(body.code ?? '').trim();
-    let ok = false;
-    if (user?.totp_secret) {
-      if (/^\d{6}$/.test(code.replace(/\s/g, ''))) {
-        const step = await verifyTotp(await openToken(c.env, user.totp_secret), code, user.totp_last);
-        if (step != null) {
-          ok = true;
-          await run(db, 'UPDATE users SET totp_last = ? WHERE id = ?', step, user.id);
-        }
-      } else if (normBackup(code).length >= 8) {
-        const hashes = JSON.parse(user.totp_backup || '[]') as string[];
-        const h = await hashBackup(code);
-        if (hashes.includes(h)) {
-          ok = true;
-          await run(db, 'UPDATE users SET totp_backup = ? WHERE id = ?', JSON.stringify(hashes.filter((x) => x !== h)), user.id);
-        }
-      }
-    }
-    if (!ok) {
-      await run(db, 'UPDATE login_challenges SET attempts = attempts + 1 WHERE id = ?', id);
-      log(c, { userId: user?.id ?? null, email: user?.email ?? null, action: 'login_falhou', category: 'acesso', summary: 'Código da verificação em duas etapas incorreto', status: 'negado' });
-      fail('Código incorreto. Confira o aplicativo e tente de novo.', 401);
-    }
-    await run(db, 'DELETE FROM login_challenges WHERE id = ?', id);
-    await startSession(c, user!, !!ch!.remember, 'Entrou no sistema (verificação em duas etapas)');
     return c.json({ ok: true });
   });
 
@@ -207,12 +129,7 @@ export function authRoutes(app: App) {
     return c.redirect('/');
   });
 
-  /* --------------------------- Esqueci a senha e convites --------------------------- */
-  app.post('/api/auth/forgot', async (c) => {
-    const body = await c.req.json<{ email?: string }>().catch(() => ({}) as { email?: string });
-    await requestReset(c.env, { email: String(body.email ?? ''), ip: origin(c).ip, origin: new URL(c.req.url).origin, device: origin(c).device });
-    return c.json({ ok: true });
-  });
+  /* ------------------------------ Convites e redefinição ------------------------------ */
   app.post('/api/auth/link/preview', async (c) => {
     const body = await c.req.json<{ token?: string }>().catch(() => ({}) as { token?: string });
     return c.json(await previewLink(c.env, String(body.token ?? '')));

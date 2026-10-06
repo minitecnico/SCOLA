@@ -4,13 +4,6 @@ GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-xxxx
 GOOGLE_TOKEN_KEY=troque-por-um-texto-longo-e-aleatorio
 
-# Acesso (tudo opcional — ver "Acesso e segurança" no README)
-# MAIL_FROM=SCOLA <acesso@seudominio.com.br>
-# RESEND_API_KEY=re_xxxx            # OU
-# BREVO_API_KEY=xkeysib-xxxx
-# TURNSTILE_SITE_KEY=0x4AAAA...     # CAPTCHA depois de 3 senhas erradas (Cloudflare Turnstile)
-# TURNSTILE_SECRET_KEY=0x4AAAA...
-
 # IA (opcional): chave da NVIDIA (build.nvidia.com). Motor externo (OpenRouter etc.) se configura no painel do administrador.
 # AI_API_KEY=nvapi-xxxx
 # AI_DAILY_LIMIT=60          # pedidos de IA por pessoa por dia

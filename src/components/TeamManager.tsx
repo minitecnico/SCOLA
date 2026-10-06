@@ -11,7 +11,6 @@ export interface AccessLinkInfo {
   url: string;
   email: string;
   name?: string | null;
-  emailed: boolean;
   kind: 'invite' | 'reset';
   baseName?: string;
 }
@@ -33,11 +32,7 @@ export function AccessLinkModal({ link, onClose, title }: { link: AccessLinkInfo
   return (
     <Modal open onClose={onClose} title={title ?? (invite ? 'Convite criado' : 'Link de acesso')}>
       <p className="text-sm text-muted-foreground">
-        {link.emailed ? (
-          <>Enviamos o link para <b className="text-foreground">{link.email}</b>. Se preferir, mande também pelo WhatsApp.</>
-        ) : (
-          <>Envie este link para <b className="text-foreground">{link.email}</b>. A pessoa cria a própria senha — ninguém precisa anotar ou repassar senha.</>
-        )}
+        Envie este link para <b className="text-foreground">{link.name || link.email}</b>. A pessoa cria a própria senha — ninguém precisa anotar ou repassar senha.
       </p>
       <div className="mt-4 break-all rounded-lg bg-muted p-3 font-mono text-xs text-foreground">{link.url}</div>
       <div className="mt-4 flex flex-wrap gap-2">
@@ -116,7 +111,6 @@ export function TeamManager({ baseId }: { baseId: string }) {
                     {m.pending ? <span className="ml-1.5 rounded bg-neutral-900 px-1.5 py-0.5 font-semibold text-white">convite pendente</span> : null}
                     {m.must_change_pw ? <span className="ml-1.5 rounded bg-brand/25 px-1.5 py-0.5 font-semibold text-neutral-800">senha provisória</span> : null}
                     {m.google ? <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 font-semibold text-neutral-700">Google</span> : null}
-                    {m.totp_enabled ? <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 font-semibold text-neutral-700">2 etapas</span> : null}
                   </p>
                 </div>
                 <Select
@@ -176,7 +170,7 @@ function AddMemberModal({ baseId, onClose, onDone }: { baseId: string; onClose: 
   const [role, setRole] = useState<AppRole>('professor');
   const add = useMutation({
     mutationFn: (input: { email: string; full_name: string; role: AppRole }) => addMember(baseId, input),
-    onSuccess: (r, input) => onDone(r.inviteUrl ? { name: input.full_name, email: r.email, url: r.inviteUrl, emailed: r.emailed, kind: 'invite' } : null),
+    onSuccess: (r, input) => onDone(r.inviteUrl ? { name: input.full_name, email: r.email, url: r.inviteUrl, kind: 'invite', baseName: r.baseName } : null),
   });
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -200,7 +194,7 @@ function AddMemberModal({ baseId, onClose, onDone }: { baseId: string; onClose: 
           </Select>
         </Field>
         <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">{ROLE_HINT[role as Exclude<AppRole, 'superadmin'>]}</p>
-        <p className="text-xs text-muted-foreground">A pessoa recebe um <b>convite por link</b> e cria a própria senha (ou entra com o Google, se o e-mail for Gmail).</p>
+        <p className="text-xs text-muted-foreground">A pessoa recebe um <b>convite por link</b> (envie pelo WhatsApp) e cria a própria senha — ou entra com o Google, se o e-mail for Gmail.</p>
         {add.isError ? <p className="text-sm font-medium text-red-600">{(add.error as Error).message}</p> : null}
         <div className="flex justify-end gap-2 border-t border-border pt-4">
           <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>

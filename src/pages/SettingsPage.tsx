@@ -3,7 +3,6 @@ import { Building2, Check, Eye, EyeOff, ImagePlus, KeyRound, LogOut, ShieldCheck
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { CityPicker } from '../components/CityPicker';
-import { TwoFactorCard } from '../components/TwoFactorCard';
 import { successToast } from '../components/Feedback';
 import { Button, Field, Input, PageHeader, SegmentedField, StatusBadge, fieldCls } from '../components/ui';
 import { cn } from '../lib/cn';
@@ -376,12 +375,6 @@ function SecuritySection() {
           </ul>
         </div>
       </Section>
-
-      {sec?.twoFactorAvailable ? (
-        <Section title="Verificação em duas etapas" description="Uma segunda camada de proteção para a sua conta, com aplicativo autenticador.">
-          <TwoFactorCard />
-        </Section>
-      ) : null}
 
       <Section title="Sessão" description="Encerra o acesso neste aparelho.">
         <div className="flex flex-wrap items-center justify-between gap-3">

@@ -212,7 +212,7 @@ export function AdminPage() {
 function CreateBaseModal({ onClose, onDone }: { onClose: () => void; onDone: (c: AccessLinkInfo | null) => void }) {
   const create = useMutation({
     mutationFn: createBase,
-    onSuccess: (r, input) => onDone(r.inviteUrl ? { name: input.manager_name, email: r.email, url: r.inviteUrl, emailed: r.emailed, kind: 'invite', baseName: input.name } : null),
+    onSuccess: (r, input) => onDone(r.inviteUrl ? { name: input.manager_name, email: r.email, url: r.inviteUrl, kind: 'invite', baseName: input.name } : null),
   });
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

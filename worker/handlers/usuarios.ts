@@ -21,7 +21,7 @@ export async function listUsersAdmin(ctx: Ctx) {
   requireAdmin(ctx);
   const rows = await all<Record<string, unknown> & { bases: string }>(ctx.db,
     `SELECT u.id, u.email, u.full_name, u.phone, u.is_admin, u.disabled, u.must_change_pw, u.created_at, u.last_login_at,
-            (u.password_hash = '!' AND u.google_sub IS NULL) AS pending, u.totp_enabled, (u.google_sub IS NOT NULL) AS google,
+            (u.password_hash = '!' AND u.google_sub IS NULL) AS pending, (u.google_sub IS NOT NULL) AS google,
             (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id AND s.expires_at > ?) AS sessions,
             (SELECT json_group_array(json_object('base_id', b.id, 'base_name', b.name, 'role', m.role, 'active', b.active))
                FROM memberships m JOIN bases b ON b.id = m.base_id WHERE m.user_id = u.id) AS bases
@@ -32,7 +32,6 @@ export async function listUsersAdmin(ctx: Ctx) {
     disabled: !!r.disabled,
     must_change_pw: !!r.must_change_pw,
     pending: !!r.pending,
-    totp_enabled: !!r.totp_enabled,
     google: !!r.google,
     bases: (JSON.parse(r.bases || '[]') as { base_id: string | null }[]).filter((b) => b.base_id),
   }));

@@ -1,5 +1,4 @@
-import { emailAccessLink, issueLink, NO_PASSWORD } from '../access';
-import { mailReady } from '../mail';
+import { issueLink, NO_PASSWORD } from '../access';
 import {
   hashPassword, iterationsFor, requireAdmin, validatePassword, verifyPassword,
   type Ctx, type Role,
@@ -58,14 +57,14 @@ export async function listOrgMembers(ctx: Ctx, baseId: string) {
   assertCanManage(ctx, baseId);
   return all(ctx.db,
     `SELECT u.id AS user_id, m.role, u.full_name, u.email, u.phone, u.last_login_at, u.must_change_pw,
-            (u.password_hash = '${NO_PASSWORD}' AND u.google_sub IS NULL) AS pending, u.totp_enabled, (u.google_sub IS NOT NULL) AS google
+            (u.password_hash = '${NO_PASSWORD}' AND u.google_sub IS NULL) AS pending, (u.google_sub IS NOT NULL) AS google
        FROM memberships m JOIN users u ON u.id = m.user_id
       WHERE m.base_id = ? ORDER BY m.role, u.full_name COLLATE NOCASE`, baseId);
 }
 
 /**
  * Adiciona alguém à base. Se o e-mail ainda não tem conta, cria a conta SEM senha e gera um convite:
- * a pessoa abre o link (por e-mail, se configurado, ou pelo WhatsApp) e cria a própria senha — ou entra com o Google.
+ * a pessoa abre o link (enviado pelo WhatsApp) e cria a própria senha — ou entra com o Google.
  * Se já tem conta, só vincula (ex.: professor em 2 escolas) e usa o acesso que já tem.
  */
 export async function addMember(ctx: Ctx, baseId: string, input: { email: string; full_name?: string; role: Role }) {
@@ -93,12 +92,10 @@ export async function addMember(ctx: Ctx, baseId: string, input: { email: string
 
   // Quem ainda não criou a senha (conta nova ou convite anterior em aberto) recebe o link desta escola.
   let inviteUrl: string | null = null;
-  let emailed = false;
   if (user.password_hash === NO_PASSWORD && !user.google_sub) {
     inviteUrl = (await issueLink(ctx.env, { userId: user.id, kind: 'invite', baseId, origin: ctx.origin ?? '' })).url;
-    emailed = await emailAccessLink(ctx.env, { to: email, name: user.full_name, url: inviteUrl, kind: 'invite', baseName: base!.name, role: input.role });
   }
-  return { userId: user.id, email, isNew, inviteUrl, emailed };
+  return { userId: user.id, email, isNew, inviteUrl, baseName: base!.name };
 }
 
 export async function setMemberRole(ctx: Ctx, baseId: string, userId: string, role: Role) {
@@ -136,8 +133,7 @@ export async function memberAccessLink(ctx: Ctx, baseId: string, userId: string)
   }
   const kind = pending ? 'invite' : 'reset';
   const link = await issueLink(ctx.env, { userId, kind, baseId: pending ? baseId : null, origin: ctx.origin ?? '', ttlMin: pending ? undefined : 24 * 60 });
-  const emailed = await emailAccessLink(ctx.env, { to: target!.email, name: target!.full_name, url: link.url, kind, baseName: m!.base_name, role: m!.role });
-  return { url: link.url, emailed, kind, email: target!.email, name: target!.full_name };
+  return { url: link.url, kind, email: target!.email, name: target!.full_name, baseName: m!.base_name };
 }
 
 /* ----------------------------- Administrador (você) ------------------------------ */

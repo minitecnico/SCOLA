@@ -8,7 +8,7 @@ import { AccessLinkModal, type AccessLinkInfo } from '../../components/TeamManag
 import { Button, EmptyState, Field, Input, Loading, Modal, PageHeader, SearchInput, Segmented, Select } from '../../components/ui';
 import { cn } from '../../lib/cn';
 import {
-  addMember, adminResetTwoFactor, deleteUserAdmin, endUserSessions, generateAccessLink, listOrgAdmin, listUsersAdmin, setUserBase, setUserDisabled, setUserPasswordAdmin, updateUserAdmin, type AdminUser,
+  addMember, deleteUserAdmin, endUserSessions, generateAccessLink, listOrgAdmin, listUsersAdmin, setUserBase, setUserDisabled, setUserPasswordAdmin, updateUserAdmin, type AdminUser,
 } from '../../lib/queries';
 import { ASSIGNABLE_ROLES, ROLE_LABEL, type AppRole } from '../../lib/types';
 
@@ -104,7 +104,6 @@ export function UsersPage() {
                   {u.pending ? <Tag tone="brand">Convite pendente</Tag> : null}
                   {u.must_change_pw ? <Tag tone="brand">Senha provisória</Tag> : null}
                   {u.google ? <Tag tone="brand">Google</Tag> : null}
-                  {u.totp_enabled ? <Tag tone="brand">2 etapas</Tag> : null}
                 </span>
                 <span className="block truncate text-xs text-muted-foreground">
                   {u.email}
@@ -161,7 +160,7 @@ function NewUserModal({ schools, onClose, onDone }: { schools: { id: string; nam
       if (form.phone.trim() && r.isNew) await updateUserAdmin(r.userId, { full_name: form.full_name, email: r.email, phone: form.phone.trim() });
       return r;
     },
-    onSuccess: (r) => onDone(r.inviteUrl ? { name: form.full_name, email: r.email, url: r.inviteUrl, emailed: r.emailed, kind: 'invite', baseName: schools.find((b) => b.id === form.baseId)?.name } : null),
+    onSuccess: (r) => onDone(r.inviteUrl ? { name: form.full_name, email: r.email, url: r.inviteUrl, kind: 'invite', baseName: schools.find((b) => b.id === form.baseId)?.name } : null),
   });
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value });
   return (
@@ -184,7 +183,7 @@ function NewUserModal({ schools, onClose, onDone }: { schools: { id: string; nam
             </Select>
           </Field>
         </div>
-        <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">A pessoa recebe um convite por link (por e-mail, se estiver configurado, ou pelo WhatsApp) e cria a própria senha — ou entra com o Google. Se o e-mail já tiver conta, ela só é vinculada à escola.</p>
+        <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">A pessoa recebe um convite por link (envie pelo WhatsApp) e cria a própria senha — ou entra com o Google. Se o e-mail já tiver conta, ela só é vinculada à escola.</p>
         {create.error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{(create.error as Error).message}</p> : null}
         <Button type="submit" className="w-full" disabled={create.isPending || !form.baseId}>{create.isPending ? 'Cadastrando…' : 'Cadastrar usuário'}</Button>
       </form>
@@ -265,11 +264,6 @@ function UserModal({ user, onClose }: { user: AdminUser; onClose: () => void }) 
   const accessLink = useMutation({
     mutationFn: () => generateAccessLink(user.id),
     onSuccess: (r) => { refresh(); setErr(''); setAccessInfo(r); },
-    onError,
-  });
-  const resetTwoFactor = useMutation({
-    mutationFn: () => adminResetTwoFactor(user.id),
-    onSuccess: () => { refresh(); setErr(''); successToast('Verificação em duas etapas removida'); },
     onError,
   });
 
@@ -393,14 +387,6 @@ function UserModal({ user, onClose }: { user: AdminUser; onClose: () => void }) 
             </label>
           ) : null}
         </Section>
-
-        {user.totp_enabled && !self ? (
-          <Section icon={<ShieldCheck size={17} />} title="Verificação em duas etapas" hint="A pessoa usa um aplicativo autenticador para entrar. Remova se ela perdeu o celular e os códigos de recuperação.">
-            <Button variant="ghost" onClick={() => confirm(`Remover a verificação em duas etapas de ${user.full_name || user.email}?`) && resetTwoFactor.mutate()} disabled={resetTwoFactor.isPending}>
-              <ShieldCheck size={16} /> Remover verificação em duas etapas
-            </Button>
-          </Section>
-        ) : null}
 
         {!user.is_admin ? (
           <Section icon={<Building2 size={17} />} title="Bases e papéis" hint="Uma pessoa pode estar em mais de uma base (ex.: professor em 2 escolas).">

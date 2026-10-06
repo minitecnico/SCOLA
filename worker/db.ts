@@ -17,14 +17,7 @@ export type Env = {
   AI_API_KEY?: string; // NVIDIA (build.nvidia.com): respostas, visão, imagens e busca
   AI_DAILY_LIMIT?: string; // pedidos de IA por pessoa por dia (padrão 60)
   AI_IMAGE_DAILY_LIMIT?: string; // imagens por pessoa por dia (padrão 30)
-  GOOGLE_TOKEN_KEY?: string; // qualquer texto longo e aleatório; cifra os tokens no banco (e os segredos da verificação em duas etapas)
-  // E-mail de acesso (convite, recuperação de senha): Resend OU Brevo, os dois com plano gratuito.
-  MAIL_FROM?: string; // "SCOLA <acesso@seudominio.com.br>"
-  RESEND_API_KEY?: string;
-  BREVO_API_KEY?: string;
-  // CAPTCHA depois de várias senhas erradas (Cloudflare Turnstile, gratuito).
-  TURNSTILE_SITE_KEY?: string;
-  TURNSTILE_SECRET_KEY?: string;
+  GOOGLE_TOKEN_KEY?: string; // qualquer texto longo e aleatório; cifra os tokens no banco
 };
 
 export class HttpError extends Error {

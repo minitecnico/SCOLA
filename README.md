@@ -56,21 +56,17 @@ Pronto: todo `git push` na `main` aplica as migrações do banco e publica.
 
 ## Acesso e segurança
 
-Já vem pronto (sem configurar nada): senha com hash PBKDF2, sessão por cookie HttpOnly, "Manter conectado" (30 dias; desmarcado, a sessão acaba ao fechar o navegador),
-bloqueio por tentativas (8 erros por e-mail ou 30 por endereço em 15 min), convite e "esqueci minha senha" por **link de uso único** (hash no banco; 7 dias no convite,
-1 hora na recuperação) e log de todos os acessos. Sem e-mail configurado, a gestão copia o link e manda pelo WhatsApp.
+O acesso foi pensado para ser simples para a escola e seguro sem configurar nada:
 
-Cada recurso abaixo liga sozinho quando o segredo existe (`npx wrangler secret put NOME`) e desliga se faltar:
+- **Convite por link**: a coordenação cadastra a pessoa em **Equipe** e manda o link pelo WhatsApp (botão pronto). O link vale 7 dias e só funciona uma vez; a pessoa cria a própria senha e já entra. Ninguém recebe nem repassa senha.
+- **Esqueci a senha**: a coordenação gera um link novo (Equipe › ícone de link, vale 24 h). Para a coordenação e professores autônomos, o administrador gera em **Usuários**.
+- **Entrar com o Google** (opcional, recomendado): quem usa Gmail não tem senha para esquecer, e o próprio Google protege a conta (inclusive verificação em duas etapas). Só entra quem a escola já cadastrou ou convidou.
+- **Senha** guardada com hash PBKDF2 (nunca em texto), sessão em cookie HttpOnly, "Manter conectado" (30 dias; desmarcado, a sessão acaba ao fechar o navegador), bloqueio de 15 min após 8 erros por e-mail (30 por endereço) e registro de todos os acessos.
 
-| Recurso | Segredos | Custo |
-|---|---|---|
-| **Entrar com o Google** | os mesmos `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` da integração. Só falta cadastrar a URI `https://SEU-DOMINIO/api/auth/google/callback` no ID do cliente OAuth. Pede só nome e e-mail (escopos básicos, sem verificação do Google). Só entra quem a escola já cadastrou/convidou. | grátis |
-| **E-mail de convite e recuperação** | `MAIL_FROM` (ex.: `SCOLA <acesso@seudominio.com.br>`) + **uma** chave: `RESEND_API_KEY` (3.000/mês; precisa de um domínio verificado) **ou** `BREVO_API_KEY` (300/dia; basta confirmar o remetente) | grátis |
-| **Verificação em duas etapas (TOTP)** | `GOOGLE_TOKEN_KEY` (já usada para cifrar tokens; cifra também o segredo do autenticador). Cada pessoa liga em Configurações › Segurança; recebe 8 códigos de recuperação. | grátis |
-| **CAPTCHA após 3 erros de senha** | `TURNSTILE_SITE_KEY` e `TURNSTILE_SECRET_KEY` (Cloudflare → Turnstile → novo widget, com o domínio do SCOLA) | grátis |
+Para ligar o "Entrar com o Google" — um passo só, no Google Cloud Console → Credenciais → seu ID do cliente OAuth → **URIs de redirecionamento autorizados** → adicione `https://SEU-DOMINIO/api/auth/google/callback`.
+(Os segredos `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` são os mesmos da integração com o Drive. Sem eles, o botão simplesmente não aparece.)
 
-Perdeu o celular? O administrador remove a verificação em duas etapas da pessoa em **Usuários**. Quem esqueceu a senha e não consegue receber e-mail pede à gestão um
-novo link (Equipe › ícone de link). Contas antigas com senha provisória continuam funcionando e pedem a troca no primeiro acesso.
+Contas antigas com senha provisória continuam funcionando e pedem a troca no primeiro acesso.
 
 ## Trazer os professores que já usam o sistema antigo (Supabase)
 

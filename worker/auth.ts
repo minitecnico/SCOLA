@@ -16,10 +16,6 @@ export interface UserRow {
   active_base_id: string | null;
   disabled?: number;
   google_sub?: string | null;
-  totp_secret?: string | null;
-  totp_enabled?: number;
-  totp_backup?: string | null;
-  totp_last?: number | null;
 }
 
 /** Contexto de cada chamada autenticada. baseId/role se referem à base ativa. */
@@ -232,14 +228,6 @@ export async function assertNotLocked(db: D1Database, email: string, ip?: string
   const row = await first<{ n: number; by_ip: number }>(db,
     'SELECT SUM(email = ?) AS n, SUM(ip IS NOT NULL AND ip = ?) AS by_ip FROM login_failures WHERE at > ? AND (email = ? OR ip = ?)', email, ip ?? '', since, email, ip ?? '');
   if ((row?.n ?? 0) >= MAX_FAILURES || (row?.by_ip ?? 0) >= MAX_FAILURES_IP) fail(`Muitas tentativas. Aguarde ${WINDOW_MIN} minutos e tente de novo.`, 429);
-}
-
-/** Quantas senhas erradas esse e-mail / endereço teve nos últimos 15 minutos (para pedir o CAPTCHA). */
-export async function recentFailures(db: D1Database, email: string, ip?: string | null) {
-  const since = new Date(Date.now() - WINDOW_MIN * 60_000).toISOString();
-  const row = await first<{ n: number; by_ip: number }>(db,
-    'SELECT SUM(email = ?) AS n, SUM(ip IS NOT NULL AND ip = ?) AS by_ip FROM login_failures WHERE at > ? AND (email = ? OR ip = ?)', email, ip ?? '', since, email, ip ?? '');
-  return { byEmail: row?.n ?? 0, byIp: row?.by_ip ?? 0 };
 }
 
 export async function recordFailure(db: D1Database, email: string, ip?: string | null) {

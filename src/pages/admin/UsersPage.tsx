@@ -3,7 +3,7 @@ import { Ban, Building2, ChevronRight, KeyRound, LogOut, Mail, Phone, Plus, Shie
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
-import { successToast } from '../../components/Feedback';
+import { successToast, askConfirm } from '../../components/Feedback';
 import { AccessLinkModal, type AccessLinkInfo } from '../../components/TeamManager';
 import { Button, EmptyState, Field, Input, Loading, Modal, PageHeader, SearchInput, Segmented, Select } from '../../components/ui';
 import { cn } from '../../lib/cn';
@@ -405,7 +405,7 @@ function UserModal({ user, onClose }: { user: AdminUser; onClose: () => void }) 
                     ))}
                   </Select>
                   <button
-                    onClick={() => confirm(`Tirar ${user.full_name || user.email} de ${b.base_name}?`) && link.mutate({ baseId: b.base_id, role: null })}
+                    onClick={() => askConfirm(`Tirar ${user.full_name || user.email} de ${b.base_name}?`).then((ok) => ok && link.mutate({ baseId: b.base_id, role: null }))}
                     className="h-9 rounded-lg px-2.5 text-xs font-semibold text-red-600 hover:bg-red-50"
                   >
                     Desvincular
@@ -451,7 +451,7 @@ function UserModal({ user, onClose }: { user: AdminUser; onClose: () => void }) 
               </Button>
               <Button
                 variant="ghost"
-                onClick={() => (user.disabled || confirm(`Bloquear ${user.full_name || user.email}? A pessoa sai na hora e não consegue entrar até você liberar. Nada é apagado.`)) && block.mutate()}
+                onClick={() => (user.disabled ? block.mutate() : askConfirm(`Bloquear ${user.full_name || user.email}? A pessoa sai na hora e não consegue entrar até você liberar. Nada é apagado.`).then((ok) => ok && block.mutate()))}
                 disabled={block.isPending}
                 className={user.disabled ? '' : 'text-red-600'}
               >

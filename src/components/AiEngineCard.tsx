@@ -5,6 +5,7 @@ import { timeAgo } from '../lib/format';
 import { cn } from '../lib/cn';
 import { ia, type EngineHealth, type EngineInfo, type EngineMode } from '../lib/ia';
 import { Button, Card, Field, Input, Modal } from './ui';
+import { askConfirm } from './Feedback';
 
 /**
  * Motor de IA (só o administrador). Vários motores compatíveis com a API da OpenAI (OpenRouter, OpenAI,
@@ -128,7 +129,7 @@ export function AiEngineCard() {
                     <button disabled={i === 0} onClick={() => move(e.id, -1)} className="grid h-8 w-8 place-items-center rounded-md hover:bg-muted disabled:opacity-30" aria-label="Subir"><ArrowUp size={15} /></button>
                     <button disabled={i === data.engines.length - 1} onClick={() => move(e.id, 1)} className="grid h-8 w-8 place-items-center rounded-md hover:bg-muted disabled:opacity-30" aria-label="Descer"><ArrowDown size={15} /></button>
                     <button onClick={() => setEdit({ id: e.id, baseUrl: e.baseUrl, key: '', model: e.model, label: e.label })} className="grid h-8 w-8 place-items-center rounded-md hover:bg-muted" aria-label="Editar"><Pencil size={15} /></button>
-                    <button onClick={() => confirm(`Remover "${e.label}"?`) && remove.mutate(e.id)} className="grid h-8 w-8 place-items-center rounded-md text-red-600 hover:bg-red-50" aria-label="Remover"><Trash2 size={15} /></button>
+                    <button onClick={() => askConfirm(`Remover "${e.label}"?`).then((ok) => ok && remove.mutate(e.id))} className="grid h-8 w-8 place-items-center rounded-md text-red-600 hover:bg-red-50" aria-label="Remover"><Trash2 size={15} /></button>
                   </Row>
                 ))}
               </ul>

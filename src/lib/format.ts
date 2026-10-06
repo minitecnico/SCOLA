@@ -31,3 +31,7 @@ export const fmtDM = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 export function escapeHtml(s: string): string {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 }
+
+/** "06/10 14:30" — dia, mês e hora de um instante ISO. */
+export const fmtDayTime = (iso: string) =>
+  new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });

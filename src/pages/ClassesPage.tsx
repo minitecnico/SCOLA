@@ -11,7 +11,7 @@ import { useState } from 'react';
 
 import { ImportModal } from '../components/ImportModal';
 
-import { successToast } from '../components/Feedback';
+import { successToast, askConfirm } from '../components/Feedback';
 
 import { ActionsMenu, AddButton, Button, Card, CheckBox, EmptyState, Field, Input, Modal, PageHeader, Select, SelectionBar, SelectModeButton, Loading} from '../components/ui';
 
@@ -135,7 +135,7 @@ export function ClassesPage() {
               </div>
               <ActionsMenu
                 onEdit={() => openEdit(c)}
-                onDelete={() => confirm(`Excluir a turma "${c.name}"? Os alunos não são excluídos, ficam sem turma.`) && remove.mutate(c.id)}
+                onDelete={() => askConfirm(`Excluir a turma "${c.name}"? Os alunos não são excluídos, ficam sem turma.`).then((ok) => ok && remove.mutate(c.id))}
               />
             </Card>
           ))}
@@ -149,7 +149,7 @@ export function ClassesPage() {
         allSelected={allSelected}
         onToggleAll={toggleAll}
         onCancel={sel.disable}
-        onDelete={() => confirm(`Excluir ${sel.size} turma(s)? Os alunos não são excluídos, ficam sem turma.`) && bulkRemove.mutate()}
+        onDelete={() => askConfirm(`Excluir ${sel.size} turma(s)? Os alunos não são excluídos, ficam sem turma.`).then((ok) => ok && bulkRemove.mutate())}
         busy={bulkRemove.isPending}
       />
 

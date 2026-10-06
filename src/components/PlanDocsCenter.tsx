@@ -26,7 +26,7 @@ import { Dropzone } from './Dropzone';
 
 import { PreviewModal } from './Attachments';
 
-import { successToast } from './Feedback';
+import { successToast, askConfirm } from './Feedback';
 
 import { cn } from '../lib/cn';
 
@@ -287,7 +287,7 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
       onToggle={() => sel.toggle(d.id)}
       onMail={() => setMailDocs([d])}
       onEdit={() => setEditing(d)}
-      onDelete={() => confirm(`Excluir "${d.name}"?\n\n⚠️ Ação irreversível: remove o arquivo do banco e do armazenamento.`) && remove.mutate(d)}
+      onDelete={() => askConfirm(`Excluir "${d.name}"?\n\n⚠️ Ação irreversível: remove o arquivo do banco e do armazenamento.`).then((ok) => ok && remove.mutate(d))}
     />
   );
 
@@ -329,7 +329,7 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
             busy={createG.isPending}
             message={gParam === 'escopo' ? 'Faltou marcar a permissão do Drive na tela do Google; conecte de novo com todas as caixas marcadas.' : gParam === 'negado' ? 'Conexão cancelada.' : gParam === 'erro' ? 'Não deu certo, tente de novo.' : undefined}
             onCreate={newGoogle}
-            onDisconnect={() => confirm('Desconectar sua conta do Google? Os arquivos continuam no seu Drive.') && unlink.mutate()}
+            onDisconnect={() => askConfirm('Desconectar sua conta do Google? Os arquivos continuam no seu Drive.').then((ok) => ok && unlink.mutate())}
           />
         </div>
         {filtered.length >= 2 ? (
@@ -384,7 +384,7 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
           {canManageFolder ? (
             <span className="ml-auto flex gap-1">
               <IconBtn label="Renomear pasta" onClick={() => { const n = prompt('Novo nome da pasta:', folder.name); if (n && n.trim()) renameFolder.mutate({ id: folder.id, name: n }); }}><Pencil size={15} /></IconBtn>
-              <IconBtn label="Excluir pasta" danger onClick={() => confirm(`Excluir a pasta "${folder.name}"?\n\nNada é apagado: subpastas e arquivos sobem um nível.`) && removeFolder.mutate(folder.id)}><Trash2 size={15} /></IconBtn>
+              <IconBtn label="Excluir pasta" danger onClick={() => askConfirm(`Excluir a pasta "${folder.name}"?\n\nNada é apagado: subpastas e arquivos sobem um nível.`).then((ok) => ok && removeFolder.mutate(folder.id))}><Trash2 size={15} /></IconBtn>
             </span>
           ) : null}
         </div>
@@ -418,7 +418,7 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
                 canManage={f.author_id === userId || canReview}
                 onOpen={() => { setFolderId(f.id); sel.clear(); }}
                 onRename={() => { const n = prompt('Novo nome da pasta:', f.name); if (n && n.trim()) renameFolder.mutate({ id: f.id, name: n }); }}
-                onDelete={() => confirm(`Excluir a pasta "${f.name}"?\n\nNada é apagado: subpastas e arquivos sobem um nível.`) && removeFolder.mutate(f.id)}
+                onDelete={() => askConfirm(`Excluir a pasta "${f.name}"?\n\nNada é apagado: subpastas e arquivos sobem um nível.`).then((ok) => ok && removeFolder.mutate(f.id))}
               />
             ))}
             {sortedFiles.map(row)}

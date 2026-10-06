@@ -1,3 +1,5 @@
+import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react';
+import { AlertTriangle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from './ui';
 
@@ -5,6 +7,7 @@ import { Button } from './ui';
  * Popup de sucesso global (check animado, estilo SweetAlert).
  * Chame `successToast('mensagem')` de qualquer lugar (ex.: onSuccess das mutations).
  * `<FeedbackHost/>` precisa estar montado uma vez na árvore (App).
+ * `askConfirm('…')` substitui o confirm() do navegador por um diálogo do próprio sistema.
  */
 
 type Listener = (msg: string) => void;
@@ -47,6 +50,72 @@ function UndoHost() {
         </button>
       </div>
     </div>
+  );
+}
+
+type ConfirmOptions = { title?: string; confirmLabel?: string; danger?: boolean };
+type ConfirmRequest = { message: string; title: string; confirmLabel: string; danger: boolean; resolve: (ok: boolean) => void };
+let confirmListener: ((r: ConfirmRequest) => void) | null = null;
+
+/** Verbos que apagam/removem: o diálogo vira vermelho e o botão leva o verbo ("Excluir", "Bloquear"…). */
+const DESTRUCTIVE = /^(excluir|apagar|remover|bloquear|suspender|tirar|arquivar|desconectar)\b/i;
+
+/**
+ * Pergunta antes de uma ação sem volta. Resolve `true` se a pessoa confirmar.
+ *   askConfirm('Excluir a turma?').then((ok) => ok && remove.mutate(id));
+ * O verbo da frase (Excluir, Remover…) define o rótulo do botão e o tom de alerta.
+ */
+export function askConfirm(message: string, opts: ConfirmOptions = {}): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!confirmListener) return resolve(window.confirm(message)); // host ainda não montou
+    const verb = message.match(DESTRUCTIVE)?.[0];
+    confirmListener({
+      message,
+      title: opts.title ?? (verb ? 'Tem certeza?' : 'Confirmar'),
+      confirmLabel: opts.confirmLabel ?? (verb ? verb.charAt(0).toUpperCase() + verb.slice(1).toLowerCase() : 'Confirmar'),
+      danger: opts.danger ?? !!verb,
+      resolve,
+    });
+  });
+}
+
+function ConfirmHost() {
+  const [req, setReq] = useState<ConfirmRequest | null>(null);
+  useEffect(() => {
+    confirmListener = (r) => setReq(r);
+    return () => {
+      confirmListener = null;
+    };
+  }, []);
+  const answer = (ok: boolean) => {
+    req?.resolve(ok);
+    setReq(null);
+  };
+  return (
+    <Dialog open={!!req} onClose={() => answer(false)} className="relative z-[75]">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px]" aria-hidden="true" />
+      <div className="fixed inset-0 grid place-items-end justify-items-center p-0 sm:place-items-center sm:p-4">
+        <DialogPanel className="w-full max-w-sm rounded-t-2xl bg-card p-5 shadow-lift sm:rounded-2xl">
+          <div className="flex items-start gap-3">
+            {req?.danger ? (
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-red-50 text-red-600">
+                <AlertTriangle size={20} />
+              </span>
+            ) : null}
+            <div className="min-w-0">
+              <DialogTitle className="text-base font-bold text-foreground">{req?.title}</DialogTitle>
+              <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{req?.message}</p>
+            </div>
+          </div>
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="ghost" onClick={() => answer(false)}>Cancelar</Button>
+            <Button autoFocus onClick={() => answer(true)} className={req?.danger ? 'bg-red-600 text-white hover:bg-red-700' : undefined}>
+              {req?.confirmLabel}
+            </Button>
+          </div>
+        </DialogPanel>
+      </div>
+    </Dialog>
   );
 }
 
@@ -98,27 +167,22 @@ export function FeedbackHost() {
     return () => clearTimeout(t);
   }, [msg]);
 
-  if (msg == null) return <UndoHost />;
-
   return (
     <>
-    <UndoHost />
-    <div
-      className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/40 p-4 backdrop-blur-sm"
-      onClick={() => setMsg(null)}
-    >
-      <div
-        className="success-card w-full max-w-xs rounded-3xl bg-card p-8 text-center shadow-soft"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <AnimatedCheck />
-        <h3 className="text-2xl font-black text-foreground">Ok!</h3>
-        <p className="mt-1.5 text-sm text-muted-foreground">{msg}</p>
-        <Button className="mt-6 w-full" onClick={() => setMsg(null)}>
-          OK
-        </Button>
-      </div>
-    </div>
+      <UndoHost />
+      <ConfirmHost />
+      {msg != null ? (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/40 p-4 backdrop-blur-sm" onClick={() => setMsg(null)}>
+          <div className="success-card w-full max-w-xs rounded-3xl bg-card p-8 text-center shadow-soft" onClick={(e) => e.stopPropagation()}>
+            <AnimatedCheck />
+            <h3 className="text-2xl font-black text-foreground">Ok!</h3>
+            <p className="mt-1.5 text-sm text-muted-foreground">{msg}</p>
+            <Button className="mt-6 w-full" onClick={() => setMsg(null)}>
+              OK
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

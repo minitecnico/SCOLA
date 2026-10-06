@@ -5,7 +5,7 @@ import { Check, Eye, Megaphone, Paperclip, Plus, Send, Trash2, UploadCloud, X } 
 import { useState } from 'react';
 import { AttachmentChips } from '../components/Attachments';
 import { useAuth } from '../auth/AuthProvider';
-import { successToast } from '../components/Feedback';
+import { successToast, askConfirm } from '../components/Feedback';
 import { Button, Card, EmptyState, Field, Input, Modal, PageHeader, Select, Loading} from '../components/ui';
 import { cn } from '../lib/cn';
 import { assertUploadFile } from '../lib/fileSecurity';
@@ -150,7 +150,7 @@ function Enviados({ uid }: { uid: string }) {
             </div>
             <button
               onClick={() => {
-                if (confirm('Excluir este aviso?')) remove.mutate(n.id);
+                askConfirm('Excluir este aviso?').then((ok) => { if (ok) remove.mutate(n.id); });
               }}
               className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100"
               aria-label="Excluir"

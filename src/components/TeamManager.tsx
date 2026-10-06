@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { addMember, approveAccessRequest, listOrgMembers, listPasswordRequests, memberAccessLink, rejectAccessRequest, removeMember, setMemberRole } from '../lib/queries';
 import { ASSIGNABLE_ROLES, ROLE_HINT, ROLE_LABEL, type AppRole } from '../lib/types';
-import { successToast } from './Feedback';
+import { successToast, askConfirm } from './Feedback';
 import { Button, Field, Input, Loading, Modal, Select } from './ui';
 import { waShareLink } from '../lib/phone';
+import { fmtDayTime } from '../lib/format';
 import { WhatsAppLink } from './WhatsAppLink';
 
 export interface AccessLinkInfo {
@@ -72,7 +73,7 @@ function PasswordRequests({ onChanged }: { onChanged: () => void }) {
           <li key={r.id} className="flex flex-wrap items-center gap-3 py-2.5">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{r.full_name || r.email}</p>
-              <p className="truncate text-xs text-muted-foreground">{r.email} · pediu em {new Date(r.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}{r.device ? ` · ${r.device}` : ''}</p>
+              <p className="truncate text-xs text-muted-foreground">{r.email} · pediu em {fmtDayTime(r.created_at)}{r.device ? ` · ${r.device}` : ''}</p>
             </div>
             <WhatsAppLink
               phone={r.phone}
@@ -171,7 +172,7 @@ export function TeamManager({ baseId }: { baseId: string }) {
                   <Link2 size={16} />
                 </button>
                 <button
-                  onClick={() => confirm(`Remover ${m.full_name || m.email} desta base?`) && remove.mutate(m.user_id)}
+                  onClick={() => askConfirm(`Remover ${m.full_name || m.email} desta base?`).then((ok) => ok && remove.mutate(m.user_id))}
                   disabled={me}
                   title="Remover da base"
                   className="grid h-9 w-9 place-items-center rounded-lg text-red-600 ring-1 ring-inset ring-red-100 hover:bg-red-50 disabled:opacity-30"

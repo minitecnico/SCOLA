@@ -3,7 +3,7 @@ import { AlertTriangle, Archive, ArrowRight, BarChart3, CalendarCheck2, Check, C
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
-import { successToast } from '../components/Feedback';
+import { successToast, askConfirm } from '../components/Feedback';
 import { Button, EmptyState, Input, Loading, PageHeader, Select } from '../components/ui';
 import { cn } from '../lib/cn';
 import { canManageOrg } from '../lib/permissions';
@@ -106,7 +106,7 @@ export function AnoLetivoPage() {
                   </p>
                   <button
                     onClick={() =>
-                      confirm(`Reabrir ${y}? As turmas voltam a aceitar chamada e notas.\nAlunos que já foram para as turmas de ${y + 1} continuam lá.`) && reopen.mutate(y)
+                      askConfirm(`Reabrir ${y}? As turmas voltam a aceitar chamada e notas.\nAlunos que já foram para as turmas de ${y + 1} continuam lá.`).then((ok) => ok && reopen.mutate(y))
                     }
                     className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
@@ -433,7 +433,7 @@ function CloseWizard({ data, year, onExit }: { data: YearOverview; year: number;
             </Button>
           ) : (
             <Button
-              onClick={() => confirm(`Encerrar ${year}? As ${chosen.length} turma(s) passam a ser só para consulta.`) && run.mutate()}
+              onClick={() => askConfirm(`Encerrar ${year}? As ${chosen.length} turma(s) passam a ser só para consulta.`).then((ok) => ok && run.mutate())}
               disabled={run.isPending}
             >
               <Archive size={16} /> {run.isPending ? 'Encerrando…' : `Encerrar ${year}`}

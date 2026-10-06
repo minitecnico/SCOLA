@@ -8,7 +8,7 @@ import { useAuth } from '../auth/AuthProvider';
 
 import { CityPicker } from '../components/CityPicker';
 
-import { successToast } from '../components/Feedback';
+import { askConfirm, successToast } from '../components/Feedback';
 
 import { Button, Field, Input, PageHeader, SegmentedField, StatusBadge, fieldCls } from '../components/ui';
 
@@ -621,9 +621,11 @@ function PlanSection({ baseId }: { baseId: string }) {
           <Button
             variant={base.active ? 'danger' : 'primary'}
             disabled={toggle.isPending}
-            onClick={() => {
-              if (!base.active || confirm(`Suspender "${base.name}"? A equipe perde o acesso até você reativar.`)) toggle.mutate();
-            }}
+            onClick={() =>
+              base.active
+                ? askConfirm(`Suspender "${base.name}"? A equipe perde o acesso até você reativar.`).then((ok) => ok && toggle.mutate())
+                : toggle.mutate()
+            }
           >
             {base.active ? 'Suspender base' : 'Reativar base'}
           </Button>

@@ -9,6 +9,7 @@ import ShinyText from '../components/bits/ShinyText';
 import { SEGMENTS } from '../components/PlanDocsCenter';
 import { cn } from '../lib/cn';
 import { ACCEPT, downloadDocx, ia, mdToHtml, prepareSchool, readAttachment, saveToPlanejamento, streamChat, useAi, type Attachment, type ChatMsg } from '../lib/ia';
+import { askConfirm } from '../components/Feedback';
 
 /**
  * Central de IA: conversa sobre qualquer assunto, com documentos e fotos (arrastar, colar ou clipe)
@@ -192,7 +193,7 @@ export function IAPage() {
               </button>
               <button
                 onClick={async () => {
-                  if (!confirm('Apagar esta conversa?')) return;
+                  if (!(await askConfirm('Apagar esta conversa?'))) return;
                   await ia.deleteChat(c.id);
                   if (chatId === c.id) newChat();
                   qc.invalidateQueries({ queryKey: ['ai-chats'] });
@@ -357,7 +358,7 @@ function Message({ m, streaming }: { m: ChatMsg; streaming: boolean }) {
                         setSaving('busy');
                         try {
                           const id = await saveToPlanejamento(title, full, s.key);
-                          if (confirm('Salvo no Planejamento. Abrir para editar?')) navigate(`/planejamento/editor/${id}`);
+                          askConfirm('Salvo no Planejamento. Abrir para editar?').then((ok) => { if (ok) navigate(`/planejamento/editor/${id}`); });
                         } catch (e) {
                           alert((e as Error).message);
                         } finally {

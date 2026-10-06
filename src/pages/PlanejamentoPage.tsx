@@ -19,7 +19,7 @@ import { PlanDocsCenter } from '../components/PlanDocsCenter';
 
 import type { WeeklyPlanData } from '../lib/types';
 
-import { successToast } from '../components/Feedback';
+import { successToast, askConfirm } from '../components/Feedback';
 
 import { Button, Card, EmptyState, Field, Input, Modal, PageHeader, Segmented, Select, Loading} from '../components/ui';
 
@@ -99,7 +99,7 @@ function MeusPlanos({ uid, onEdit }: { uid: string; onEdit: (p: PlanWithMeta) =>
                 <Button variant="soft" onClick={() => setSendFor(p)}><Share2 size={16} /> Enviar</Button>
                 <Button variant="ghost" onClick={() => onEdit(p)}><Pencil size={16} /> Editar</Button>
                 <button
-                  onClick={() => confirm('Excluir este planejamento?\n\n⚠️ Ação IRREVERSÍVEL: apaga o planejamento e seus anexos do banco de dados. Não há como recuperar.') && remove.mutate(p.id)}
+                  onClick={() => askConfirm('Excluir este planejamento?\n\n⚠️ Ação IRREVERSÍVEL: apaga o planejamento e seus anexos do banco de dados. Não há como recuperar.').then((ok) => ok && remove.mutate(p.id))}
                   className="ml-auto grid h-10 w-10 place-items-center rounded-xl bg-red-50 text-red-600 hover:bg-red-100"
                   aria-label="Excluir"
                 >
@@ -120,7 +120,7 @@ function DeletePlanButton({ id, onDeleted }: { id: string; onDeleted: () => void
   const remove = useMutation({ mutationFn: () => deletePlan(id), onSuccess: () => { onDeleted(); successToast('Planejamento excluído'); } });
   return (
     <button
-      onClick={() => confirm('Excluir este planejamento?\n\n⚠️ Ação IRREVERSÍVEL: apaga o planejamento e seus anexos do banco de dados. Não há como recuperar.') && remove.mutate()}
+      onClick={() => askConfirm('Excluir este planejamento?\n\n⚠️ Ação IRREVERSÍVEL: apaga o planejamento e seus anexos do banco de dados. Não há como recuperar.').then((ok) => ok && remove.mutate())}
       disabled={remove.isPending}
       className="ml-auto grid h-10 w-10 place-items-center rounded-xl bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-60"
       aria-label="Excluir"

@@ -15,7 +15,7 @@ import { cn } from '../lib/cn';
 import { deleteAttendanceSession, listDeletedSessions, listRecentSessions, purgeAttendanceSession, restoreAttendanceSession, type RecentSession } from '../lib/queries';
 import type { Tone } from '../lib/tone';
 
-import { successToast, undoToast } from './Feedback';
+import { successToast, undoToast, askConfirm } from './Feedback';
 
 import { Button, Card, DropdownMenu, Loading, Modal, SectionTitle } from './ui';
 
@@ -195,7 +195,7 @@ function TrashModal({ classNameOf, onClose }: { classNameOf: (id: string) => str
                   <RotateCcw size={16} /> Restaurar
                 </Button>
                 <button
-                  onClick={() => confirm('Excluir DEFINITIVAMENTE esta chamada? Não dá pra recuperar depois.') && purge.mutate(s.id)}
+                  onClick={() => askConfirm('Excluir DEFINITIVAMENTE esta chamada? Não dá pra recuperar depois.').then((ok) => ok && purge.mutate(s.id))}
                   className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-red-50 text-red-600 hover:bg-red-100"
                   aria-label="Excluir definitivamente"
                   title="Excluir definitivamente"

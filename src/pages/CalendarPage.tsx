@@ -53,6 +53,7 @@ import { CalendarFilters, type FilterChip } from "../components/calendar/Calenda
 
 import "../components/calendar/calendar.css";
 import { CAT_PALETTE, HOLIDAY_COLOR, LOCAL_HOLIDAY_COLOR, readableText, vividCategories } from "../lib/calendarColors";
+import { askConfirm } from '../components/Feedback';
 
 
 /* ============================================================================
@@ -247,7 +248,7 @@ function CalendarCenter({
     }
   };
   const remove = async (c: CalendarSummary) => {
-    if (!confirm(`Excluir o calendário “${c.title}”?\n\nEssa ação não pode ser desfeita e remove o calendário para todos da escola.`)) return;
+    if (!(await askConfirm(`Excluir o calendário “${c.title}”?\n\nEssa ação não pode ser desfeita e remove o calendário para todos da escola.`))) return;
     try {
       await deleteCalendar(c.id);
       successToast("Calendário excluído");
@@ -373,7 +374,7 @@ function CalendarEditorLoader({
       initialEditors={rec.editors}
       onBack={onBack}
       onDelete={async () => {
-        if (!confirm(`Excluir o calendário “${rec.title}”?\n\nEssa ação não pode ser desfeita.`)) return;
+        if (!(await askConfirm(`Excluir o calendário “${rec.title}”?\n\nEssa ação não pode ser desfeita.`))) return;
         try {
           await deleteCalendar(id);
           successToast("Calendário excluído");
@@ -510,8 +511,8 @@ function CalendarBuilder({
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
-  const goBack = () => {
-    if (dirty && !confirm("Há alterações que ainda não foram salvas.\n\nSair mesmo assim?")) return;
+  const goBack = async () => {
+    if (dirty && !(await askConfirm("Há alterações que ainda não foram salvas.\n\nSair mesmo assim?"))) return;
     onBack();
   };
 
@@ -612,9 +613,9 @@ function CalendarBuilder({
     set({ categories: [...data.categories, { id: uid(), label: "Nova categoria", color: CAT_PALETTE[data.categories.length % CAT_PALETTE.length] }] });
   const updateCategory = (id: string, patch: Partial<Category>) =>
     set({ categories: data.categories.map((c) => (c.id === id ? { ...c, ...patch } : c)) });
-  const removeCategory = (id: string) => {
+  const removeCategory = async (id: string) => {
     const n = catCount[id] || 0;
-    if (n > 0 && !confirm(`Remover esta categoria também apaga os ${n} evento(s) dela.\n\nDeseja continuar?`)) return;
+    if (n > 0 && !(await askConfirm(`Remover esta categoria também apaga os ${n} evento(s) dela.\n\nDeseja continuar?`))) return;
     set({
       categories: data.categories.filter((c) => c.id !== id),
       events: data.events.filter((e) => e.categoryId !== id),
@@ -656,10 +657,10 @@ function CalendarBuilder({
     set({ letivosByMonth: next });
   };
   /** Sugestão: segunda a sexta, descontando feriados nacionais e eventos de feriado/recesso/férias. */
-  const suggestLetivos = () => {
+  const suggestLetivos = async () => {
     if (
       Object.values(data.letivosByMonth).some(Boolean) &&
-      !confirm("Já existem dias letivos preenchidos.\n\nSubstituir pelos valores sugeridos?")
+      !(await askConfirm("Já existem dias letivos preenchidos.\n\nSubstituir pelos valores sugeridos?", { confirmLabel: "Substituir" }))
     )
       return;
     const off = new Set<string>(nationalHolidays.map((h) => h.date));

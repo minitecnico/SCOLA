@@ -8,9 +8,9 @@ import {
   approveAccessRequest, countAccessRequests, listAccessRequests, listOrgAdmin, rejectAccessRequest, type AccessRequest,
 } from '../../lib/queries';
 import { ASSIGNABLE_ROLES, ROLE_LABEL, type AppRole } from '../../lib/types';
+import { fmtDayTime } from '../../lib/format';
 import { WhatsAppLink } from '../../components/WhatsAppLink';
 
-const when = (s: string) => new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 /** Fila de pedidos: pessoas novas pedindo cadastro e pessoas que esqueceram a senha. O administrador analisa e aprova. */
 export function AccessRequestsPage() {
@@ -68,7 +68,7 @@ export function AccessRequestsPage() {
                       <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{isPwd ? 'Nova senha' : 'Novo cadastro'}</span>
                     </p>
                     <p className="truncate text-sm text-muted-foreground">{r.email}</p>
-                    <p className="text-xs text-muted-foreground">{when(r.created_at)}{r.device ? ` · ${r.device}` : ''}</p>
+                    <p className="text-xs text-muted-foreground">{fmtDayTime(r.created_at)}{r.device ? ` · ${r.device}` : ''}</p>
                   </div>
                   <WhatsAppLink
                     phone={r.phone}
@@ -114,7 +114,7 @@ export function AccessRequestsPage() {
                       <dt className="text-xs font-semibold text-muted-foreground">Conta</dt>
                       <dd className="text-foreground">
                         {r.memberships.map((m) => `${m.base_name} (${ROLE_LABEL[m.role as Exclude<AppRole, 'superadmin'>] ?? m.role})`).join(' · ') || 'Sem escola'}
-                        {' · '}último acesso: {r.last_login_at ? when(r.last_login_at) : 'nunca'}
+                        {' · '}último acesso: {r.last_login_at ? fmtDayTime(r.last_login_at) : 'nunca'}
                       </dd>
                     </div>
                   )}
@@ -141,7 +141,7 @@ export function AccessRequestsPage() {
                     )}
                   </div>
                 ) : r.decided_at ? (
-                  <p className="mt-3 text-xs text-muted-foreground">{status === 'aprovado' ? 'Aprovado' : 'Recusado'} em {when(r.decided_at)}</p>
+                  <p className="mt-3 text-xs text-muted-foreground">{status === 'aprovado' ? 'Aprovado' : 'Recusado'} em {fmtDayTime(r.decided_at)}</p>
                 ) : null}
               </li>
             );

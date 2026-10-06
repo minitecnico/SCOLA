@@ -12,7 +12,7 @@ import { DateInput } from '../components/DateInput';
 
 import { ExamScanner } from '../components/ExamScanner';
 
-import { successToast } from '../components/Feedback';
+import { successToast, askConfirm } from '../components/Feedback';
 
 import { Button, DropdownMenu, EmptyState, Field, Input, Loading, Modal, PageHeader, SegmentedField, StatTile, StatusBadge, fieldCls } from '../components/ui';
 
@@ -82,7 +82,7 @@ export function ProvaDetailPage() {
                   icon: <Trash2 size={15} />,
                   danger: true,
                   onClick: () => {
-                    if (confirm(`Excluir "${exam.title}" e todas as correções? Não dá para desfazer.`)) remove.mutate();
+                    askConfirm(`Excluir "${exam.title}" e todas as correções? Não dá para desfazer.`).then((ok) => { if (ok) remove.mutate(); });
                   },
                 },
               ]}
@@ -640,7 +640,7 @@ function ResultsTab({ data, onScan }: { data: ExamDetail; onScan: () => void }) 
                           answers: x.a?.answers ?? (exam.sheet === 'propria' ? exam.answer_key.map((k) => (k === 'X' ? '' : k)) : Array(exam.questions).fill('')),
                         }),
                     },
-                    { label: 'Apagar correção', icon: <Trash2 size={15} />, danger: true, hidden: !x.r, onClick: () => confirm(`Apagar a correção de ${x.name}?`) && delAnswer.mutate(x.id) },
+                    { label: 'Apagar correção', icon: <Trash2 size={15} />, danger: true, hidden: !x.r, onClick: () => askConfirm(`Apagar a correção de ${x.name}?`).then((ok) => ok && delAnswer.mutate(x.id)) },
                   ]}
                 />
               </li>

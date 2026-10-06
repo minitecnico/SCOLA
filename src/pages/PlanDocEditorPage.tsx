@@ -12,6 +12,7 @@ import { printDocument } from '../lib/print';
 import {
   getPlanDocMeta, listPlanDocVersions, loadDocContent, loadDocVersion, lockPlanDoc, saveDocContent, unlockPlanDoc, type EditableKind, type PlanDocMeta,
 } from '../lib/queries';
+import { askConfirm } from '../components/Feedback';
 
 /**
  * Editor do Planejamento (documento ou planilha), em tela cheia.
@@ -288,7 +289,7 @@ function EditorShell({ meta, kind }: { meta: PlanDocMeta; kind: EditableKind }) 
           {meta.can_edit ? (
             <button
               className="ml-2 font-semibold underline"
-              onClick={() => confirm(`Assumir a edição? Se ${lockedBy} ainda estiver editando, as alterações dela que não foram salvas podem se perder.`) && void (window as unknown as { __takeLock?: (f: boolean) => Promise<void> }).__takeLock?.(true)}
+              onClick={() => askConfirm(`Assumir a edição? Se ${lockedBy} ainda estiver editando, as alterações dela que não foram salvas podem se perder.`).then((ok) => ok && void (window as unknown as { __takeLock?: (f: boolean) => Promise<void> }).__takeLock?.(true))}
             >
               Assumir edição
             </button>
@@ -384,7 +385,7 @@ function HistoryModal({ id, canRestore, onClose, onRestore }: { id: string; canR
                   variant="ghost"
                   disabled={!!busy}
                   onClick={async () => {
-                    if (!confirm('Restaurar esta versão? O conteúdo atual vai para o histórico.')) return;
+                    if (!(await askConfirm('Restaurar esta versão? O conteúdo atual vai para o histórico.'))) return;
                     setBusy(v.id);
                     await onRestore(v.id).finally(() => setBusy(null));
                   }}

@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 
 import { ImportModal } from '../components/ImportModal';
 
-import { successToast } from '../components/Feedback';
+import { successToast, askConfirm } from '../components/Feedback';
 
 import { ActionsMenu, AddButton, Button, Card, CheckBox, EmptyState, Field, Input, Modal, PageHeader, SearchInput, Select, SelectionBar, SelectModeButton, Loading} from '../components/ui';
 
@@ -199,8 +199,8 @@ export function StudentsPage() {
               </div>
               <ActionsMenu
                 onEdit={() => openEdit(s)}
-                onArchive={() => confirm(`Arquivar o aluno "${s.full_name}"? Isso também removerá notas, faltas e avaliações relacionadas.`) && archive.mutate(s.id)}
-                onDelete={() => confirm(`Excluir o aluno "${s.full_name}"?`) && remove.mutate(s.id)}
+                onArchive={() => askConfirm(`Arquivar o aluno "${s.full_name}"? Isso também removerá notas, faltas e avaliações relacionadas.`).then((ok) => ok && archive.mutate(s.id))}
+                onDelete={() => askConfirm(`Excluir o aluno "${s.full_name}"?`).then((ok) => ok && remove.mutate(s.id))}
               />
             </Card>
           ))}
@@ -215,7 +215,7 @@ export function StudentsPage() {
         allSelected={allSelected}
         onToggleAll={toggleAll}
         onCancel={sel.disable}
-        onDelete={() => confirm(`Excluir ${sel.size} aluno(s)?`) && bulkRemove.mutate()}
+        onDelete={() => askConfirm(`Excluir ${sel.size} aluno(s)?`).then((ok) => ok && bulkRemove.mutate())}
         busy={bulkRemove.isPending}
       />
 

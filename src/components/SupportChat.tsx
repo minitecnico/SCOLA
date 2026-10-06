@@ -1,12 +1,13 @@
 import { Loader2, Send } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '../lib/cn';
+import { fmtDayTime } from '../lib/format';
 import type { SupportMessage } from '../lib/suporte';
 
 export const when = (iso: string) => {
   const d = new Date(iso);
   const same = d.toDateString() === new Date().toDateString();
-  return same ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return same ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : fmtDayTime(iso);
 };
 
 /** Mensagens em balões + caixa de resposta (Enter envia, Shift+Enter quebra linha). */

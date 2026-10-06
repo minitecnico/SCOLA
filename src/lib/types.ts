@@ -137,12 +137,12 @@ export interface NoticeAttachment {
 export type EventAudience = 'all' | 'role' | 'user';
 
 export const EVENT_CATEGORIES: { key: string; label: string; color: string }[] = [
-  { key: 'evento', label: 'Evento', color: '#171717' },
-  { key: 'atividade', label: 'Atividade', color: '#404040' },
-  { key: 'gincana', label: 'Gincana', color: '#737373' },
-  { key: 'prova', label: 'Semana de provas', color: '#dc2626' },
-  { key: 'reuniao', label: 'Reunião', color: '#262626' },
-  { key: 'outro', label: 'Outro', color: '#595959' },
+  { key: 'evento', label: 'Evento', color: '#16A34A' },
+  { key: 'atividade', label: 'Atividade', color: '#0891B2' },
+  { key: 'gincana', label: 'Gincana', color: '#EA580C' },
+  { key: 'prova', label: 'Semana de provas', color: '#DC2626' },
+  { key: 'reuniao', label: 'Reunião', color: '#7C3AED' },
+  { key: 'outro', label: 'Outro', color: '#475569' },
 ];
 export const eventColor = (cat: string) => EVENT_CATEGORIES.find((c) => c.key === cat)?.color ?? '#737373';
 export const eventCatLabel = (cat: string) => EVENT_CATEGORIES.find((c) => c.key === cat)?.label ?? cat;

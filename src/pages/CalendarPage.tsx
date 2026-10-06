@@ -53,7 +53,32 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 const pad2 = (n: number) => String(n).padStart(2, "0");
 /** Paleta categórica de alto contraste: matizes bem espaçados no círculo cromático
  *  para que cores vizinhas (na lista e no calendário) nunca se confundam ao bater o olho. */
-const CAT_PALETTE = ["#000000", "#262626", "#404040", "#595959", "#737373", "#8C8C8C", "#171717", "#333333", "#4D4D4D", "#666666", "#808080", "#0A0A0A"];
+const CAT_PALETTE = ["#DC2626", "#2563EB", "#16A34A", "#EA580C", "#7C3AED", "#0891B2", "#DB2777", "#65A30D", "#4338CA", "#CA8A04", "#92400E", "#475569"];
+/** Cores por tipo de categoria conhecido (feriado = vermelho, avaliação = azul…) — usadas para migrar calendários antigos em cinza. */
+const CAT_BY_NAME: [RegExp, string][] = [
+  [/feriado|recesso|f[ée]rias/i, "#DC2626"],
+  [/avalia|prova|teste/i, "#2563EB"],
+  [/pedag|reuni|conselho|forma[cç]/i, "#7C3AED"],
+  [/evento|cultur|festa|gincana/i, "#16A34A"],
+  [/recupera/i, "#EA580C"],
+  [/comemor/i, "#DB2777"],
+  [/marco|per[ií]odo|trimestre|in[ií]cio|fim/i, "#0891B2"],
+];
+const isGray = (hex: string) => {
+  const { r, g, b } = hexToRgb(hex);
+  return Math.max(r, g, b) - Math.min(r, g, b) < 24;
+};
+/** Calendários criados quando a paleta era toda cinza ganham cores vivas (só quem ainda está em cinza/preto). */
+function vividCategories(cats: Category[]): Category[] {
+  const used = new Set(cats.filter((c) => !isGray(c.color)).map((c) => c.color.toUpperCase()));
+  return cats.map((c) => {
+    if (!isGray(c.color)) return c;
+    const byName = CAT_BY_NAME.find(([re]) => re.test(c.label))?.[1];
+    const color = byName && !used.has(byName) ? byName : CAT_PALETTE.find((p) => !used.has(p)) ?? CAT_PALETTE[0];
+    used.add(color);
+    return { ...c, color };
+  });
+}
 
 function hexToRgb(hex: string) {
   let h = hex.replace("#", "");
@@ -61,15 +86,15 @@ function hexToRgb(hex: string) {
   const n = parseInt(h || "000000", 16);
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
-const rgba = (hex: string, a: number) => {
-  const { r, g, b } = hexToRgb(hex);
-  return `rgba(${r},${g},${b},${a})`;
-};
-/** Texto legível (preto/branco) sobre qualquer cor — garante leitura ao professor. */
+/** Texto legível (preto/branco) sobre qualquer cor — escolhe o de maior contraste (WCAG). */
 function readableText(hex: string) {
   const { r, g, b } = hexToRgb(hex);
-  const L = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  return L > 0.6 ? "#1F2A24" : "#FFFFFF";
+  const lin = (v: number) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  return L > 0.3 ? "#111111" : "#FFFFFF";
 }
 const isoOf = (y: number, m: number, d: number) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
 const todayISO = () => {
@@ -117,13 +142,13 @@ const SEED: CalendarData = {
   title: "Calendário 2026",
   year: 2026,
   categories: [
-    { id: "feriado", label: "Feriado", color: "#000000" },
-    { id: "avaliacao", label: "Avaliação", color: "#404040" },
-    { id: "pedagogico", label: "Pedagógico", color: "#262626" },
-    { id: "evento", label: "Evento & Cultura", color: "#595959" },
-    { id: "recuperacao", label: "Recuperação Paralela", color: "#737373" },
-    { id: "comemorativa", label: "Data comemorativa", color: "#8C8C8C" },
-    { id: "marco", label: "Marco do período", color: "#475569" },
+    { id: "feriado", label: "Feriado", color: "#DC2626" },
+    { id: "avaliacao", label: "Avaliação", color: "#2563EB" },
+    { id: "pedagogico", label: "Pedagógico", color: "#7C3AED" },
+    { id: "evento", label: "Evento & Cultura", color: "#16A34A" },
+    { id: "recuperacao", label: "Recuperação Paralela", color: "#EA580C" },
+    { id: "comemorativa", label: "Data comemorativa", color: "#DB2777" },
+    { id: "marco", label: "Marco do período", color: "#0891B2" },
   ],
   periods: [
     { id: uid(), label: "1º Trimestre", startMonth: 1, endMonth: 3 },
@@ -359,7 +384,7 @@ function CalendarEditorLoader({
   return (
     <CalendarBuilder
       key={`${id}:${reloadKey}`}
-      initialData={hasData ? rec.data : newSeed(rec.title || "Calendário")}
+      initialData={hasData ? { ...rec.data, categories: vividCategories(rec.data.categories ?? []) } : newSeed(rec.title || "Calendário")}
       initialVersion={rec.version}
       initialStamp={fmtStamp(rec.updatedAt, rec.updatedByName)}
       creatorName={rec.createdByName}
@@ -722,7 +747,7 @@ function CalendarBuilder({
     const cats = [...data.categories];
     let cat = cats.find((c) => c.label.toLowerCase() === "feriado");
     if (!cat) {
-      cat = { id: uid(), label: "Feriado", color: "#171717" };
+      cat = { id: uid(), label: "Feriado", color: "#DC2626" };
       cats.push(cat);
     }
     const existing = new Set(data.events.map((e) => `${e.start}|${e.title.toLowerCase()}`));
@@ -1021,10 +1046,7 @@ function CalendarBuilder({
                   className="cb-chip"
                   aria-pressed={on}
                   onClick={() => toggleCat(c.id)}
-                  style={{
-                    borderColor: on ? rgba(c.color, 0.55) : undefined,
-                    background: on ? rgba(c.color, 0.1) : undefined,
-                  }}
+                  style={on ? { background: c.color, borderColor: c.color, color: readableText(c.color) } : undefined}
                 >
                   <span className="cb-cdot" style={{ background: c.color }} />
                   {c.label}
@@ -1037,10 +1059,7 @@ function CalendarBuilder({
                 className="cb-chip"
                 aria-pressed={showHolidays}
                 onClick={() => setShowHolidays((v) => !v)}
-                style={{
-                  borderColor: showHolidays ? rgba(HOLIDAY_COLOR, 0.55) : undefined,
-                  background: showHolidays ? rgba(HOLIDAY_COLOR, 0.1) : undefined,
-                }}
+                style={showHolidays ? { background: HOLIDAY_COLOR, borderColor: HOLIDAY_COLOR, color: readableText(HOLIDAY_COLOR) } : undefined}
                 title="Feriados nacionais (BrasilAPI)"
               >
                 <span className="cb-cdot" style={{ background: HOLIDAY_COLOR }} />
@@ -1052,10 +1071,7 @@ function CalendarBuilder({
                 className="cb-chip"
                 aria-pressed={showLocal}
                 onClick={() => setShowLocal((v) => !v)}
-                style={{
-                  borderColor: showLocal ? rgba(LOCAL_HOLIDAY_COLOR, 0.55) : undefined,
-                  background: showLocal ? rgba(LOCAL_HOLIDAY_COLOR, 0.1) : undefined,
-                }}
+                style={showLocal ? { background: LOCAL_HOLIDAY_COLOR, borderColor: LOCAL_HOLIDAY_COLOR, color: readableText(LOCAL_HOLIDAY_COLOR) } : undefined}
                 title={`Feriados do estado e do município (${local?.city ?? ""})`}
               >
                 <span className="cb-cdot" style={{ background: LOCAL_HOLIDAY_COLOR }} />
@@ -1417,8 +1433,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const HOLIDAY_COLOR = "#525252"; // feriado nacional
-const LOCAL_HOLIDAY_COLOR = "#737373"; // feriado estadual/municipal
+const HOLIDAY_COLOR = "#DC2626"; // feriado nacional (vermelho)
+const LOCAL_HOLIDAY_COLOR = "#92400E"; // feriado estadual/municipal (marrom)
 
 /** Um compromisso (evento ou feriado) dentro de um mês, pronto para listar. */
 type Entry = {
@@ -1517,6 +1533,8 @@ function MonthCard({
     const isHoliday = list.some((e) => e.holiday);
     const isToday = iso === today;
     const weekend = (firstDow + day - 1) % 7 >= 5;
+    // Dia com compromisso = quadrado sólido na cor da categoria; se houver mais de um, faixas coloridas embaixo.
+    const colors = [...new Set(visible.map((e) => e.color))];
     const primary = (visible.find((e) => !e.holiday) ?? visible[0])?.color;
     const className = [
       "cb-cell",
@@ -1527,15 +1545,15 @@ function MonthCard({
       list.length > 0 && visible.length === 0 ? "dim" : "",
       onDayClick ? "clickable" : "",
     ].join(" ");
-    const style = primary ? { background: rgba(primary, 0.16) } : undefined;
+    const style = primary ? { background: primary, color: readableText(primary) } : undefined;
     const tip = list.length ? list.map((e) => e.title).join(" · ") : undefined;
     const content = (
       <>
         {day}
-        {visible.length > 0 && (
-          <span className="cb-dots">
-            {visible.slice(0, 3).map((e, i) => (
-              <i key={i} style={{ background: e.color }} />
+        {colors.length > 1 && (
+          <span className="cb-stripes">
+            {colors.slice(0, 4).map((c) => (
+              <i key={c} style={{ background: c }} />
             ))}
           </span>
         )}
@@ -1728,7 +1746,10 @@ const CSS = `
 .cb-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px}
 .cb-hint{font-size:13px;font-weight:600;color:var(--ink-soft);margin-right:2px}
 .cb-chip{font:inherit;font-size:13px;font-weight:600;cursor:pointer;min-height:34px;padding:0 12px 0 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);display:inline-flex;align-items:center;gap:7px;transition:.15s}
-.cb-chip[aria-pressed="false"]{opacity:.5;color:var(--ink-soft)}
+.cb-chip[aria-pressed="false"]{opacity:.55;color:var(--ink-soft)}
+.cb-chip[aria-pressed="true"]{font-weight:700}
+.cb-chip[aria-pressed="true"] .cb-cdot{box-shadow:0 0 0 2px #fff}
+.cb-chip[aria-pressed="true"] .cb-chip-n{background:rgba(255,255,255,.9);color:#171717}
 .cb-chip:hover{border-color:#A3A3A3}
 .cb-chip-n{font-size:11px;font-weight:700;color:var(--ink-soft);background:#F0F0F0;border-radius:999px;padding:0 7px}
 .cb-cdot{width:11px;height:11px;border-radius:50%;flex:none}
@@ -1751,14 +1772,15 @@ const CSS = `
 .cb-cell{aspect-ratio:1/1;border-radius:9px;display:flex;align-items:center;justify-content:center;position:relative;font-size:13px;font-weight:500;color:var(--ink);border:none;background:transparent;padding:0}
 .cb-cell.empty{visibility:hidden}
 .cb-cell.weekend{color:#8A8A8A;background:#F7F7F7}
-.cb-cell.has{font-weight:700;color:var(--ink)}
-.cb-cell.holiday{font-weight:800;color:var(--ink)}
+.cb-cell.has{font-weight:800;font-size:14px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.cb-cell.holiday{font-weight:800}
 .cb-cell.dim{opacity:.3}
-.cb-cell.today{outline:2px solid var(--ink);outline-offset:1px;font-weight:800}
+.cb-cell.today{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--ink);font-weight:800;z-index:1}
 .cb-cell.clickable{cursor:pointer}
-.cb-cell.clickable:hover{background:#E8E8E8}
-.cb-dots{display:flex;gap:2px;position:absolute;bottom:4px}
-.cb-dots i{width:5px;height:5px;border-radius:50%}
+.cb-cell.clickable:hover{filter:brightness(.92)}
+.cb-cell.clickable:not(.has):hover{background:#E8E8E8}
+.cb-stripes{position:absolute;left:0;right:0;bottom:0;height:6px;display:flex;border-radius:0 0 9px 9px;overflow:hidden;box-shadow:0 -1px 0 #fff}
+.cb-stripes i{flex:1}
 .cb-events{padding:6px 12px 14px;display:flex;flex-direction:column;gap:2px;flex:1}
 .cb-empty{font-size:12.5px;color:var(--ink-soft);padding:6px 4px;margin:0}
 .cb-ev{display:flex;gap:11px;padding:7px 6px;border-radius:10px;align-items:flex-start;transition:.12s}
@@ -1823,9 +1845,8 @@ const CSS = `
   .cb-dow span{font-size:8px;padding:1px 0}
   .cb-grid{gap:1px}
   .cb-cell{font-size:9px;border-radius:3px;font-weight:600}
-  .cb-cell.today{outline:none}
-  .cb-dots{bottom:1px;gap:1px}
-  .cb-dots i{width:3px;height:3px}
+  .cb-cell.today{box-shadow:none}
+  .cb-stripes{height:3px}
   .cb-events{padding:3px 8px 8px;gap:0}
   .cb-empty{font-size:8px;padding:2px}
   .cb-ev{padding:2px;gap:5px}

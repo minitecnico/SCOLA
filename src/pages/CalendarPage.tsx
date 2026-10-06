@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthProvider";
 import { successToast } from "../components/Feedback";
@@ -16,7 +16,8 @@ import {
 import { downloadCalendarTemplate } from "../lib/importCalendar";
 import { parseAnyCalendarFile, type ImportedEvent } from "../lib/importCalendarBuilder";
 import { listNationalHolidays } from "../lib/holidays";
-import { Button, Modal } from "../components/ui";
+import { ArrowLeft, CalendarDays, ChevronDown, Download, List as ListIcon, MoreHorizontal, Pencil, Printer, Trash2, Upload, Users } from "lucide-react";
+import { Button, DropdownMenu, Modal, type MenuAction } from "../components/ui";
 import { Dropzone } from "../components/Dropzone";
 import { cn } from "../lib/cn";
 import type { CalendarHoliday, OrgPerson } from "../lib/types";
@@ -42,7 +43,8 @@ import { DateInput } from '../components/DateInput';
 
 /* --------------------------- Utilidades ---------------------------------- */
 const MONTHS_PT = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-const DOW = [["S","seg"],["T","ter"],["Q","qua"],["Q","qui"],["S","sex"],["S","sáb"],["D","dom"]]; // semana inicia na segunda
+const DOW = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"]; // semana inicia na segunda
+const WEEKDAY = ["dom","seg","ter","qua","qui","sex","sáb"]; // índice de Date.getDay()
 const uid = () => Math.random().toString(36).slice(2, 9);
 const pad2 = (n: number) => String(n).padStart(2, "0");
 /** Paleta categórica de alto contraste: matizes bem espaçados no círculo cromático
@@ -65,9 +67,21 @@ function readableText(hex: string) {
   const L = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
   return L > 0.6 ? "#1F2A24" : "#FFFFFF";
 }
+const isoOf = (y: number, m: number, d: number) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
+const todayISO = () => {
+  const t = new Date();
+  return isoOf(t.getFullYear(), t.getMonth(), t.getDate());
+};
 function parseISO(s: string) {
   const [y, m, d] = s.split("-").map(Number);
   return new Date(y, m - 1, d);
+}
+/** "hoje", "amanhã", "em 12 dias · 18/10" — quanto falta para um compromisso. */
+function whenLabel(today: string, start: string, end: string) {
+  const br = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  if (start <= today && today <= end) return start === end ? "hoje" : `em andamento · até ${br(end)}`;
+  const diff = Math.round((parseISO(start).getTime() - parseISO(today).getTime()) / 86400000);
+  return diff === 1 ? `amanhã · ${br(start)}` : `em ${diff} dias · ${br(start)}`;
 }
 /** Lista de {y,m,d} cobertos por um evento (intervalo inclusivo). */
 function eventDays(ev: CalEvent) {
@@ -241,7 +255,7 @@ function CalendarCenter({
     <div className="mx-auto max-w-5xl px-1">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Centro de calendários</p>
+          <p className="text-xs font-black uppercase tracking-wide text-neutral-500">Centro de calendários</p>
           <h1 className="text-2xl font-black text-foreground">Calendários da escola</h1>
           <p className="mt-1 max-w-2xl text-sm font-medium text-muted-foreground">
             Crie quantos calendários precisar (anual, por trimestre, por turno…). Todos da escola visualizam; a edição é de quem cria
@@ -383,6 +397,15 @@ function CalendarEditorLoader({
 
 /* ============================== Construtor =============================== */
 type SaveResult = "conflict" | { version: number; stamp: string | null };
+type Layout = "calendario" | "lista";
+
+/** Abre no período em que a escola está hoje (ex.: 3º trimestre); fora do ano letivo, mostra o ano todo. */
+function initialView(d: CalendarData): string {
+  const t = new Date();
+  if (t.getFullYear() !== d.year) return "year";
+  return d.periods.find((p) => p.startMonth <= t.getMonth() && t.getMonth() <= p.endMonth)?.id ?? "year";
+}
+
 function CalendarBuilder({
   initialData,
   initialVersion,
@@ -414,7 +437,8 @@ function CalendarBuilder({
   const [editors, setEditors] = useState<string[]>(initialEditors);
   const [savedJson, setSavedJson] = useState(() => JSON.stringify({ data: initialData, editors: initialEditors }));
   const [editing, setEditing] = useState(false); // começa fechado — abre só ao clicar em "Editar"
-  const [viewId, setViewId] = useState<string>(initialData.periods[1]?.id ?? "year");
+  const [viewId, setViewId] = useState<string>(() => initialView(initialData));
+  const [layout, setLayout] = useState<Layout>("calendario");
   const [active, setActive] = useState<Set<string>>(new Set(initialData.categories.map((c) => c.id)));
   const [saving, setSaving] = useState(false);
   const [version, setVersion] = useState<number>(initialVersion);
@@ -422,6 +446,16 @@ function CalendarBuilder({
   const [importOpen, setImportOpen] = useState(false);
   const [editorsOpen, setEditorsOpen] = useState(false);
   const [showHolidays, setShowHolidays] = useState(true);
+  const [eventQuery, setEventQuery] = useState("");
+  const [newEventId, setNewEventId] = useState<string | null>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+
+  // No celular as abas rolam de lado: mantém a aba escolhida visível (centralizada).
+  useEffect(() => {
+    const box = tabsRef.current;
+    const tab = box?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (box && tab) box.scrollLeft = tab.offsetLeft - (box.clientWidth - tab.offsetWidth) / 2;
+  }, [viewId]);
 
   // Feriados nacionais do ano (BrasilAPI, com fallback offline) — ver lib/holidays.
   const { data: nationalHolidays = [] } = useQuery({
@@ -440,10 +474,30 @@ function CalendarBuilder({
 
   const dirty = JSON.stringify({ data, editors }) !== savedJson;
 
+  // Não deixa perder trabalho sem querer (fechar a aba ou voltar com alterações pendentes).
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+  const goBack = () => {
+    if (dirty && !confirm("Há alterações que ainda não foram salvas.\n\nSair mesmo assim?")) return;
+    onBack();
+  };
+
   const catById = useMemo(
     () => Object.fromEntries(data.categories.map((c) => [c.id, c])),
     [data.categories]
   );
+  const catCount = useMemo(() => {
+    const n: Record<string, number> = {};
+    data.events.forEach((e) => (n[e.categoryId] = (n[e.categoryId] || 0) + 1));
+    return n;
+  }, [data.events]);
 
   // Meses visíveis conforme a seleção (Ano completo ou período)
   const months = useMemo<number[]>(() => {
@@ -459,6 +513,29 @@ function CalendarBuilder({
     () => months.reduce((s, m) => s + (data.letivosByMonth[m] || 0), 0),
     [months, data.letivosByMonth]
   );
+  const yearLetivos = useMemo(
+    () => Array.from({ length: 12 }, (_, m) => data.letivosByMonth[m] || 0).reduce((a, b) => a + b, 0),
+    [data.letivosByMonth]
+  );
+
+  /* ---- resumo do período (o que a coordenação quer ver de relance) ---- */
+  const today = todayISO();
+  const periodEventCount = useMemo(
+    () =>
+      data.events.filter(
+        (ev) => active.has(ev.categoryId) && eventDays(ev).some((x) => x.y === data.year && months.includes(x.m))
+      ).length,
+    [data.events, data.year, months, active]
+  );
+  const next = useMemo(() => {
+    const all = [
+      ...data.events.filter((e) => active.has(e.categoryId)).map((e) => ({ title: e.title, start: e.start, end: e.end ?? e.start })),
+      ...holidays.map((h) => ({ title: h.title, start: h.date, end: h.date })),
+    ]
+      .filter((e) => e.end >= today)
+      .sort((a, b) => a.start.localeCompare(b.start));
+    return all[0] ?? null;
+  }, [data.events, holidays, active, today]);
 
   /* ---- helpers de mutação ---- */
   const set = (patch: Partial<CalendarData>) => setData((p) => ({ ...p, ...patch }));
@@ -468,24 +545,35 @@ function CalendarBuilder({
       n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
+  const allCatsOn = data.categories.every((c) => active.has(c.id));
 
   const addCategory = () =>
     set({ categories: [...data.categories, { id: uid(), label: "Nova categoria", color: CAT_PALETTE[data.categories.length % CAT_PALETTE.length] }] });
   const updateCategory = (id: string, patch: Partial<Category>) =>
     set({ categories: data.categories.map((c) => (c.id === id ? { ...c, ...patch } : c)) });
-  const removeCategory = (id: string) =>
+  const removeCategory = (id: string) => {
+    const n = catCount[id] || 0;
+    if (n > 0 && !confirm(`Remover esta categoria também apaga os ${n} evento(s) dela.\n\nDeseja continuar?`)) return;
     set({
       categories: data.categories.filter((c) => c.id !== id),
       events: data.events.filter((e) => e.categoryId !== id),
     });
+  };
 
-  const addEvent = () =>
+  /** Novo evento — sem data, usa hoje (se estiver no ano do calendário) ou 1º de janeiro. */
+  const addEvent = (start?: string) => {
+    const id = uid();
+    const fallback = today.startsWith(String(data.year)) ? today : `${data.year}-01-01`;
     set({
       events: [
         ...data.events,
-        { id: uid(), title: "Novo evento", categoryId: data.categories[0]?.id ?? "", start: `${data.year}-01-01` },
+        { id, title: "Novo evento", categoryId: data.categories[0]?.id ?? "", start: start ?? fallback },
       ],
     });
+    setNewEventId(id);
+    setEventQuery("");
+    setEditing(true);
+  };
   const updateEvent = (id: string, patch: Partial<CalEvent>) =>
     set({ events: data.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
   const removeEvent = (id: string) => set({ events: data.events.filter((e) => e.id !== id) });
@@ -497,6 +585,39 @@ function CalendarBuilder({
   const removePeriod = (id: string) => {
     set({ periods: data.periods.filter((p) => p.id !== id) });
     if (viewId === id) setViewId("year");
+  };
+
+  const setLetivos = (m: number, raw: string) => {
+    const next = { ...data.letivosByMonth };
+    const n = Math.max(0, Math.min(31, Math.floor(Number(raw))));
+    if (!raw || Number.isNaN(n) || n === 0) delete next[m];
+    else next[m] = n;
+    set({ letivosByMonth: next });
+  };
+  /** Sugestão: segunda a sexta, descontando feriados nacionais e eventos de feriado/recesso/férias. */
+  const suggestLetivos = () => {
+    if (
+      Object.values(data.letivosByMonth).some(Boolean) &&
+      !confirm("Já existem dias letivos preenchidos.\n\nSubstituir pelos valores sugeridos?")
+    )
+      return;
+    const off = new Set<string>(nationalHolidays.map((h) => h.date));
+    data.events.forEach((ev) => {
+      if (/feriado|recesso|f[ée]rias/i.test(catById[ev.categoryId]?.label ?? "")) {
+        eventDays(ev).forEach((x) => off.add(isoOf(x.y, x.m, x.d)));
+      }
+    });
+    const out: Record<number, number> = {};
+    for (let m = 0; m < 12; m++) {
+      const n = new Date(data.year, m + 1, 0).getDate();
+      let count = 0;
+      for (let day = 1; day <= n; day++) {
+        const dow = new Date(data.year, m, day).getDay();
+        if (dow !== 0 && dow !== 6 && !off.has(isoOf(data.year, m, day))) count++;
+      }
+      out[m] = count;
+    }
+    set({ letivosByMonth: out });
   };
 
   /* ---- salvar no servidor (trava otimista por versão) ---- */
@@ -577,7 +698,7 @@ function CalendarBuilder({
     const cats = [...data.categories];
     let cat = cats.find((c) => c.label.toLowerCase() === "feriado");
     if (!cat) {
-      cat = { id: uid(), label: "Feriado", color: "#DC2626" };
+      cat = { id: uid(), label: "Feriado", color: "#171717" };
       cats.push(cat);
     }
     const existing = new Set(data.events.map((e) => `${e.start}|${e.title.toLowerCase()}`));
@@ -592,6 +713,19 @@ function CalendarBuilder({
     setActive(new Set(cats.map((c) => c.id)));
   };
 
+  const menuItems: MenuAction[] = [
+    { label: "Participantes", hint: "Quem mais pode editar", icon: <Users size={16} />, onClick: () => setEditorsOpen(true), hidden: !canManageEditors },
+    { label: "Importar calendário", hint: "Excel, CSV, PDF, Word ou ICS", icon: <Upload size={16} />, onClick: () => setImportOpen(true), hidden: !canManage },
+    { label: "Imprimir / PDF", icon: <Printer size={16} />, onClick: () => window.print() },
+    { label: "Baixar backup (.json)", icon: <Download size={16} />, onClick: exportJSON },
+    { label: "Excluir calendário", icon: <Trash2 size={16} />, onClick: onDelete, danger: true, hidden: !canDelete },
+  ];
+
+  const q = eventQuery.trim().toLowerCase();
+  const sortedEvents = [...data.events].sort((a, b) => a.start.localeCompare(b.start));
+  const shownEvents = q ? sortedEvents.filter((e) => e.title.toLowerCase().includes(q)) : sortedEvents;
+  const tabs = [{ id: "year", label: `Ano ${data.year}` }, ...data.periods.map((p) => ({ id: p.id, label: p.label }))];
+
   /* ============================== Render ============================== */
   return (
     <div className="cb-app">
@@ -600,12 +734,15 @@ function CalendarBuilder({
       {/* Cabeçalho global */}
       <header className="cb-top">
         <div className="cb-brand">
-          <button className="cb-back" onClick={onBack} title="Voltar aos calendários">←</button>
-          <div className="cb-mark">{(data.school[0] || "C").toUpperCase()}</div>
-          <div>
-            <div className="cb-eyebrow">{data.school}</div>
+          <button className="cb-back" onClick={goBack} title="Voltar aos calendários" aria-label="Voltar aos calendários">
+            <ArrowLeft size={18} />
+          </button>
+          <div className="cb-titles">
+            <div className="cb-eyebrow">{data.school} · {data.year}</div>
             <h1 className="cb-h1">{data.title}</h1>
             <div className="cb-stamp">
+              {dirty ? <b className="cb-unsaved">● Alterações não salvas</b> : null}
+              {dirty && (creatorName || stamp) ? " · " : null}
               {creatorName ? <>Criado por {creatorName}</> : null}
               {creatorName && stamp ? " · " : null}
               {stamp}
@@ -613,43 +750,160 @@ function CalendarBuilder({
           </div>
         </div>
         <div className="cb-top-actions">
-          <select className="cb-select" value={viewId} onChange={(e) => setViewId(e.target.value)} aria-label="Visualização">
-            <option value="year">Ano completo ({data.year})</option>
-            {data.periods.map((p) => (
-              <option key={p.id} value={p.id}>{p.label}</option>
-            ))}
-          </select>
           {canManage ? (
-            <button className="cb-btn" onClick={() => setEditing((v) => !v)}>
-              {editing ? "Ocultar editor" : "✎ Editar"}
-            </button>
-          ) : null}
-          {canManageEditors ? (
-            <button className="cb-btn" onClick={() => setEditorsOpen(true)}>
-              Participantes{editors.length ? ` (${editors.length})` : ""}
+            <button className={`cb-btn ${editing ? "is-on" : ""}`} onClick={() => setEditing((v) => !v)} aria-pressed={editing}>
+              <Pencil size={15} /> {editing ? "Fechar edição" : "Editar"}
             </button>
           ) : null}
           {canManage ? (
             <button className="cb-btn cb-btn-primary" onClick={handleSave} disabled={!dirty || saving}>
-              {saving ? "Salvando…" : dirty ? "Salvar" : "✓ Salvo"}
+              {saving ? "Salvando…" : dirty ? "Salvar alterações" : "✓ Salvo"}
             </button>
           ) : null}
-          <button className="cb-btn" onClick={() => window.print()}>Imprimir / PDF</button>
-          <button className="cb-btn" onClick={exportJSON}>Exportar</button>
-          {canManage ? (
-            <button className="cb-btn cb-btn-primary" onClick={() => setImportOpen(true)}>↑ Importar calendário</button>
-          ) : null}
-          {canDelete ? (
-            <button className="cb-btn cb-btn-danger" onClick={onDelete}>Excluir</button>
-          ) : null}
+          <DropdownMenu label="Mais" icon={<MoreHorizontal size={16} />} items={menuItems} />
         </div>
       </header>
 
       <div className={`cb-layout ${editing ? "with-editor" : ""}`}>
-        {/* ---------------- EDITOR ---------------- */}
+        {/* ---------------- EDITOR (no celular abre em tela cheia) ---------------- */}
         {editing && canManage && (
-          <aside className="cb-editor">
-            <Section title="Identificação">
+          <aside className="cb-editor" aria-label="Editar calendário">
+            <div className="cb-editor-head">
+              <strong>Editar calendário</strong>
+              <div className="cb-editor-head-actions">
+                <button className="cb-btn cb-btn-primary" onClick={handleSave} disabled={!dirty || saving}>
+                  {saving ? "Salvando…" : dirty ? "Salvar" : "✓ Salvo"}
+                </button>
+                <button className="cb-btn" onClick={() => setEditing(false)}>Fechar</button>
+              </div>
+            </div>
+
+            <Section title="Eventos" count={data.events.length} defaultOpen>
+              <div className="cb-section-tools">
+                <button className="cb-add" onClick={() => addEvent()}>+ Evento</button>
+                <p className="cb-help cb-grow">Dica: clique em um dia do calendário para criar o evento já com a data.</p>
+              </div>
+              {data.events.length > 6 ? (
+                <input
+                  className="cb-input cb-search"
+                  type="search"
+                  placeholder="Buscar evento…"
+                  value={eventQuery}
+                  onChange={(e) => setEventQuery(e.target.value)}
+                  aria-label="Buscar evento"
+                />
+              ) : null}
+              {data.events.length === 0 ? <p className="cb-help">Nenhum evento ainda.</p> : null}
+              {q && shownEvents.length === 0 ? <p className="cb-help">Nenhum evento encontrado para “{eventQuery}”.</p> : null}
+              <div className="cb-event-list">
+              {shownEvents.map((ev) => (
+                <div className="cb-event" key={ev.id} style={{ borderLeftColor: catById[ev.categoryId]?.color ?? "#ccc" }}>
+                  <input
+                    className="cb-input"
+                    value={ev.title}
+                    placeholder="Título do evento"
+                    autoFocus={ev.id === newEventId}
+                    onFocus={(e) => ev.id === newEventId && e.currentTarget.select()}
+                    onChange={(e) => updateEvent(ev.id, { title: e.target.value })}
+                  />
+                  <div className="cb-event-grid">
+                    <select className="cb-input cb-span2" value={ev.categoryId} onChange={(e) => updateEvent(ev.id, { categoryId: e.target.value })} aria-label="Categoria">
+                      {data.categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                    </select>
+                    <DateInput value={ev.start} onChange={(v) => v && updateEvent(ev.id, { start: v })} aria-label="Data de início" />
+                    <DateInput value={ev.end ?? ""} min={ev.start} placeholder="fim (opcional)" onChange={(v) => updateEvent(ev.id, { end: v || undefined })} aria-label="Data de término" />
+                  </div>
+                  <button className="cb-del" onClick={() => removeEvent(ev.id)}>Remover evento</button>
+                </div>
+              ))}
+              </div>
+            </Section>
+
+            <Section title="Categorias" count={data.categories.length} defaultOpen>
+              <div className="cb-section-tools">
+                <button className="cb-add" onClick={addCategory}>+ Categoria</button>
+                <p className="cb-help cb-grow">Escolha uma cor para cada tipo de evento.</p>
+              </div>
+              {data.categories.map((c) => (
+                <div className="cb-row" key={c.id}>
+                  <input
+                    type="color"
+                    className="cb-color"
+                    value={c.color}
+                    onChange={(e) => updateCategory(c.id, { color: e.target.value })}
+                    aria-label={`Cor de ${c.label}`}
+                  />
+                  <input
+                    className="cb-input cb-grow"
+                    value={c.label}
+                    onChange={(e) => updateCategory(c.id, { label: e.target.value })}
+                    aria-label="Nome da categoria"
+                  />
+                  <span className="cb-count" title="Eventos nesta categoria">{catCount[c.id] || 0}</span>
+                  <button className="cb-del" onClick={() => removeCategory(c.id)} aria-label={`Remover ${c.label}`}>×</button>
+                </div>
+              ))}
+            </Section>
+
+            <Section title="Períodos / Trimestres" count={data.periods.length}>
+              <div className="cb-section-tools">
+                <button className="cb-add" onClick={addPeriod}>+ Período</button>
+                <p className="cb-help cb-grow">Cada período vira uma aba acima do calendário.</p>
+              </div>
+              {data.periods.map((p) => (
+                <div className="cb-prow" key={p.id}>
+                  <input
+                    className="cb-input cb-grow"
+                    value={p.label}
+                    onChange={(e) => updatePeriod(p.id, { label: e.target.value })}
+                    aria-label="Nome do período"
+                  />
+                  <select className="cb-input cb-mini" value={p.startMonth} onChange={(e) => updatePeriod(p.id, { startMonth: Number(e.target.value) })} aria-label="Mês inicial">
+                    {MONTHS_PT.map((m, i) => <option key={i} value={i}>{m.slice(0, 3)}</option>)}
+                  </select>
+                  <span className="cb-to">→</span>
+                  <select className="cb-input cb-mini" value={p.endMonth} onChange={(e) => updatePeriod(p.id, { endMonth: Number(e.target.value) })} aria-label="Mês final">
+                    {MONTHS_PT.map((m, i) => <option key={i} value={i}>{m.slice(0, 3)}</option>)}
+                  </select>
+                  <button className="cb-del" onClick={() => removePeriod(p.id)} aria-label={`Remover ${p.label}`}>×</button>
+                </div>
+              ))}
+            </Section>
+
+            <Section title="Dias letivos" count={yearLetivos || undefined}>
+              <p className="cb-help">Quantos dias de aula há em cada mês. O mínimo legal é de 200 dias letivos no ano.</p>
+              <div className="cb-letivos">
+                {MONTHS_PT.map((name, i) => (
+                  <label key={i} className="cb-lt">
+                    <span>{name.slice(0, 3)}</span>
+                    <input
+                      className="cb-input"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={31}
+                      value={data.letivosByMonth[i] ?? ""}
+                      onChange={(e) => setLetivos(i, e.target.value)}
+                    />
+                  </label>
+                ))}
+              </div>
+              <p className={`cb-lt-total ${yearLetivos >= 200 ? "ok" : ""}`}>
+                Total no ano: <strong>{yearLetivos}</strong> de 200 dias
+              </p>
+              <button className="cb-add" onClick={suggestLetivos}>Sugerir a partir do calendário</button>
+              <p className="cb-help cb-mt">Conta de segunda a sexta, descontando feriados e eventos de recesso/férias. Ajuste à mão o que for diferente.</p>
+            </Section>
+
+            <Section title="Feriados nacionais">
+              <p className="cb-help">
+                Os feriados nacionais de {data.year} já aparecem no calendário (fonte BrasilAPI). Para deixá-los fixos e editáveis,
+                adicione como eventos na categoria “Feriado”.
+              </p>
+              <button className="cb-add" onClick={addNationalHolidays}>+ Adicionar feriados de {data.year}</button>
+            </Section>
+
+            <Section title="Identificação e rodapé">
               <Field label="Escola">
                 <input className="cb-input" value={data.school} onChange={(e) => set({ school: e.target.value })} />
               </Field>
@@ -664,92 +918,67 @@ function CalendarBuilder({
                   onChange={(e) => set({ year: Number(e.target.value) })}
                 />
               </Field>
-            </Section>
-
-            <Section title="Feriados nacionais">
-              <p className="cb-help">
-                Os feriados nacionais de {data.year} já aparecem no calendário (fonte BrasilAPI). Para deixá-los fixos e editáveis,
-                adicione como eventos na categoria “Feriado”.
-              </p>
-              <button className="cb-add" onClick={addNationalHolidays}>+ Adicionar feriados de {data.year}</button>
-            </Section>
-
-            <Section title="Categorias" action={<button className="cb-add" onClick={addCategory}>+ Categoria</button>}>
-              <p className="cb-help">Cores livres — o texto se ajusta para boa leitura automaticamente.</p>
-              {data.categories.map((c) => (
-                <div className="cb-row" key={c.id}>
-                  <input
-                    type="color"
-                    className="cb-color"
-                    value={c.color}
-                    onChange={(e) => updateCategory(c.id, { color: e.target.value })}
-                    aria-label={`Cor de ${c.label}`}
-                  />
-                  <input
-                    className="cb-input cb-grow"
-                    value={c.label}
-                    onChange={(e) => updateCategory(c.id, { label: e.target.value })}
-                  />
-                  <button className="cb-del" onClick={() => removeCategory(c.id)} aria-label="Remover">×</button>
-                </div>
-              ))}
-            </Section>
-
-            <Section title="Períodos / Trimestres" action={<button className="cb-add" onClick={addPeriod}>+ Período</button>}>
-              <p className="cb-help">Cada período vira uma opção no seletor “Visualização”.</p>
-              {data.periods.map((p) => (
-                <div className="cb-prow" key={p.id}>
-                  <input
-                    className="cb-input cb-grow"
-                    value={p.label}
-                    onChange={(e) => updatePeriod(p.id, { label: e.target.value })}
-                  />
-                  <select className="cb-input cb-mini" value={p.startMonth} onChange={(e) => updatePeriod(p.id, { startMonth: Number(e.target.value) })}>
-                    {MONTHS_PT.map((m, i) => <option key={i} value={i}>{m.slice(0, 3)}</option>)}
-                  </select>
-                  <span className="cb-to">→</span>
-                  <select className="cb-input cb-mini" value={p.endMonth} onChange={(e) => updatePeriod(p.id, { endMonth: Number(e.target.value) })}>
-                    {MONTHS_PT.map((m, i) => <option key={i} value={i}>{m.slice(0, 3)}</option>)}
-                  </select>
-                  <button className="cb-del" onClick={() => removePeriod(p.id)} aria-label="Remover">×</button>
-                </div>
-              ))}
-            </Section>
-
-            <Section title={`Eventos (${data.events.length})`} action={<button className="cb-add" onClick={addEvent}>+ Evento</button>}>
-              {[...data.events].sort((a, b) => a.start.localeCompare(b.start)).map((ev) => (
-                <div className="cb-event" key={ev.id} style={{ borderLeftColor: catById[ev.categoryId]?.color ?? "#ccc" }}>
-                  <input
-                    className="cb-input"
-                    value={ev.title}
-                    placeholder="Título do evento"
-                    onChange={(e) => updateEvent(ev.id, { title: e.target.value })}
-                  />
-                  <div className="cb-event-grid">
-                    <select className="cb-input" value={ev.categoryId} onChange={(e) => updateEvent(ev.id, { categoryId: e.target.value })}>
-                      {data.categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-                    </select>
-                    <DateInput value={ev.start} onChange={(v) => v && updateEvent(ev.id, { start: v })} />
-                    <DateInput value={ev.end ?? ""} min={ev.start} placeholder="fim (opcional)" onChange={(v) => updateEvent(ev.id, { end: v || undefined })} />
-                    <button className="cb-del" onClick={() => removeEvent(ev.id)} aria-label="Remover">× remover</button>
-                  </div>
-                </div>
-              ))}
-            </Section>
-
-            <Section title="Rodapé">
-              <Field label="Observações">
+              <Field label="Observações (aparecem no rodapé)">
                 <textarea className="cb-input cb-area" rows={3} value={data.notes} onChange={(e) => set({ notes: e.target.value })} />
               </Field>
             </Section>
           </aside>
         )}
 
-        {/* ---------------- PREVIEW (visual aprovado) ---------------- */}
+        {/* ---------------- VISUALIZAÇÃO ---------------- */}
         <main className="cb-preview">
+          {/* Período + modo de exibição */}
+          <div className="cb-toolbar">
+            <div className="cb-tabs" role="tablist" aria-label="Período" ref={tabsRef}>
+              {tabs.map((t) => (
+                <button
+                  key={t.id}
+                  role="tab"
+                  aria-selected={viewId === t.id}
+                  className="cb-tab"
+                  onClick={() => setViewId(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div className="cb-seg" role="group" aria-label="Modo de exibição">
+              <button aria-pressed={layout === "calendario"} onClick={() => setLayout("calendario")}>
+                <CalendarDays size={15} /> Calendário
+              </button>
+              <button aria-pressed={layout === "lista"} onClick={() => setLayout("lista")}>
+                <ListIcon size={15} /> Lista
+              </button>
+            </div>
+          </div>
+
+          {/* Resumo do período */}
+          <div className="cb-stats">
+            <div className="cb-stat">
+              <span>Eventos no período</span>
+              <strong>{periodEventCount}</strong>
+            </div>
+            {totalLetivos > 0 ? (
+              <div className="cb-stat">
+                <span>Dias letivos</span>
+                <strong>
+                  {totalLetivos}
+                  {viewId === "year" ? <em> de 200 (mín.)</em> : null}
+                </strong>
+              </div>
+            ) : null}
+            {next ? (
+              <div className="cb-stat cb-stat-wide">
+                <span>Próximo compromisso</span>
+                <strong className="cb-trunc">{next.title}</strong>
+                <em>{whenLabel(today, next.start, next.end)}</em>
+              </div>
+            ) : null}
+          </div>
+
           {/* Filtros por categoria */}
           <div className="cb-filters">
-            <span className="cb-hint">Filtrar:</span>
+            <span className="cb-hint">Mostrar:</span>
             {data.categories.map((c) => {
               const on = active.has(c.id);
               return (
@@ -759,14 +988,13 @@ function CalendarBuilder({
                   aria-pressed={on}
                   onClick={() => toggleCat(c.id)}
                   style={{
-                    color: on ? "#1F2A24" : "#5C6B62",
-                    borderColor: on ? rgba(c.color, 0.55) : "#E7E4DA",
-                    background: on ? rgba(c.color, 0.1) : "#fff",
-                    opacity: on ? 1 : 0.55,
+                    borderColor: on ? rgba(c.color, 0.55) : undefined,
+                    background: on ? rgba(c.color, 0.1) : undefined,
                   }}
                 >
                   <span className="cb-cdot" style={{ background: c.color }} />
                   {c.label}
+                  <span className="cb-chip-n">{catCount[c.id] || 0}</span>
                 </button>
               );
             })}
@@ -776,33 +1004,54 @@ function CalendarBuilder({
                 aria-pressed={showHolidays}
                 onClick={() => setShowHolidays((v) => !v)}
                 style={{
-                  color: showHolidays ? "#1F2A24" : "#5C6B62",
-                  borderColor: showHolidays ? rgba("#d97706", 0.55) : "#E7E4DA",
-                  background: showHolidays ? rgba("#d97706", 0.1) : "#fff",
-                  opacity: showHolidays ? 1 : 0.55,
+                  borderColor: showHolidays ? rgba(HOLIDAY_COLOR, 0.55) : undefined,
+                  background: showHolidays ? rgba(HOLIDAY_COLOR, 0.1) : undefined,
                 }}
                 title="Feriados nacionais (BrasilAPI)"
               >
-                <span className="cb-cdot" style={{ background: "#d97706" }} />
+                <span className="cb-cdot" style={{ background: HOLIDAY_COLOR }} />
                 Feriados nacionais
+              </button>
+            ) : null}
+            {data.categories.length > 1 ? (
+              <button
+                className="cb-link"
+                onClick={() => setActive(allCatsOn ? new Set() : new Set(data.categories.map((c) => c.id)))}
+              >
+                {allCatsOn ? "Desmarcar todas" : "Marcar todas"}
               </button>
             ) : null}
           </div>
 
-          <div className="cb-months">
-            {months.map((m) => (
-              <MonthCard
-                key={m}
-                year={data.year}
-                month={m}
-                events={data.events}
-                holidays={holidays}
-                catById={catById}
-                active={active}
-                letivos={data.letivosByMonth[m]}
-              />
-            ))}
-          </div>
+          {layout === "calendario" ? (
+            <div className="cb-months">
+              {months.map((m) => (
+                <MonthCard
+                  key={m}
+                  year={data.year}
+                  month={m}
+                  events={data.events}
+                  holidays={holidays}
+                  catById={catById}
+                  active={active}
+                  letivos={data.letivosByMonth[m]}
+                  today={today}
+                  onDayClick={editing && canManage ? (iso) => addEvent(iso) : undefined}
+                />
+              ))}
+            </div>
+          ) : (
+            <AgendaView
+              year={data.year}
+              months={months}
+              events={data.events}
+              holidays={holidays}
+              catById={catById}
+              active={active}
+              letivosByMonth={data.letivosByMonth}
+              today={today}
+            />
+          )}
 
           <footer className="cb-foot">
             <div className="cb-note">{data.notes}</div>
@@ -833,6 +1082,7 @@ function CalendarBuilder({
     </div>
   );
 }
+
 
 /* ------------------- Modal de participantes (quem pode editar) --------------------- */
 function EditorsModal({
@@ -882,11 +1132,11 @@ function EditorsModal({
                     checked={checked}
                     disabled={byRole}
                     onChange={() => toggle(p.user_id)}
-                    className="h-4 w-4 accent-emerald-600"
+                    className="h-4 w-4 accent-neutral-900"
                   />
                   <span className="min-w-0 flex-1 truncate font-bold text-foreground">{p.full_name || p.email || p.user_id}</span>
                   <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-black uppercase text-muted-foreground">{p.role}</span>
-                  {byRole ? <span className="shrink-0 text-[10px] font-bold text-emerald-700">edita por padrão</span> : null}
+                  {byRole ? <span className="shrink-0 text-[10px] font-bold text-muted-foreground">edita por padrão</span> : null}
                 </label>
               );
             })}
@@ -947,15 +1197,15 @@ function ImportSmartModal({
     <Modal open onClose={onClose} title="Importar calendário pronto" size="xl">
       <div className="space-y-4">
         {/* Caminho recomendado: planilha-modelo (leitura 100% confiável). */}
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-          <p className="text-sm font-bold text-emerald-900">Forma recomendada: planilha Excel</p>
-          <p className="mt-0.5 text-xs font-medium text-emerald-800">
+        <div className="rounded-xl border border-border bg-muted p-3">
+          <p className="text-sm font-bold text-foreground">Forma recomendada: planilha Excel</p>
+          <p className="mt-0.5 text-xs font-medium text-muted-foreground">
             Baixe o modelo, preencha (Data, Título, Categoria) e suba aqui. É a leitura mais confiável.
           </p>
           <button
             type="button"
             onClick={() => downloadCalendarTemplate()}
-            className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-black text-white hover:bg-emerald-700"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-black text-white hover:bg-black"
           >
             Baixar planilha-modelo
           </button>
@@ -1011,15 +1261,27 @@ function ImportSmartModal({
 }
 
 /* --------------------------- Subcomponentes ------------------------------ */
-function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+/** Seção recolhível do editor — a coordenação abre só o que está usando. */
+function Section({
+  title,
+  count,
+  defaultOpen,
+  children,
+}: {
+  title: string;
+  count?: number;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="cb-section">
-      <div className="cb-section-head">
+    <details className="cb-section" open={defaultOpen}>
+      <summary className="cb-section-head">
         <h3>{title}</h3>
-        {action}
-      </div>
-      {children}
-    </section>
+        {count !== undefined ? <span className="cb-count">{count}</span> : null}
+        <ChevronDown size={16} className="cb-chev" aria-hidden />
+      </summary>
+      <div className="cb-section-body">{children}</div>
+    </details>
   );
 }
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -1031,210 +1293,382 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const HOLIDAY_COLOR = "#d97706";
+const HOLIDAY_COLOR = "#525252";
+
+/** Um compromisso (evento ou feriado) dentro de um mês, pronto para listar. */
+type Entry = {
+  key: string;
+  days: number[];
+  title: string;
+  label: string;
+  color: string;
+  categoryId?: string;
+  holiday?: boolean;
+  endISO: string;
+  weekday: string | null; // só para compromissos de 1 dia
+};
+
+/** Compromissos do mês em ordem de data (feriados e eventos juntos). */
+function monthEntries(
+  year: number,
+  month: number,
+  events: CalEvent[],
+  holidays: CalendarHoliday[],
+  catById: Record<string, Category>
+): Entry[] {
+  const wd = (day: number) => WEEKDAY[new Date(year, month, day).getDay()];
+  const out: Entry[] = [];
+  holidays.forEach((h) => {
+    if (+h.date.slice(0, 4) !== year || +h.date.slice(5, 7) - 1 !== month) return;
+    const day = +h.date.slice(8, 10);
+    out.push({ key: `h-${h.id}`, days: [day], title: h.title, label: "Feriado nacional", color: HOLIDAY_COLOR, holiday: true, endISO: h.date, weekday: wd(day) });
+  });
+  events.forEach((ev) => {
+    const days = daysInMonthFor(ev, year, month);
+    const cat = catById[ev.categoryId];
+    if (!days.length || !cat) return;
+    out.push({
+      key: ev.id,
+      days,
+      title: ev.title,
+      label: cat.label,
+      color: cat.color,
+      categoryId: ev.categoryId,
+      endISO: ev.end ?? ev.start,
+      weekday: days.length === 1 ? wd(days[0]) : null,
+    });
+  });
+  return out.sort((a, b) => a.days[0] - b.days[0] || Number(!!b.holiday) - Number(!!a.holiday));
+}
+
+function EntryRow({ e, on, past }: { e: Entry; on: boolean; past: boolean }) {
+  return (
+    <div className={`cb-ev ${on ? "" : "dim"} ${past ? "past" : ""}`}>
+      <span className="cb-date" style={{ background: e.color, color: readableText(e.color) }}>
+        {chipLabel(e.days)}
+        {e.weekday ? <small>{e.weekday}</small> : null}
+      </span>
+      <span className="cb-txt">
+        {e.title}
+        <small>
+          <i style={{ background: e.color }} />
+          {e.label}
+        </small>
+      </span>
+    </div>
+  );
+}
+
 function MonthCard({
-  year, month, events, holidays, catById, active, letivos,
+  year, month, events, holidays, catById, active, letivos, today, onDayClick,
 }: {
   year: number; month: number; events: CalEvent[]; holidays: CalendarHoliday[];
-  catById: Record<string, Category>; active: Set<string>; letivos?: number;
+  catById: Record<string, Category>; active: Set<string>; letivos?: number; today: string;
+  onDayClick?: (iso: string) => void;
 }) {
   const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // 0 = segunda
   const nDays = new Date(year, month + 1, 0).getDate();
-  const today = new Date();
+  const isCurrentMonth = today.startsWith(`${year}-${pad2(month + 1)}`);
 
-  // feriados nacionais deste mês: dia -> título
-  const monthHolidays = holidays
-    .filter((h) => +h.date.slice(0, 4) === year && +h.date.slice(5, 7) - 1 === month)
-    .map((h) => ({ day: +h.date.slice(8, 10), title: h.title }))
-    .sort((a, b) => a.day - b.day);
-  const holidayDays = new Set(monthHolidays.map((h) => h.day));
-
-  // dia -> categorias presentes
-  const dayCats: Record<number, string[]> = {};
-  const monthEvents = events
-    .map((ev) => ({ ev, days: daysInMonthFor(ev, year, month) }))
-    .filter((x) => x.days.length > 0);
-  monthEvents.forEach(({ ev, days }) => {
-    days.forEach((day) => {
-      (dayCats[day] = dayCats[day] || []).push(ev.categoryId);
-    });
-  });
+  const entries = monthEntries(year, month, events, holidays, catById);
+  const byDay: Record<number, Entry[]> = {};
+  entries.forEach((e) => e.days.forEach((day) => (byDay[day] = byDay[day] || []).push(e)));
 
   const cells: React.ReactNode[] = [];
   for (let i = 0; i < firstDow; i++) cells.push(<div key={`e${i}`} className="cb-cell empty" />);
   for (let day = 1; day <= nDays; day++) {
-    const cats = Array.from(new Set(dayCats[day] || []));
-    const visible = cats.filter((c) => active.has(c));
-    const has = cats.length > 0;
-    const isHoliday = holidayDays.has(day);
-    const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
-    const primary = visible[0] ? catById[visible[0]]?.color : isHoliday ? HOLIDAY_COLOR : undefined;
-    cells.push(
-      <div
-        key={day}
-        className={`cb-cell ${has || isHoliday ? "has" : ""} ${isToday ? "today" : ""} ${has && visible.length === 0 && !isHoliday ? "dim" : ""}`}
-        style={primary ? { background: rgba(primary, 0.16), fontWeight: 700 } : undefined}
-      >
+    const iso = isoOf(year, month, day);
+    const list = byDay[day] || [];
+    const visible = list.filter((e) => e.holiday || (e.categoryId && active.has(e.categoryId)));
+    const isHoliday = list.some((e) => e.holiday);
+    const isToday = iso === today;
+    const weekend = (firstDow + day - 1) % 7 >= 5;
+    const primary = (visible.find((e) => !e.holiday) ?? visible[0])?.color;
+    const className = [
+      "cb-cell",
+      visible.length ? "has" : "",
+      isHoliday ? "holiday" : "",
+      weekend ? "weekend" : "",
+      isToday ? "today" : "",
+      list.length > 0 && visible.length === 0 ? "dim" : "",
+      onDayClick ? "clickable" : "",
+    ].join(" ");
+    const style = primary ? { background: rgba(primary, 0.16) } : undefined;
+    const tip = list.length ? list.map((e) => e.title).join(" · ") : undefined;
+    const content = (
+      <>
         {day}
-        {(visible.length > 0 || isHoliday) && (
+        {visible.length > 0 && (
           <span className="cb-dots">
-            {visible.slice(0, 3).map((c, i) => (
-              <i key={i} style={{ background: catById[c]?.color }} />
+            {visible.slice(0, 3).map((e, i) => (
+              <i key={i} style={{ background: e.color }} />
             ))}
-            {isHoliday ? <i style={{ background: HOLIDAY_COLOR }} /> : null}
           </span>
         )}
-      </div>
+      </>
+    );
+    cells.push(
+      onDayClick ? (
+        <button key={day} type="button" className={className} style={style} title={tip ?? "Adicionar evento neste dia"} onClick={() => onDayClick(iso)}>
+          {content}
+        </button>
+      ) : (
+        <div key={day} className={className} style={style} title={tip}>
+          {content}
+        </div>
+      )
     );
   }
 
-  const listed = monthEvents
-    .map(({ ev, days }) => ({ ev, days, min: days[0] }))
-    .sort((a, b) => a.min - b.min);
-
   return (
-    <section className="cb-month">
+    <section className={`cb-month ${isCurrentMonth ? "current" : ""}`}>
       <div className="cb-month-head">
         <h2>{MONTHS_PT[month]}</h2>
-        {letivos ? <span className="cb-badge">{letivos} dias letivos</span> : null}
+        <span className="cb-month-tags">
+          {isCurrentMonth ? <span className="cb-badge now">Mês atual</span> : null}
+          {letivos ? <span className="cb-badge">{letivos} dias letivos</span> : null}
+        </span>
       </div>
       <div className="cb-cal">
         <div className="cb-dow">
-          {DOW.map(([s, full], i) => <span key={i} title={full}>{s}</span>)}
+          {DOW.map((s, i) => <span key={i} className={i >= 5 ? "weekend" : ""}>{s}</span>)}
         </div>
         <div className="cb-grid">{cells}</div>
       </div>
       <div className="cb-events">
-        {listed.length === 0 && monthHolidays.length === 0 && <p className="cb-empty">Sem eventos neste mês.</p>}
-        {monthHolidays.map((h) => (
-          <div className="cb-ev" key={`h-${h.day}`}>
-            <span className="cb-date" style={{ background: HOLIDAY_COLOR, color: "#fff" }}>{pad2(h.day)}</span>
-            <span className="cb-txt">
-              {h.title}
-              <small style={{ color: HOLIDAY_COLOR }}>Feriado nacional</small>
-            </span>
-          </div>
+        {entries.length === 0 && <p className="cb-empty">Sem eventos neste mês.</p>}
+        {entries.map((e) => (
+          <EntryRow key={e.key} e={e} on={!!e.holiday || (!!e.categoryId && active.has(e.categoryId))} past={e.endISO < today} />
         ))}
-        {listed.map(({ ev, days }) => {
-          const cat = catById[ev.categoryId];
-          const on = active.has(ev.categoryId);
-          if (!cat) return null;
-          return (
-            <div className={`cb-ev ${on ? "" : "dim"}`} key={ev.id}>
-              <span className="cb-date" style={{ background: cat.color, color: readableText(cat.color) }}>
-                {chipLabel(days)}
-              </span>
-              <span className="cb-txt">
-                {ev.title}
-                <small style={{ color: cat.color }}>{cat.label}</small>
-              </span>
-            </div>
-          );
-        })}
       </div>
     </section>
   );
 }
 
+/** Visão em lista: todos os compromissos do período em ordem de data, um mês após o outro. */
+function AgendaView({
+  year, months, events, holidays, catById, active, letivosByMonth, today,
+}: {
+  year: number; months: number[]; events: CalEvent[]; holidays: CalendarHoliday[];
+  catById: Record<string, Category>; active: Set<string>; letivosByMonth: Record<number, number>; today: string;
+}) {
+  const groups = months
+    .map((m) => ({
+      m,
+      entries: monthEntries(year, m, events, holidays, catById).filter((e) => e.holiday || (e.categoryId && active.has(e.categoryId))),
+    }))
+    .filter((g) => g.entries.length > 0);
+
+  if (groups.length === 0) {
+    return <p className="cb-agenda-empty">Nenhum compromisso neste período com os filtros atuais.</p>;
+  }
+  return (
+    <div className="cb-agenda">
+      {groups.map((g) => (
+        <section className="cb-agenda-month" key={g.m}>
+          <div className="cb-agenda-head">
+            <h2>{MONTHS_PT[g.m]}</h2>
+            <span className="cb-agenda-meta">
+              {g.entries.length} compromisso(s)
+              {letivosByMonth[g.m] ? ` · ${letivosByMonth[g.m]} dias letivos` : ""}
+            </span>
+          </div>
+          <div className="cb-agenda-list">
+            {g.entries.map((e) => (
+              <EntryRow key={e.key} e={e} on past={e.endISO < today} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 /* ------------------------------- Estilo ---------------------------------- */
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-
-.cb-app{--paper:#FBFAF6;--surface:#fff;--ink:#1F2A24;--ink-soft:#5C6B62;--line:#E7E4DA;--line-soft:#F0EEE6;--green:#1B6B4C;--green-2:#2E9E6B;
-  font-family:"Plus Jakarta Sans",system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--paper);min-height:100%;line-height:1.5;-webkit-font-smoothing:antialiased;border-radius:18px;overflow:hidden;border:1px solid var(--line)}
+.cb-app{--paper:#FAFAFA;--surface:#fff;--ink:#171717;--ink-soft:#525252;--line:#E5E5E5;--line-soft:#F0F0F0;--accent:#171717;
+  font-family:inherit;color:var(--ink);background:var(--paper);min-height:100%;line-height:1.5;border-radius:16px;overflow:clip;border:1px solid var(--line)}
 .cb-app *{box-sizing:border-box}
+.cb-app button{font-family:inherit}
 
-.cb-top{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;padding:18px clamp(16px,3vw,32px);border-bottom:1px solid var(--line);background:var(--surface)}
-.cb-brand{display:flex;align-items:center;gap:13px}
-.cb-mark{width:44px;height:44px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-family:"Fraunces",serif;font-size:19px;background:radial-gradient(circle at 30% 30%,var(--green-2),var(--green))}
-.cb-eyebrow{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);font-weight:600}
-.cb-h1{margin:1px 0 0;font-family:"Fraunces",serif;font-weight:600;font-size:clamp(22px,3.2vw,30px);letter-spacing:-.01em;line-height:1.05}
-.cb-stamp{margin-top:4px;font-size:11.5px;font-weight:600;color:var(--ink-soft)}
+/* Cabeçalho */
+.cb-top{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center;justify-content:space-between;padding:16px clamp(14px,3vw,28px);border-bottom:1px solid var(--line);background:var(--surface)}
+.cb-brand{display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 280px}
+.cb-titles{min-width:0}
+.cb-eyebrow{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cb-h1{margin:1px 0 0;font-weight:800;font-size:clamp(20px,3vw,28px);letter-spacing:-.02em;line-height:1.15;overflow-wrap:anywhere}
+.cb-stamp{margin-top:3px;font-size:12px;font-weight:500;color:var(--ink-soft)}
+.cb-stamp:empty{display:none}
+.cb-unsaved{color:var(--ink);font-weight:700}
 .cb-top-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.cb-btn,.cb-select{font:inherit;font-weight:600;font-size:13.5px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 14px;border-radius:999px;transition:.15s}
-.cb-btn:hover,.cb-select:hover{border-color:var(--green-2);color:var(--green)}
-.cb-btn:disabled{opacity:.5;cursor:default;border-color:var(--line);color:var(--ink-soft)}
-.cb-btn-primary{background:var(--green);border-color:var(--green);color:#fff}
-.cb-btn-primary:hover{background:var(--green-2);border-color:var(--green-2);color:#fff}
-.cb-btn-primary:disabled{background:var(--surface);color:var(--ink-soft)}
-.cb-btn-danger{color:#E0544A;border-color:${rgba("#E0544A", 0.4)}}
-.cb-btn-danger:hover{background:${rgba("#E0544A", 0.1)};border-color:#E0544A;color:#E0544A}
-.cb-back{font:inherit;font-size:18px;line-height:1;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);width:38px;height:38px;border-radius:50%;flex:none;display:grid;place-items:center;transition:.15s}
-.cb-back:hover{border-color:var(--green-2);color:var(--green)}
+.cb-btn{font:inherit;font-weight:600;font-size:14px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);min-height:40px;padding:0 14px;border-radius:10px;transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
+.cb-btn:hover{background:#F5F5F5;border-color:#D4D4D4}
+.cb-btn.is-on{background:#F0F0F0;border-color:#A3A3A3}
+.cb-btn:disabled{opacity:.55;cursor:default}
+.cb-btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.cb-btn-primary:hover{background:#000;border-color:#000}
+.cb-btn-primary:disabled{background:var(--surface);color:var(--ink-soft);border-color:var(--line)}
+.cb-back{cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);width:40px;height:40px;border-radius:10px;flex:none;display:grid;place-items:center;transition:.15s}
+.cb-back:hover{background:#F5F5F5}
+.cb-app :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 
-.cb-layout{display:grid;grid-template-columns:1fr;gap:0}
-.cb-layout.with-editor{grid-template-columns:minmax(320px,380px) 1fr}
-@media (max-width:900px){.cb-layout.with-editor{grid-template-columns:1fr}}
+/* Estrutura: editor + visualização */
+.cb-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+.cb-layout.with-editor{grid-template-columns:minmax(330px,380px) minmax(0,1fr)}
 
 /* Editor */
-.cb-editor{background:var(--surface);border-right:1px solid var(--line);padding:20px clamp(14px,2vw,22px);max-height:none}
+.cb-editor{background:var(--surface);border-right:1px solid var(--line);padding:0 clamp(12px,2vw,20px) 24px}
+.cb-editor-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 0;margin-bottom:4px;background:var(--surface);border-bottom:1px solid var(--line)}
+.cb-editor-head strong{font-size:15px;font-weight:800}
+.cb-editor-head-actions{display:flex;gap:6px}
+.cb-editor-head .cb-btn{min-height:36px;padding:0 12px;font-size:13px}
 @media (min-width:901px){.cb-editor{position:sticky;top:0;align-self:start;max-height:100vh;overflow:auto}}
-.cb-section{padding:14px 0;border-bottom:1px solid var(--line-soft)}
-.cb-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.cb-section-head h3{margin:0;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink)}
-.cb-help{margin:0 0 10px;font-size:12px;color:var(--ink-soft)}
+/* Celular/tablet: o editor ocupa a tela toda (não empurra o calendário para baixo) */
+@media (max-width:900px){
+  .cb-layout.with-editor{grid-template-columns:minmax(0,1fr)}
+  .cb-editor{position:fixed;inset:0;z-index:55;overflow-y:auto;border-right:none;padding-bottom:calc(32px + env(safe-area-inset-bottom));overscroll-behavior:contain}
+}
+
+.cb-section{border-bottom:1px solid var(--line-soft)}
+.cb-section-head{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:14px 0;min-height:48px}
+.cb-section-head::-webkit-details-marker{display:none}
+.cb-section-head h3{margin:0;flex:1;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink)}
+.cb-chev{color:var(--ink-soft);transition:transform .15s}
+.cb-section[open] .cb-chev{transform:rotate(180deg)}
+.cb-section-body{padding:0 0 16px}
+.cb-section-tools{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.cb-section-tools .cb-help{margin:0}
+.cb-count{font-size:11px;font-weight:700;color:var(--ink-soft);background:#F0F0F0;border-radius:999px;padding:1px 8px;min-width:24px;text-align:center}
+.cb-help{margin:0 0 10px;font-size:12.5px;color:var(--ink-soft)}
+.cb-mt{margin-top:10px;margin-bottom:0}
 .cb-field{display:block;margin-bottom:10px}
 .cb-field>span{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:4px}
-.cb-input{width:100%;font:inherit;font-size:13.5px;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px 10px;outline:none;transition:.15s}
-.cb-input:focus{border-color:var(--green-2);box-shadow:0 0 0 3px ${rgba("#2E9E6B", 0.12)}}
+.cb-input{width:100%;font:inherit;font-size:14px;color:var(--ink);background:#fff;border:1px solid #D4D4D4;border-radius:10px;min-height:40px;padding:8px 10px;outline:none;transition:.15s}
+.cb-input:focus{border-color:var(--ink);box-shadow:0 0 0 3px rgba(23,23,23,.12)}
 .cb-area{resize:vertical;line-height:1.4}
+.cb-search{margin-bottom:10px}
 .cb-grow{flex:1;min-width:0}
-.cb-mini{width:78px;padding:8px 6px}
+.cb-mini{width:74px;padding:8px 6px;flex:none}
 .cb-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
 .cb-prow{display:flex;gap:6px;align-items:center;margin-bottom:8px}
 .cb-to{color:var(--ink-soft);font-size:13px}
-.cb-color{width:34px;height:34px;flex:none;border:1px solid var(--line);border-radius:9px;background:#fff;padding:2px;cursor:pointer}
-.cb-add{font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;border:1px dashed var(--green-2);color:var(--green);background:${rgba("#2E9E6B", 0.06)};padding:5px 11px;border-radius:999px}
-.cb-add:hover{background:${rgba("#2E9E6B", 0.12)}}
-.cb-del{font:inherit;font-size:13px;font-weight:700;cursor:pointer;border:none;background:none;color:#E0544A;padding:4px 6px;border-radius:8px;white-space:nowrap}
-.cb-del:hover{background:${rgba("#E0544A", 0.1)}}
-.cb-event{border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:10px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px;background:#fff}
-.cb-event-grid{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:6px;align-items:center}
-@media (max-width:520px){.cb-event-grid{grid-template-columns:1fr 1fr}}
+.cb-color{width:40px;height:40px;flex:none;border:1px solid #D4D4D4;border-radius:10px;background:#fff;padding:3px;cursor:pointer}
+.cb-add{font:inherit;font-size:13px;font-weight:600;cursor:pointer;border:1px dashed #A3A3A3;color:var(--ink);background:#F5F5F5;min-height:36px;padding:0 14px;border-radius:999px;white-space:nowrap;flex:none}
+.cb-add:hover{background:#EBEBEB;border-color:var(--ink)}
+.cb-del{font:inherit;font-size:13px;font-weight:600;cursor:pointer;border:none;background:none;color:#B91C1C;min-height:34px;padding:4px 8px;border-radius:8px;white-space:nowrap}
+.cb-del:hover{background:#FEF2F2}
+.cb-event-list{max-height:min(62vh,560px);overflow-y:auto;margin:0 -4px;padding:0 4px}
+.cb-event{border:1px solid var(--line);border-left-width:4px;border-radius:12px;padding:10px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px;background:#fff}
+.cb-event-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+.cb-span2{grid-column:1 / -1}
+.cb-event .cb-del{align-self:flex-end;margin:-2px -2px 0 0}
+.cb-letivos{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px;margin-bottom:10px}
+.cb-lt span{display:block;font-size:11.5px;font-weight:600;color:var(--ink-soft);margin-bottom:2px}
+.cb-lt .cb-input{padding:6px 8px;text-align:center}
+.cb-lt-total{margin:0 0 10px;font-size:13px;color:var(--ink-soft)}
+.cb-lt-total strong{color:var(--ink)}
+.cb-lt-total.ok strong::after{content:" ✓"}
 
-/* Preview */
-.cb-preview{padding:clamp(18px,3vw,32px) clamp(16px,3vw,36px) 60px;min-width:0}
-.cb-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:22px}
-.cb-hint{font-size:13px;color:var(--ink-soft);margin-right:2px}
-.cb-chip{font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:6px 13px 6px 11px;border-radius:999px;border:1px solid var(--line);display:inline-flex;align-items:center;gap:7px;transition:.15s}
-.cb-chip:hover{transform:translateY(-1px)}
+/* Visualização */
+.cb-preview{padding:clamp(14px,2.4vw,28px) clamp(12px,3vw,32px) 48px;min-width:0}
+.cb-toolbar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.cb-tabs{position:relative;display:flex;gap:4px;padding:4px;background:#EFEFEF;border-radius:12px;overflow-x:auto;max-width:100%;scrollbar-width:none}
+.cb-tabs::-webkit-scrollbar{display:none}
+.cb-tab{font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--ink-soft);min-height:36px;padding:0 14px;border-radius:9px;white-space:nowrap;transition:.15s;flex:none}
+.cb-tab:hover{color:var(--ink)}
+.cb-tab[aria-selected="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.cb-seg{display:inline-flex;padding:4px;gap:4px;background:#EFEFEF;border-radius:12px}
+.cb-seg button{font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--ink-soft);min-height:36px;padding:0 12px;border-radius:9px;display:inline-flex;align-items:center;gap:6px;transition:.15s}
+.cb-seg button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+
+.cb-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.cb-stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px;min-width:0;display:flex;flex-direction:column;gap:1px}
+.cb-stat span{font-size:11.5px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em}
+.cb-stat strong{font-size:20px;font-weight:800;line-height:1.25}
+.cb-stat strong em,.cb-stat>em{font-size:12.5px;font-weight:500;font-style:normal;color:var(--ink-soft)}
+.cb-stat-wide{grid-column:span 2}
+.cb-stat-wide strong{font-size:16px}
+.cb-trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:520px){.cb-stat-wide{grid-column:1 / -1}.cb-stats{grid-template-columns:1fr 1fr}}
+
+.cb-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px}
+.cb-hint{font-size:13px;font-weight:600;color:var(--ink-soft);margin-right:2px}
+.cb-chip{font:inherit;font-size:13px;font-weight:600;cursor:pointer;min-height:34px;padding:0 12px 0 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+.cb-chip[aria-pressed="false"]{opacity:.5;color:var(--ink-soft)}
+.cb-chip:hover{border-color:#A3A3A3}
+.cb-chip-n{font-size:11px;font-weight:700;color:var(--ink-soft);background:#F0F0F0;border-radius:999px;padding:0 7px}
 .cb-cdot{width:11px;height:11px;border-radius:50%;flex:none}
+.cb-link{font:inherit;font-size:13px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--ink-soft);text-decoration:underline;min-height:34px;padding:0 6px}
+.cb-link:hover{color:var(--ink)}
 
-.cb-months{display:grid;gap:clamp(16px,2.2vw,24px);grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
-.cb-month{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 1px 2px rgba(31,42,36,.04),0 8px 24px rgba(31,42,36,.06);overflow:hidden;display:flex;flex-direction:column}
-.cb-month-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:16px 18px 12px;border-bottom:1px solid var(--line-soft)}
-.cb-month-head h2{margin:0;font-family:"Fraunces",serif;font-weight:600;font-size:22px;letter-spacing:-.01em}
-.cb-badge{font-size:11.5px;font-weight:600;color:var(--green);background:${rgba("#2E9E6B", 0.12)};border:1px solid ${rgba("#2E9E6B", 0.22)};padding:3px 10px;border-radius:999px;white-space:nowrap}
-.cb-cal{padding:12px 12px 2px}
-.cb-dow{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:4px}
+.cb-months{display:grid;gap:clamp(12px,2vw,20px);grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.cb-month{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04);overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.cb-month.current{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.cb-month-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 10px;padding:14px 16px 10px;border-bottom:1px solid var(--line-soft)}
+.cb-month-head h2{margin:0;font-weight:800;font-size:19px;letter-spacing:-.01em}
+.cb-month-tags{display:flex;flex-wrap:wrap;gap:6px}
+.cb-badge{font-size:11.5px;font-weight:600;color:var(--ink);background:#F0F0F0;border:1px solid var(--line);padding:2px 9px;border-radius:999px;white-space:nowrap}
+.cb-badge.now{background:var(--ink);border-color:var(--ink);color:#fff}
+.cb-cal{padding:10px 10px 2px}
+.cb-dow{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));margin-bottom:4px}
 .cb-dow span{text-align:center;font-size:11px;font-weight:700;color:var(--ink-soft);padding:3px 0}
-.cb-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
-.cb-cell{aspect-ratio:1/1;border-radius:9px;display:flex;align-items:center;justify-content:center;position:relative;font-size:13px;font-weight:500;color:var(--ink)}
+.cb-dow span.weekend{opacity:.6}
+.cb-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.cb-cell{aspect-ratio:1/1;border-radius:9px;display:flex;align-items:center;justify-content:center;position:relative;font-size:13px;font-weight:500;color:var(--ink);border:none;background:transparent;padding:0}
 .cb-cell.empty{visibility:hidden}
-.cb-cell.dim{opacity:.25}
-.cb-cell.today{outline:2px solid var(--green);outline-offset:1px}
-.cb-cell.today::after{content:"hoje";position:absolute;top:-7px;font-size:8px;font-weight:700;color:var(--green);background:var(--surface);padding:0 3px}
-.cb-dots{display:flex;gap:2px;position:absolute;bottom:5px}
+.cb-cell.weekend{color:#8A8A8A;background:#F7F7F7}
+.cb-cell.has{font-weight:700;color:var(--ink)}
+.cb-cell.holiday{font-weight:800;color:var(--ink)}
+.cb-cell.dim{opacity:.3}
+.cb-cell.today{outline:2px solid var(--ink);outline-offset:1px;font-weight:800}
+.cb-cell.clickable{cursor:pointer}
+.cb-cell.clickable:hover{background:#E8E8E8}
+.cb-dots{display:flex;gap:2px;position:absolute;bottom:4px}
 .cb-dots i{width:5px;height:5px;border-radius:50%}
-.cb-events{padding:6px 16px 18px;display:flex;flex-direction:column;gap:2px;flex:1}
+.cb-events{padding:6px 12px 14px;display:flex;flex-direction:column;gap:2px;flex:1}
 .cb-empty{font-size:12.5px;color:var(--ink-soft);padding:6px 4px;margin:0}
-.cb-ev{display:flex;gap:11px;padding:8px 6px;border-radius:10px;align-items:flex-start;transition:.12s}
+.cb-ev{display:flex;gap:11px;padding:7px 6px;border-radius:10px;align-items:flex-start;transition:.12s}
 .cb-ev:hover{background:var(--line-soft)}
-.cb-ev.dim{opacity:.2;filter:grayscale(.3)}
-.cb-date{flex:none;min-width:42px;text-align:center;font-weight:700;font-size:12.5px;border-radius:8px;padding:5px 6px;line-height:1.15}
-.cb-txt{font-size:13.5px;color:var(--ink);padding-top:2px}
-.cb-txt small{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;opacity:.9}
-.cb-foot{margin-top:28px;padding-top:16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--ink-soft)}
+.cb-ev.dim{opacity:.25}
+.cb-ev.past:not(.dim){opacity:.6}
+.cb-date{flex:none;min-width:46px;text-align:center;font-weight:800;font-size:13px;border-radius:9px;padding:4px 6px;line-height:1.15}
+.cb-date small{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;opacity:.85}
+.cb-txt{font-size:14px;color:var(--ink);padding-top:1px;min-width:0;overflow-wrap:anywhere}
+.cb-txt small{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--ink-soft);margin-top:2px}
+.cb-txt small i{width:8px;height:8px;border-radius:50%;flex:none}
+
+/* Visão em lista */
+.cb-agenda{display:flex;flex-direction:column;gap:16px;max-width:820px}
+.cb-agenda-month{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.cb-agenda-head{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;padding:14px 16px 10px;border-bottom:1px solid var(--line-soft)}
+.cb-agenda-head h2{margin:0;font-weight:800;font-size:19px}
+.cb-agenda-meta{font-size:12.5px;font-weight:500;color:var(--ink-soft)}
+.cb-agenda-list{padding:8px 12px 12px;display:flex;flex-direction:column;gap:2px}
+.cb-agenda-empty{padding:32px 16px;text-align:center;font-size:14px;font-weight:600;color:var(--ink-soft);background:var(--surface);border:1px dashed var(--line);border-radius:16px}
+
+.cb-foot{margin-top:24px;padding-top:14px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;font-size:13px;color:var(--ink-soft)}
 .cb-note{max-width:680px;white-space:pre-wrap}
 .cb-foot strong{color:var(--ink)}
 
+/* Telas pequenas: botões do cabeçalho ocupam a linha toda, fáceis de tocar */
+@media (max-width:640px){
+  .cb-top{padding:12px}
+  .cb-top-actions{width:100%}
+  .cb-top-actions>.cb-btn{flex:1}
+  .cb-top-actions>div{flex:none}
+  .cb-toolbar{flex-direction:column;align-items:stretch}
+  .cb-seg{display:grid;grid-template-columns:1fr 1fr}
+  .cb-seg button{justify-content:center}
+  .cb-hint{width:100%}
+  .cb-editor-head-actions .cb-btn{padding:0 10px}
+}
+
 @media print{
   @page{size:A4 portrait;margin:6mm}
-  .cb-top-actions,.cb-editor,.cb-filters,.cb-back,.cb-stamp{display:none!important}
+  .cb-top-actions,.cb-editor,.cb-filters,.cb-back,.cb-stamp,.cb-toolbar,.cb-stats{display:none!important}
   .cb-app{background:#fff;border:none;border-radius:0;font-size:10px}
   .cb-app *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .cb-top{padding:0 0 6px;border:none}
-  .cb-mark{width:30px;height:30px;font-size:14px}
   .cb-h1{font-size:18px}
   .cb-eyebrow{font-size:9px}
   .cb-layout.with-editor{grid-template-columns:1fr}
@@ -1242,6 +1676,8 @@ const CSS = `
   /* 3 meses por linha, bem compacto, p/ caber tudo em poucas folhas */
   .cb-months{grid-template-columns:repeat(3,1fr);gap:6px}
   .cb-month{box-shadow:none;border-color:#ddd;border-radius:8px;break-inside:avoid}
+  .cb-month.current{border-color:#ddd;box-shadow:none}
+  .cb-badge.now{display:none}
   .cb-month-head{padding:6px 8px 4px}
   .cb-month-head h2{font-size:14px}
   .cb-badge{font-size:9px;padding:1px 6px}
@@ -1250,17 +1686,21 @@ const CSS = `
   .cb-grid{gap:1px}
   .cb-cell{font-size:9px;border-radius:3px;font-weight:600}
   .cb-cell.today{outline:none}
-  .cb-cell.today::after{display:none}
   .cb-dots{bottom:1px;gap:1px}
   .cb-dots i{width:3px;height:3px}
   .cb-events{padding:3px 8px 8px;gap:0}
   .cb-empty{font-size:8px;padding:2px}
   .cb-ev{padding:2px;gap:5px}
   .cb-ev.dim{display:none}             /* não imprime eventos de categorias ocultas */
+  .cb-ev.past:not(.dim){opacity:1}
   .cb-date{min-width:26px;font-size:8px;padding:2px 3px;border-radius:4px;line-height:1.1}
+  .cb-date small{display:none}
   .cb-txt{font-size:8.5px;padding-top:0;line-height:1.2}
   .cb-txt small{font-size:7px;margin-top:0}
+  .cb-txt small i{display:none}
   .cb-foot{margin-top:8px;padding-top:6px;font-size:8px}
+  .cb-agenda{max-width:none}
+  .cb-agenda-month{break-inside:avoid;border-radius:6px}
 }
 @media (prefers-reduced-motion:reduce){.cb-app *{transition:none!important}}
 `;

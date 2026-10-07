@@ -208,7 +208,7 @@ export function ImportAttendanceModal({ open, onClose, classes, defaultClassId }
               </div>
 
               {/\.(jpe?g|png|webp|bmp|gif|tiff?|heic|heif|avif)$/i.test(fileName) || (/\.pdf$/i.test(fileName) && parsed.values.some((v) => v.value.length > 3)) ? (
-                <p className="flex gap-2 rounded-lg bg-brand/15 px-3 py-2 text-xs text-neutral-900 ring-1 ring-inset ring-neutral-900/15">
+                <p className="flex gap-2 rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-900 ring-1 ring-inset ring-neutral-900/20">
                   <AlertTriangle size={14} className="mt-0.5 shrink-0" /> Lido por reconhecimento de texto: confira os alunos e as marcações abaixo. Marcas feitas à mão podem vir trocadas.
                 </p>
               ) : null}

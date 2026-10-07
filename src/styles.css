@@ -8,18 +8,18 @@
 :root {
   /* SCOLA — branco e preto (o amarelo fica só no logo) */
   --background: 0 0% 100%;
-  --foreground: 0 0% 9%;
+  --foreground: 0 0% 4%;
   --card: 0 0% 100%;
-  --card-foreground: 0 0% 9%;
-  --muted: 0 0% 96%;
-  --muted-foreground: 0 0% 38%;
-  --border: 0 0% 89%;
-  --input: 0 0% 87%;
-  --ring: 0 0% 9%;
-  --primary: 0 0% 9%;
+  --card-foreground: 0 0% 4%;
+  --muted: 0 0% 95%;
+  --muted-foreground: 0 0% 29%;
+  --border: 0 0% 83%;
+  --input: 0 0% 76%;
+  --ring: 0 0% 4%;
+  --primary: 0 0% 4%;
   --primary-foreground: 0 0% 100%;
-  --brand: 0 0% 86%; /* destaque: cinza claro (menu ativo, selos, texto sobre fundo preto) */
-  --brand-foreground: 0 0% 9%;
+  --brand: 0 0% 100%; /* branco puro: menu ativo, selos e textos sobre fundo preto (sobre fundo branco, use preto) */
+  --brand-foreground: 0 0% 4%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
 

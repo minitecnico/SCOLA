@@ -42,7 +42,7 @@ export function ChangePasswordGate() {
 
   return (
     <GateFrame>
-      <div className="mb-5 grid h-11 w-11 place-items-center rounded-lg bg-brand text-neutral-950">
+      <div className="mb-5 grid h-11 w-11 place-items-center rounded-lg bg-neutral-950 text-white">
         <KeyRound size={20} />
       </div>
       <h1 className="text-xl font-bold">Crie sua senha</h1>

@@ -132,7 +132,7 @@ export function AdminPage() {
                   <span
                     className={cn(
                       'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
-                      !b.active ? 'bg-neutral-200 text-neutral-600' : b.plan === 'teste' ? 'bg-brand/25 text-neutral-900' : 'bg-neutral-900 text-brand',
+                      !b.active ? 'bg-neutral-200 text-neutral-600' : b.plan === 'teste' ? 'bg-neutral-200 text-neutral-900' : 'bg-neutral-900 text-brand',
                     )}
                   >
                     {!b.active ? 'Suspensa' : b.plan === 'teste' ? 'Teste' : 'Ativa'}

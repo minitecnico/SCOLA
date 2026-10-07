@@ -74,7 +74,7 @@ export function AnoLetivoPage() {
                   {ended ? (
                     <span className="shrink-0 whitespace-nowrap rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-bold text-neutral-800">Ano terminou</span>
                   ) : late ? (
-                    <span className="shrink-0 whitespace-nowrap rounded-full bg-brand/25 px-2.5 py-1 text-[11px] font-bold text-neutral-900">Fim de ano</span>
+                    <span className="shrink-0 whitespace-nowrap rounded-full bg-neutral-200 px-2.5 py-1 text-[11px] font-bold text-neutral-900">Fim de ano</span>
                   ) : (
                     <span className="shrink-0 whitespace-nowrap rounded-full bg-muted px-2.5 py-1 text-[11px] font-bold text-muted-foreground">Em curso</span>
                   )}
@@ -482,7 +482,7 @@ export function YearEndBanner() {
   if (!past.length && !endingNow) return null;
   const target = past.length ? Math.min(...past.map((c) => c.effective_year)) : y;
   return (
-    <Link to="/ano-letivo" className="mb-4 flex items-center gap-3 rounded-xl border border-brand/60 bg-brand/15 px-4 py-3 transition hover:bg-brand/25">
+    <Link to="/ano-letivo" className="mb-4 flex items-center gap-3 rounded-xl border border-neutral-900 bg-neutral-100 px-4 py-3 transition hover:bg-neutral-200">
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-neutral-950 text-brand">
         <Archive size={17} />
       </span>

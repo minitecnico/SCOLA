@@ -85,7 +85,7 @@ const groups: { title?: string; items: NavItem[] }[] = [
 const linkCls = ({ isActive }: { isActive: boolean }) =>
   cn(
     'group flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition',
-    isActive ? 'bg-brand text-neutral-950 font-semibold' : 'text-neutral-400 hover:bg-white/[0.06] hover:text-white',
+    isActive ? 'bg-brand text-neutral-950 font-semibold' : 'text-neutral-300 hover:bg-white/10 hover:text-white',
   );
 
 const Badge = ({ n }: { n: number }) => (
@@ -601,7 +601,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div>
         {!online ? (
-          <div className="no-print bg-brand px-4 py-2 text-center text-sm font-semibold text-neutral-950">
+          <div className="no-print bg-neutral-950 px-4 py-2 text-center text-sm font-semibold text-white">
             Você está sem internet. As alterações só serão salvas quando a conexão voltar.
           </div>
         ) : null}

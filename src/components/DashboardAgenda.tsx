@@ -93,7 +93,7 @@ export function RecentNoticesPanel({ notices, unread }: { notices: ReceivedNotic
     <Panel
       icon={<Megaphone size={16} />}
       title="Avisos recentes"
-      badge={unread ? <span className="rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-neutral-950">{unread} {unread === 1 ? 'novo' : 'novos'}</span> : null}
+      badge={unread ? <span className="rounded-full bg-neutral-950 px-2 py-0.5 text-[11px] font-bold text-white">{unread} {unread === 1 ? 'novo' : 'novos'}</span> : null}
       to="/avisos"
       linkLabel="Todos"
     >
@@ -108,7 +108,7 @@ export function RecentNoticesPanel({ notices, unread }: { notices: ReceivedNotic
                   <span className="grid h-9 w-9 place-items-center rounded-full bg-muted text-xs font-bold uppercase text-foreground">
                     {(n.authorName || '?').slice(0, 1)}
                   </span>
-                  {!n.read ? <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-brand ring-2 ring-card" aria-label="Não lido" /> : null}
+                  {!n.read ? <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-neutral-950 ring-2 ring-card" aria-label="Não lido" /> : null}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-2">

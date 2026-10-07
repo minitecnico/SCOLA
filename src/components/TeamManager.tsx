@@ -149,7 +149,7 @@ export function TeamManager({ baseId }: { baseId: string }) {
                   <p className="truncate text-xs text-muted-foreground">
                     {m.email} · último acesso: {fmtDate(m.last_login_at)}
                     {m.pending ? <span className="ml-1.5 rounded bg-neutral-900 px-1.5 py-0.5 font-semibold text-white">convite pendente</span> : null}
-                    {m.must_change_pw ? <span className="ml-1.5 rounded bg-brand/25 px-1.5 py-0.5 font-semibold text-neutral-800">senha provisória</span> : null}
+                    {m.must_change_pw ? <span className="ml-1.5 rounded bg-neutral-200 px-1.5 py-0.5 font-semibold text-neutral-900">senha provisória</span> : null}
                                       </p>
                 </div>
                 <Select

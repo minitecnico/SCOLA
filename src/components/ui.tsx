@@ -13,7 +13,7 @@ const variants: Record<Variant, string> = {
   // Ação principal: preto sólido, sóbrio
   primary: 'bg-neutral-900 text-white shadow-glow hover:bg-black active:scale-[.98]',
   // Destaque suave em amarelo
-  soft: 'bg-brand/15 text-neutral-900 ring-1 ring-inset ring-neutral-300 hover:bg-brand/30 active:scale-[.98]',
+  soft: 'bg-neutral-100 text-neutral-900 ring-1 ring-inset ring-neutral-300 hover:bg-neutral-200 active:scale-[.98]',
   ghost: 'bg-card text-foreground ring-1 ring-inset ring-border shadow-soft hover:bg-muted active:scale-[.98]',
   danger: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-100 hover:bg-red-100 active:scale-[.98]',
 };
@@ -221,13 +221,13 @@ export function StatCard({
 }) {
   // Widget de KPI: rótulo em cima, número grande, ícone com gradiente à direita.
   const inner = (
-    <Card className={cn('p-5', to && 'transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift', highlight && 'border-brand bg-brand/10')}>
+    <Card className={cn('p-5', to && 'transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift', highlight && 'border-neutral-900 bg-neutral-100')}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-[13px] font-semibold text-muted-foreground">{label}</p>
           <p className="mt-2 text-3xl font-extrabold leading-none tracking-tight text-foreground tabular-nums">{typeof value === 'number' ? <Suspense fallback={0}><CountUp to={value} duration={1} /></Suspense> : value}</p>
         </div>
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand text-neutral-900">{icon}</div>
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-neutral-950 text-white">{icon}</div>
       </div>
       {sub ? <p className="mt-3 text-xs font-bold text-emerald-600">{sub}</p> : null}
     </Card>
@@ -238,7 +238,7 @@ export function StatCard({
 export function EmptyState({ icon, title, hint, action }: { icon: ReactNode; title: string; hint?: string; action?: ReactNode }) {
   return (
     <div className="animate-scale-in rounded-2xl border border-dashed border-border bg-card p-10 text-center shadow-soft">
-      <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-xl bg-brand text-neutral-900">{icon}</div>
+      <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-xl bg-neutral-950 text-white">{icon}</div>
       <h3 className="text-lg font-bold text-foreground">{title}</h3>
       {hint ? <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{hint}</p> : null}
       {action ? <div className="mt-5 flex justify-center">{action}</div> : null}

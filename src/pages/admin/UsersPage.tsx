@@ -196,7 +196,7 @@ function Tag({ tone, children }: { tone: 'dark' | 'red' | 'brand'; children: Rea
     <span
       className={cn(
         'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
-        tone === 'dark' ? 'bg-neutral-950 text-brand' : tone === 'red' ? 'bg-red-100 text-red-700' : 'bg-brand/25 text-neutral-900',
+        tone === 'dark' ? 'bg-neutral-950 text-brand' : tone === 'red' ? 'bg-red-100 text-red-700' : 'bg-neutral-200 text-neutral-900',
       )}
     >
       {children}

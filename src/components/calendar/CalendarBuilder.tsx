@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthProvider";
 import { listLocalHolidays } from "../../lib/queries";
+import { useAi } from "../../lib/ia";
 import type { ImportedEvent } from "../../lib/importCalendarBuilder";
 import { commemorativeDates, listNationalHolidays, mergeHolidays, offDays } from "../../lib/holidays";
 import { ArrowLeft, CalendarDays, Download, List as ListIcon, MapPin, MoreHorizontal, Pencil, Printer, Trash2, Upload, Users } from "lucide-react";
@@ -17,7 +18,8 @@ import { askConfirm } from "../Feedback";
 import { eventDays, isoOf, todayISO, uid, whenLabel } from "./dates";
 import { initialView } from "./calendarData";
 import { AgendaView, MonthCard } from "./views";
-import { CityModal, EditorsModal, ImportSmartModal } from "./modals";
+import { CityModal, EditorsModal } from "./modals";
+import { ImportSmartModal } from "./ImportCalendarModal";
 import { LocalHolidaysModal } from "./LocalHolidaysModal";
 import { CategoriesSection, EventsSection, HolidaysSection, IdentitySection, LetivosSection, PeriodsSection } from "./EditorSections";
 
@@ -72,6 +74,7 @@ export function CalendarBuilder({
   const [holidaysOpen, setHolidaysOpen] = useState(false);
   const [cityOpen, setCityOpen] = useState(false);
   const { activeOrgId } = useAuth();
+  const ai = useAi();
   const [eventQuery, setEventQuery] = useState("");
   const [newEventId, setNewEventId] = useState<string | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -577,6 +580,9 @@ export function CalendarBuilder({
       {importOpen && canManage ? (
         <ImportSmartModal
           year={data.year}
+          categories={data.categories.map((c) => c.label)}
+          existing={data.events}
+          aiReady={!!ai?.ready}
           onJSON={importJSON}
           onApply={applyImported}
           onClose={() => setImportOpen(false)}

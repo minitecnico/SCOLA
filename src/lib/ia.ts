@@ -42,6 +42,7 @@ export type EngineInfo = {
 export const ia = {
   status: () => rpc<AiStatus>('aiStatus'),
   smart: (input: { prompt?: string; mode?: SmartMode; image?: string | null; aspect?: Aspect; context?: string; action?: TrechoAction; text?: string }) => rpc<SmartResult>('aiSmart', input),
+  calendar: (input: { year: number; text?: string; images?: string[] }) => rpc<{ events: { title: string; start: string; end: string | null; category: string }[]; used: string[] }>('aiCalendar', input),
   pareceres: (input: ParecerInput) => rpc<{ items: { n: number; text: string }[] }>('aiPareceres', input),
   chats: () => rpc<{ id: string; title: string; updated_at: string }[]>('listAiChats'),
   chat: (id: string) => rpc<{ id: string; title: string; messages: ChatMsg[] }>('getAiChat', id),

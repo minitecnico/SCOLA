@@ -2,11 +2,8 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { successToast } from "../Feedback";
 import { listSchools, saveSchool } from "../../lib/queries";
-import { downloadCalendarTemplate } from "../../lib/importCalendar";
-import { parseAnyCalendarFile, type ImportedEvent } from "../../lib/importCalendarBuilder";
 import { CityPicker, type Localidade } from "../CityPicker";
 import { Button, Modal } from "../ui";
-import { Dropzone } from "../Dropzone";
 import { cn } from "../../lib/cn";
 import type { OrgPerson } from "../../lib/types";
 
@@ -72,116 +69,6 @@ export function EditorsModal({
         <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
           <Button onClick={onClose}>Concluir</Button>
         </div>
-      </div>
-    </Modal>
-  );
-}
-
-/* ------------------- Modal de importação inteligente --------------------- */
-export function ImportSmartModal({
-  year,
-  onJSON,
-  onApply,
-  onClose,
-}: {
-  year: number;
-  onJSON: (file: File) => void;
-  onApply: (events: ImportedEvent[], mode: "add" | "replace") => void;
-  onClose: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const [events, setEvents] = useState<ImportedEvent[] | null>(null);
-  const [fileName, setFileName] = useState("");
-
-  async function handleFile(file?: File | null) {
-    if (!file) return;
-    setErr("");
-    setEvents(null);
-    setFileName(file.name);
-    if (file.name.toLowerCase().endsWith(".json")) {
-      onJSON(file); // restaura backup completo do construtor
-      onClose();
-      return;
-    }
-    setBusy(true);
-    try {
-      const ev = await parseAnyCalendarFile(file, year);
-      if (!ev.length) {
-        setErr('Nenhum evento reconhecido. Confira se o documento tem datas (ex.: 12/06/2026 ou “12 de junho”).');
-      }
-      setEvents(ev);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const isDoc = /\.(pdf|docx)$/i.test(fileName);
-
-  return (
-    <Modal open onClose={onClose} title="Importar calendário pronto" size="xl">
-      <div className="space-y-4">
-        {/* Caminho recomendado: planilha-modelo (leitura 100% confiável). */}
-        <div className="rounded-xl border border-border bg-muted p-3">
-          <p className="text-sm font-bold text-foreground">Forma recomendada: planilha Excel</p>
-          <p className="mt-0.5 text-xs font-medium text-muted-foreground">
-            Baixe o modelo, preencha (Data, Título, Categoria) e suba aqui. É a leitura mais confiável.
-          </p>
-          <button
-            type="button"
-            onClick={() => downloadCalendarTemplate()}
-            className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-black text-white hover:bg-black"
-          >
-            Baixar planilha-modelo
-          </button>
-        </div>
-
-        <Dropzone
-          accept=".xlsx,.xls,.csv,.ics,.pdf,.docx,.json"
-          multiple={false}
-          title="Arraste o calendário aqui, ou clique para procurar"
-          hint="Excel/CSV (recomendado) · PDF/Word e ICS (leitura aproximada) · backup .json — até 15 MB"
-          onFiles={(l) => handleFile(l?.[0])}
-        />
-
-        <p className="text-xs text-muted-foreground">
-          PDF e Word são lidos por aproximação — calendários com layout livre (dia sem mês, colunas) podem sair
-          incompletos. Sempre revise antes de salvar; para garantir, use o Excel.
-        </p>
-
-        {busy ? <p className="text-sm font-bold text-muted-foreground">Lendo “{fileName}”…</p> : null}
-        {err ? <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-600">{err}</p> : null}
-
-        {events && events.length > 0 ? (
-          <div>
-            {isDoc ? (
-              <p className="mb-2 rounded-lg bg-neutral-100 px-3 py-2 text-xs font-bold text-neutral-800">
-                Leitura aproximada de PDF/Word. Confira datas e títulos no editor — alguns eventos podem faltar.
-              </p>
-            ) : null}
-            <p className="mb-2 text-sm font-bold text-foreground">{events.length} evento(s) encontrado(s):</p>
-            <div className="max-h-60 space-y-1 overflow-y-auto rounded-xl border border-border p-2">
-              {events.slice(0, 80).map((e, i) => (
-                <div key={i} className="flex items-center gap-2 text-xs">
-                  <span className="w-24 shrink-0 font-bold text-muted-foreground">
-                    {e.start.slice(8, 10)}/{e.start.slice(5, 7)}
-                    {e.end ? `–${e.end.slice(8, 10)}/${e.end.slice(5, 7)}` : ""}
-                  </span>
-                  <span className="truncate font-bold text-foreground">{e.title}</span>
-                  <span className="ml-auto shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-black text-muted-foreground">{e.categoryLabel}</span>
-                </div>
-              ))}
-              {events.length > 80 ? <p className="px-1 pt-1 text-[11px] font-bold text-muted-foreground">+{events.length - 80} evento(s)…</p> : null}
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-              <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-              <Button variant="soft" onClick={() => onApply(events, "replace")}>Substituir eventos</Button>
-              <Button onClick={() => onApply(events, "add")}>Adicionar {events.length} ao calendário</Button>
-            </div>
-          </div>
-        ) : null}
       </div>
     </Modal>
   );

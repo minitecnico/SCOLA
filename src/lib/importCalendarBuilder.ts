@@ -1,191 +1,172 @@
 import { parseCalendarFile } from './importCalendar';
 import { EVENT_CATEGORIES } from './types';
-import { fileExtension, MAX_IMPORT_ROWS } from './fileSecurity';
+import { fileExtension } from './fileSecurity';
+import { embeddedImages, fileToGrids, imageToDataUrl, MAX_ANY_FILE, pdfToImages, type GridSheet } from './anyToGrid';
+import { eventsFromGrids, gridsToText, guessCategory, type RawEvent } from './calendarText';
+import { ia } from './ia';
 
 /* ============================================================================
-   Importação inteligente para o Construtor de Calendário.
-   Lê Excel/CSV/ICS (parser estruturado já existente) E também PDF/DOCX, onde
-   extrai o texto e detecta datas + eventos em PT-BR por heurística. Devolve
-   eventos no formato do construtor, com um rótulo de categoria adivinhado.
-   O coordenador revisa/edita no editor antes de salvar.
+   Importação de calendário pronto para o Construtor de Calendário.
+   Aceita qualquer arquivo: planilhas (xlsx, xls, ods, csv…), Word (doc, docx, odt, rtf), PDF, PowerPoint,
+   HTML, texto, ICS e FOTOS/prints. A leitura é feita no aparelho (tabelas, textos, OCR) e, quando o
+   resultado fica fraco (calendário desenhado, foto, PDF escaneado), a IA do sistema lê no lugar.
+   O coordenador sempre revisa os eventos antes de entrarem no calendário.
 ============================================================================ */
 
 export interface ImportedEvent {
   title: string;
   categoryLabel: string; // rótulo (casa com categoria existente ou cria uma nova)
-  start: string;         // yyyy-mm-dd
-  end?: string;          // yyyy-mm-dd (opcional, intervalo)
+  start: string; // yyyy-mm-dd
+  end?: string; // yyyy-mm-dd (opcional, intervalo)
 }
 
-const MB = 1024 * 1024;
-const MAX_DOC_SIZE = 15 * MB;
-const pad = (n: number) => String(n).padStart(2, '0');
-const iso = (y: number, m0: number, d: number) => `${y}-${pad(m0 + 1)}-${pad(d)}`;
+export type ReadMethod = 'planilha' | 'leitura' | 'ocr' | 'ia';
+export interface ReadResult {
+  events: ImportedEvent[];
+  method: ReadMethod;
+  /** Aviso para o usuário (ex.: "a IA não respondeu, usei a leitura simples"). */
+  note?: string;
+}
+export interface ReadOptions {
+  year: number;
+  /** A IA do sistema está disponível? */
+  ai: boolean;
+  /** Pular a leitura local e usar a IA direto ("Reler com IA"). */
+  forceAi?: boolean;
+  progress?: (msg: string) => void;
+}
 
-const MONTHS: Record<string, number> = {
-  janeiro: 0, fevereiro: 1, marco: 2, 'março': 2, abril: 3, maio: 4, junho: 5,
-  julho: 6, agosto: 7, setembro: 8, outubro: 9, novembro: 10, dezembro: 11,
-  jan: 0, fev: 1, mar: 2, abr: 3, mai: 4, jun: 5, jul: 6, ago: 7, set: 8, out: 9, nov: 10, dez: 11,
+const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'tif', 'tiff', 'heic', 'heif', 'avif'];
+const STRUCTURED_EXT = ['xlsx', 'xls', 'csv', 'ics'];
+const WEAK = 3; // menos eventos que isto: vale tentar outro caminho
+
+const categoryLabel = (raw: string | undefined, title: string) => {
+  const r = (raw ?? '').trim().slice(0, 40);
+  if (!r) return guessCategory(title);
+  return EVENT_CATEGORIES.find((c) => c.key === r.toLowerCase())?.label ?? r;
 };
 
-/** Adivinha um rótulo de categoria a partir de palavras-chave do título. */
-function guessCategory(text: string): string {
-  const s = text.toLowerCase();
-  if (/\b(feriado|recesso|f[eé]rias)\b/.test(s)) return 'Feriado';
-  if (/(prova|avalia|simulado|e-?cerm|exame|teste|redaç)/.test(s)) return 'Avaliação';
-  if (/(recupera|paralela|depend[eê]ncia)/.test(s)) return 'Recuperação Paralela';
-  if (/(reuni|pedag|plant[ãa]o|encontro|conselho|formaç|planejamento)/.test(s)) return 'Pedagógico';
-  if (/(ginc|jogos|festa|arrai|cultur|oficina|culmin|aula de campo|passeio|semin)/.test(s)) return 'Evento & Cultura';
-  if (/(dia d|anivers|comemora|natal|p[áa]scoa|m[ãa]es|pais)/.test(s)) return 'Data comemorativa';
-  if (/(in[íi]cio|t[ée]rmino|encerr|abertura|trimestre|unidade|marco)/.test(s)) return 'Marco do período';
-  return 'Evento';
-}
+const fromRaw = (rows: RawEvent[]): ImportedEvent[] =>
+  rows.map((e) => ({ title: e.title, start: e.start, end: e.end && e.end > e.start ? e.end : undefined, categoryLabel: categoryLabel(e.category, e.title) }));
 
-/** Lê qualquer formato suportado e devolve eventos prontos para o construtor. */
-export async function parseAnyCalendarFile(file: File, defaultYear: number): Promise<ImportedEvent[]> {
+/** Lê um arquivo de calendário e devolve os eventos encontrados. */
+export async function readCalendarFile(file: File, opts: ReadOptions): Promise<ReadResult> {
+  if (file.size > MAX_ANY_FILE) throw new Error('Arquivo muito grande (máximo 25 MB).');
   const ext = fileExtension(file.name);
-  if (['xlsx', 'xls', 'csv', 'ics'].includes(ext)) {
-    const parsed = await parseCalendarFile(file);
-    return parsed.map((p) => ({
-      title: p.title,
-      // preserva o rótulo livre da planilha (ex.: "Feriado", "Avaliação"); senão, cai no rótulo do sistema
-      categoryLabel: p.rawCategory || EVENT_CATEGORIES.find((c) => c.key === p.category)?.label || 'Evento',
-      start: p.event_date,
-      end: p.end_date ?? undefined,
-    }));
+  const type = file.type;
+  const progress = opts.progress ?? (() => {});
+  const isImage = IMAGE_EXT.includes(ext) || type.startsWith('image/');
+  const isPdf = ext === 'pdf' || type === 'application/pdf';
+
+  if (opts.forceAi) {
+    const events = await viaAi(file, opts, null);
+    if (!events.length) throw new Error('A IA não encontrou eventos neste arquivo.');
+    return { events, method: 'ia' };
   }
-  if (file.size > MAX_DOC_SIZE) throw new Error('Arquivo muito grande. Envie PDF/DOCX de até 15 MB.');
-  if (ext === 'docx') return fromText(await extractDocxText(file), defaultYear);
-  if (ext === 'pdf') return fromText(await extractPdfText(file), defaultYear);
-  if (ext === 'doc') throw new Error('Formato .doc antigo não é lido. Salve como .docx ou .pdf e tente de novo.');
-  throw new Error('Formato não suportado. Use Excel (.xlsx/.csv), PDF, DOCX ou ICS.');
-}
 
-/* ----------------------------- Extração de texto ----------------------------- */
-
-/** DOCX é um zip; o texto fica em word/document.xml. Sem dependência nova (jszip já existe). */
-async function extractDocxText(file: File): Promise<string> {
-  const JSZip = (await import('jszip')).default;
-  const zip = await JSZip.loadAsync(await file.arrayBuffer());
-  const xml = await zip.file('word/document.xml')?.async('string');
-  if (!xml) throw new Error('DOCX inválido ou vazio.');
-  return xml
-    .replace(/<w:tab[^>]*\/?>/g, ' ')
-    .replace(/<\/w:p>/g, '\n')   // fim de parágrafo -> quebra de linha
-    .replace(/<\/w:tr>/g, '\n')  // fim de linha de tabela -> quebra
-    .replace(/<[^>]+>/g, '')     // remove o restante das tags
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&apos;|&#39;/g, "'").replace(/&quot;/g, '"');
-}
-
-/** PDF: extrai o texto página a página, reconstruindo linhas pela posição vertical. */
-async function extractPdfText(file: File): Promise<string> {
-  const pdfjs = await import('pdfjs-dist');
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-  const lines: string[] = [];
-  for (let p = 1; p <= doc.numPages; p++) {
-    const page = await doc.getPage(p);
-    const content = await page.getTextContent();
-    // agrupa itens por coordenada Y (mesma linha) e ordena de cima p/ baixo
-    const byRow = new Map<number, { x: number; s: string }[]>();
-    for (const it of content.items as { str: string; transform: number[] }[]) {
-      if (!it.str) continue;
-      const y = Math.round(it.transform[5]);
-      (byRow.get(y) ?? byRow.set(y, []).get(y)!).push({ x: it.transform[4], s: it.str });
+  // 1) Planilha no formato do sistema (colunas Data, Título, Categoria) e ICS: leitura exata.
+  if (STRUCTURED_EXT.includes(ext)) {
+    try {
+      const parsed = await parseCalendarFile(file);
+      if (parsed.length) {
+        return {
+          method: 'planilha',
+          events: parsed.map((p) => ({
+            title: p.title,
+            // preserva o rótulo livre da planilha (ex.: "Feriado", "Avaliação"); senão, cai no rótulo do sistema
+            categoryLabel: p.rawCategory || EVENT_CATEGORIES.find((c) => c.key === p.category)?.label || guessCategory(p.title),
+            start: p.event_date,
+            end: p.end_date ?? undefined,
+          })),
+        };
+      }
+    } catch (e) {
+      if (ext === 'ics') throw e;
+      /* planilha fora do modelo: segue para a leitura livre */
     }
-    for (const y of [...byRow.keys()].sort((a, b) => b - a)) {
-      const row = byRow.get(y)!.sort((a, b) => a.x - b.x).map((r) => r.s).join(' ');
-      lines.push(row);
-    }
-    page.cleanup();
   }
-  return lines.join('\n');
-}
 
-/* ----------------------------- Heurística PT-BR ----------------------------- */
-
-/** Extrai eventos de texto livre, detectando datas no padrão brasileiro. */
-function fromText(text: string, year: number): ImportedEvent[] {
-  const out: ImportedEvent[] = [];
-  const seen = new Set<string>();
-  const push = (e: ImportedEvent) => {
-    const title = cleanTitle(e.title);
-    if (title.length < 3) return;
-    const key = `${e.start}|${title.toLowerCase()}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push({ ...e, title, categoryLabel: guessCategory(title) });
-    if (out.length > MAX_IMPORT_ROWS) throw new Error(`Documento grande demais. Importe no máximo ${MAX_IMPORT_ROWS} eventos por vez.`);
-  };
-
-  const lines = text.split(/\n+/).map((l) => l.replace(/\s+/g, ' ').trim()).filter((l) => l.length >= 1);
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.length < 3) continue;
-    const hit = matchDate(line, year);
-    if (!hit) continue;
-    let title = (line.slice(0, hit.index) + ' ' + line.slice(hit.index + hit.length)).trim();
-    // Data isolada (ex.: célula de tabela ou layout "data / descrição"): usa a próxima linha como título.
-    if (cleanTitle(title).length < 3) {
-      const next = lines[i + 1];
-      if (next && !matchDate(next, year)) {
-        title = next;
-        i++;
+  // 2) Foto: a IA lê melhor (calendário desenhado, letra bonita); sem IA, OCR no aparelho.
+  if (isImage) {
+    let note: string | undefined;
+    if (opts.ai) {
+      try {
+        const events = await viaAi(file, opts, null);
+        if (events.length) return { events, method: 'ia' };
+        note = 'A IA não achou eventos na foto; tentei a leitura simples.';
+      } catch (e) {
+        note = `A IA não respondeu (${(e as Error).message}); tentei a leitura simples.`;
       }
     }
-    push({ title, categoryLabel: 'Evento', start: hit.start, end: hit.end });
+    const sheets = await fileToGrids(file, progress, { lines: true });
+    return { events: fromRaw(eventsFromGrids(sheets, opts.year)), method: 'ocr', note };
   }
-  return out;
+
+  // 3) Qualquer outro formato: vira tabela/linhas e é interpretado.
+  const sheets = await fileToGrids(file, progress, { lines: true, noOcr: opts.ai && isPdf });
+  let events = fromRaw(eventsFromGrids(sheets, opts.year));
+  let method: ReadMethod = 'leitura';
+  let note: string | undefined;
+
+  if (events.length < WEAK && opts.ai) {
+    try {
+      const ai = await viaAi(file, opts, sheets);
+      if (ai.length > events.length) {
+        events = ai;
+        method = 'ia';
+      }
+    } catch (e) {
+      note = `A IA não respondeu (${(e as Error).message}).`;
+    }
+  }
+  // PDF escaneado sem IA (ou IA sem resultado): lê as páginas com OCR.
+  if (!events.length && isPdf && sheets.some((s) => s.scanned)) {
+    const again = await fileToGrids(file, progress, { lines: true });
+    events = fromRaw(eventsFromGrids(again, opts.year));
+    method = 'ocr';
+  }
+  return { events, method, note };
 }
 
-type DateHit = { index: number; length: number; start: string; end?: string };
+/** Lê com a IA: texto extraído (se bom) ou imagens (PDF, foto, figuras de dentro do Word). */
+async function viaAi(file: File, opts: ReadOptions, sheets: GridSheet[] | null): Promise<ImportedEvent[]> {
+  const progress = opts.progress ?? (() => {});
+  const ext = fileExtension(file.name);
+  const isImage = IMAGE_EXT.includes(ext) || file.type.startsWith('image/');
+  const isPdf = ext === 'pdf' || file.type === 'application/pdf';
+  const found: ImportedEvent[] = [];
+  const add = (rows: { title: string; start: string; end: string | null; category: string }[]) =>
+    rows.forEach((e) => found.push({ title: e.title, start: e.start, end: e.end ?? undefined, categoryLabel: categoryLabel(e.category, e.title) }));
 
-/** Tenta achar a 1ª data da linha. Ordem: textual (mais específica) -> numérica. */
-function matchDate(line: string, year: number): DateHit | null {
-  // "12 de junho [de 2026]" ou "1 a 4 de setembro [de 2026]"
-  const txt = line.match(/(\d{1,2})\s*(?:a|à|at[ée]|-|–|\/)\s*(\d{1,2})?\s*(?:de\s+)?([a-zçãéêíóôúâ]+)(?:\s+de\s+(\d{4}))?/i)
-    || line.match(/(\d{1,2})\s+de\s+([a-zçãéêíóôúâ]+)(?:\s+de\s+(\d{4}))?/i);
-  if (txt) {
-    // dois formatos de captura acima; normaliza
-    let d1: number, d2: number | undefined, monthWord: string, yr: number;
-    if (txt.length === 5) { // range: d1, d2?, mês, ano?
-      d1 = +txt[1]; d2 = txt[2] ? +txt[2] : undefined; monthWord = txt[3]; yr = txt[4] ? +txt[4] : year;
-    } else {               // simples: d1, mês, ano?
-      d1 = +txt[1]; d2 = undefined; monthWord = txt[2]; yr = txt[3] ? +txt[3] : year;
-    }
-    const m = MONTHS[stripAccents(monthWord.toLowerCase())] ?? MONTHS[monthWord.toLowerCase()];
-    if (m != null && d1 >= 1 && d1 <= 31) {
-      return {
-        index: txt.index ?? 0,
-        length: txt[0].length,
-        start: iso(yr, m, d1),
-        end: d2 && d2 >= d1 && d2 <= 31 ? iso(yr, m, d2) : undefined,
-      };
-    }
+  // Texto bom: um pedido só, sem gastar com imagem.
+  const text = sheets ? gridsToText(sheets) : '';
+  if (text.length >= 80) {
+    progress('A IA está lendo o calendário…');
+    add((await ia.calendar({ year: opts.year, text })).events);
+    if (found.length >= WEAK) return found;
   }
-  // intervalo numérico no mesmo mês: "19 a 29/05[/2026]"
-  const numRange = line.match(/(\d{1,2})\s*(?:a|à|at[ée]|-|–)\s*(\d{1,2})[\/.](\d{1,2})(?:[\/.](\d{2,4}))?/);
-  if (numRange) {
-    const d1 = +numRange[1], d2 = +numRange[2], mo = +numRange[3] - 1;
-    const yr = numRange[4] ? normYear(numRange[4]) : year;
-    if (valid(d1, mo) && d2 >= d1 && d2 <= 31) {
-      return { index: numRange.index ?? 0, length: numRange[0].length, start: iso(yr, mo, d1), end: iso(yr, mo, d2) };
-    }
+
+  let images: string[] = [];
+  if (isImage) images = [await imageToDataUrl(file)];
+  else if (isPdf) images = await pdfToImages(file, 6, progress);
+  else images = await embeddedImages(file);
+  for (let i = 0; i < images.length; i += 2) {
+    progress(`A IA está lendo ${images.length > 1 ? `as imagens ${i + 1}–${Math.min(i + 2, images.length)} de ${images.length}` : 'a imagem'}…`);
+    add((await ia.calendar({ year: opts.year, images: images.slice(i, i + 2) })).events);
   }
-  // data simples: "dd/mm[/yyyy]" ou "dd.mm"
-  const num = line.match(/(\d{1,2})[\/.](\d{1,2})(?:[\/.](\d{2,4}))?/);
-  if (num) {
-    const d = +num[1], mo = +num[2] - 1;
-    const yr = num[3] ? normYear(num[3]) : year;
-    if (valid(d, mo)) return { index: num.index ?? 0, length: num[0].length, start: iso(yr, mo, d) };
-  }
-  return null;
+  return dedupe(found);
 }
 
-const valid = (d: number, m0: number) => d >= 1 && d <= 31 && m0 >= 0 && m0 <= 11;
-const normYear = (s: string) => (s.length === 2 ? 2000 + +s : +s);
-const stripAccents = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-function cleanTitle(s: string) {
-  return s.replace(/\s+/g, ' ').replace(/^[\s\-–—:•·.,;]+|[\s\-–—:•·.,;]+$/g, '').trim();
+export const normText = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+export const eventKey = (e: { start: string; end?: string; title: string }) => `${e.start}|${e.end ?? ''}|${normText(e.title)}`;
+
+/** Tira repetidos (mesma data, período e título). */
+export function dedupe<T extends { start: string; end?: string; title: string }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter((e) => {
+    const k = eventKey(e);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }

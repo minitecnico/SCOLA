@@ -11,6 +11,14 @@ export type Grid = unknown[][];
 export interface GridSheet {
   name: string;
   grid: Grid;
+  /** Página de PDF escaneada que ficou sem leitura (opção noOcr). */
+  scanned?: boolean;
+}
+export interface GridOptions {
+  /** Texto corrido vira uma linha por linha do documento (calendários), em vez de colunas por separador. */
+  lines?: boolean;
+  /** Não rodar OCR em PDF escaneado (quem chama vai usar outro caminho, como a IA). */
+  noOcr?: boolean;
 }
 export type Progress = (msg: string) => void;
 
@@ -19,24 +27,33 @@ const SHEET_EXT = ['xlsx', 'xlsm', 'xlsb', 'xls', 'ods', 'fods', 'xml', 'html', 
 const TEXT_EXT = ['csv', 'tsv', 'txt', 'tab', 'dat', 'md'];
 const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'tif', 'tiff', 'heic', 'heif', 'avif'];
 
-export async function fileToGrids(file: File, progress: Progress = () => {}): Promise<GridSheet[]> {
+export async function fileToGrids(file: File, progress: Progress = () => {}, opts: GridOptions = {}): Promise<GridSheet[]> {
   if (file.size > MAX_ANY_FILE) throw new Error('Arquivo muito grande (máximo 25 MB).');
   const ext = fileExtension(file.name);
   const type = file.type;
-  if (ext === 'pdf' || type === 'application/pdf') return pdfToGrids(file, progress);
-  if (ext === 'docx' || type.includes('wordprocessingml')) return docxToGrids(file);
-  if (ext === 'odt' || type.includes('opendocument.text')) return odtToGrids(file);
+  const asGrid = (text: string) => (opts.lines ? linesGrid(text) : textToGrid(text));
+  if (ext === 'pdf' || type === 'application/pdf') return pdfToGrids(file, progress, opts);
+  if (ext === 'docx' || ext === 'docm' || ext === 'dotx' || type.includes('wordprocessingml')) return docxToGrids(file, opts);
+  if (ext === 'odt' || ext === 'ott' || type.includes('opendocument.text')) return odtToGrids(file, opts);
+  if (ext === 'pptx' || ext === 'ppsx' || type.includes('presentationml')) return pptxToGrids(file);
+  if (ext === 'rtf' || type === 'application/rtf' || type === 'text/rtf') return [{ name: file.name, grid: linesGrid(rtfToText(await readText(file))) }];
+  if (ext === 'doc' || ext === 'dot' || type === 'application/msword') return [{ name: file.name, grid: linesGrid(oldWordToText(await file.arrayBuffer())) }];
   if (ext === 'json' || type === 'application/json') return [{ name: file.name, grid: jsonToGrid(await readText(file)) }];
   if (IMAGE_EXT.includes(ext) || type.startsWith('image/')) return [{ name: file.name, grid: await imageToGrid(file, progress) }];
-  if (TEXT_EXT.includes(ext) || type.startsWith('text/plain') || type === 'text/csv') return [{ name: file.name, grid: textToGrid(await readText(file)) }];
-  if (ext === 'doc') throw new Error('Arquivo .doc (Word antigo): abra no Word e salve como .docx ou PDF.');
+  if ((ext === 'html' || ext === 'htm' || type === 'text/html') && opts.lines) return [{ name: file.name, grid: htmlToGrid(await readText(file)) }];
+  if (TEXT_EXT.includes(ext) || type.startsWith('text/plain') || type === 'text/csv') return [{ name: file.name, grid: asGrid(await readText(file)) }];
   if (SHEET_EXT.includes(ext) || !ext) return sheetToGrids(file);
   // Formato desconhecido: tenta como planilha e, se não der, como texto.
   try {
     return await sheetToGrids(file);
   } catch {
-    return [{ name: file.name, grid: textToGrid(await readText(file)) }];
+    return [{ name: file.name, grid: asGrid(await readText(file)) }];
   }
+}
+
+/** Uma linha do texto = uma linha da tabela (tabulação separa as células). */
+export function linesGrid(text: string): Grid {
+  return text.split(/\r?\n/).map((l) => (l.includes('\t') ? l.split('\t').map((c) => c.trim()) : [l.trim()]));
 }
 
 /* --------------------------------- Texto --------------------------------- */
@@ -111,49 +128,242 @@ async function sheetToGrids(file: File): Promise<GridSheet[]> {
   return wb.SheetNames.map((n) => ({ name: n, grid: XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[n], { header: 1, defval: '', raw: true, blankrows: true }) }));
 }
 
-/* ---------------------------- Word / Writer ---------------------------- */
-async function docxToGrids(file: File): Promise<GridSheet[]> {
+/* ---------------------------- Word / Writer / PowerPoint ---------------------------- */
+const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+/** Texto de um parágrafo do Word, com tabulação e quebra de linha. */
+function wordParagraph(p: Element): string {
+  let out = '';
+  const walk = (el: Element) => {
+    for (const c of [...el.children]) {
+      if (c.namespaceURI === W_NS && c.localName === 't') out += c.textContent ?? '';
+      else if (c.namespaceURI === W_NS && c.localName === 'tab') out += '\t';
+      else if (c.namespaceURI === W_NS && (c.localName === 'br' || c.localName === 'cr')) out += '\n';
+      else if (c.localName !== 'pPr' && c.localName !== 'rPr') walk(c);
+    }
+  };
+  walk(p);
+  return out;
+}
+
+async function docxToGrids(file: File, opts: GridOptions = {}): Promise<GridSheet[]> {
   const JSZip = (await import('jszip')).default;
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const xml = await zip.file('word/document.xml')?.async('string');
   if (!xml) throw new Error('Não consegui abrir este arquivo do Word.');
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
-  const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
-  const text = (el: Element) => [...el.getElementsByTagNameNS(W, 'p')].map((p) => [...p.getElementsByTagNameNS(W, 't')].map((t) => t.textContent).join('')).join(' ').trim();
-  const tables = [...doc.getElementsByTagNameNS(W, 'tbl')].filter((t) => !t.parentElement?.closest?.('tbl'));
-  if (tables.length) {
-    return tables.map((t, i) => ({
-      name: `Tabela ${i + 1}`,
-      grid: [...t.getElementsByTagNameNS(W, 'tr')].map((tr) =>
-        [...tr.children].filter((c) => c.localName === 'tc').flatMap((tc) => {
-          // Célula mesclada horizontalmente ocupa várias colunas.
-          const span = Number(tc.getElementsByTagNameNS(W, 'gridSpan')[0]?.getAttributeNS(W, 'val') ?? 1) || 1;
-          return [text(tc), ...Array(span - 1).fill('')];
-        }),
-      ),
-    }));
+  const text = (el: Element) => [...el.getElementsByTagNameNS(W_NS, 'p')].map((p) => wordParagraph(p).replace(/\s+/g, ' ').trim()).filter(Boolean).join(' ').trim();
+  const rowsOf = (t: Element) =>
+    [...t.children].filter((tr) => tr.localName === 'tr').map((tr) =>
+      [...tr.children].filter((c) => c.localName === 'tc').flatMap((tc) => {
+        // Célula mesclada horizontalmente ocupa várias colunas.
+        const span = Number(tc.getElementsByTagNameNS(W_NS, 'gridSpan')[0]?.getAttributeNS(W_NS, 'val') ?? 1) || 1;
+        return [text(tc), ...Array(span - 1).fill('')];
+      }),
+    );
+  if (opts.lines) {
+    // Calendário: parágrafos e tabelas na ordem em que aparecem (títulos de mês ficam fora das tabelas).
+    const grid: Grid = [];
+    const walk = (el: Element) => {
+      for (const c of [...el.children]) {
+        if (c.namespaceURI !== W_NS) continue;
+        if (c.localName === 'p') for (const l of wordParagraph(c).split('\n')) grid.push(l.includes('\t') ? l.split('\t').map((x) => x.trim()) : [l.trim()]);
+        else if (c.localName === 'tbl') grid.push(...rowsOf(c));
+        else if (c.localName === 'sdt' || c.localName === 'sdtContent' || c.localName === 'body') walk(c);
+      }
+    };
+    walk(doc.getElementsByTagNameNS(W_NS, 'body')[0] ?? doc.documentElement);
+    return [{ name: file.name, grid }];
   }
+  const tables = [...doc.getElementsByTagNameNS(W_NS, 'tbl')].filter((t) => !t.parentElement?.closest?.('tbl'));
+  if (tables.length) return tables.map((t, i) => ({ name: `Tabela ${i + 1}`, grid: rowsOf(t) }));
   // Sem tabela: o texto dos parágrafos, em colunas.
-  return [{ name: file.name, grid: textToGrid([...doc.getElementsByTagNameNS(W, 'p')].map((p) => [...p.getElementsByTagNameNS(W, 't')].map((t) => t.textContent).join('')).join('\n')) }];
+  return [{ name: file.name, grid: textToGrid([...doc.getElementsByTagNameNS(W_NS, 'p')].map((p) => wordParagraph(p)).join('\n')) }];
 }
 
-async function odtToGrids(file: File): Promise<GridSheet[]> {
+async function odtToGrids(file: File, opts: GridOptions = {}): Promise<GridSheet[]> {
   const JSZip = (await import('jszip')).default;
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const xml = await zip.file('content.xml')?.async('string');
   if (!xml) throw new Error('Não consegui abrir este documento.');
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
   const T = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
-  const tables = [...doc.getElementsByTagNameNS(T, 'table')];
-  if (!tables.length) return [{ name: file.name, grid: textToGrid(doc.documentElement.textContent ?? '') }];
-  return tables.map((t, i) => ({
-    name: t.getAttributeNS(T, 'name') || `Tabela ${i + 1}`,
-    grid: [...t.getElementsByTagNameNS(T, 'table-row')].map((tr) =>
+  const X = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
+  const rowsOf = (t: Element) =>
+    [...t.getElementsByTagNameNS(T, 'table-row')].map((tr) =>
       [...tr.children]
         .filter((c) => c.localName === 'table-cell' || c.localName === 'covered-table-cell')
         .flatMap((c) => Array(Math.min(50, Number(c.getAttributeNS(T, 'number-columns-repeated') ?? 1) || 1)).fill((c.textContent ?? '').trim())),
-    ),
-  }));
+    );
+  if (opts.lines) {
+    const grid: Grid = [];
+    const walk = (el: Element) => {
+      for (const c of [...el.children]) {
+        if (c.namespaceURI === X && (c.localName === 'p' || c.localName === 'h')) grid.push([(c.textContent ?? '').trim()]);
+        else if (c.namespaceURI === T && c.localName === 'table') grid.push(...rowsOf(c));
+        else walk(c);
+      }
+    };
+    walk(doc.getElementsByTagNameNS('urn:oasis:names:tc:opendocument:xmlns:office:1.0', 'text')[0] ?? doc.documentElement);
+    return [{ name: file.name, grid }];
+  }
+  const tables = [...doc.getElementsByTagNameNS(T, 'table')];
+  if (!tables.length) return [{ name: file.name, grid: textToGrid(doc.documentElement.textContent ?? '') }];
+  return tables.map((t, i) => ({ name: t.getAttributeNS(T, 'name') || `Tabela ${i + 1}`, grid: rowsOf(t) }));
+}
+
+/** PowerPoint: cada slide vira uma tabela (parágrafos em linhas, tabelas do slide em linhas de células). */
+async function pptxToGrids(file: File): Promise<GridSheet[]> {
+  const JSZip = (await import('jszip')).default;
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+  const names = Object.keys(zip.files).filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a, b) => Number(a.match(/\d+/)![0]) - Number(b.match(/\d+/)![0]));
+  if (!names.length) throw new Error('Não consegui abrir esta apresentação.');
+  const sheets: GridSheet[] = [];
+  for (const [i, n] of names.entries()) {
+    const doc = new DOMParser().parseFromString(await zip.file(n)!.async('string'), 'application/xml');
+    const para = (p: Element) => [...p.getElementsByTagNameNS(A, 't')].map((t) => t.textContent).join('').trim();
+    const grid: Grid = [];
+    const walk = (el: Element) => {
+      for (const c of [...el.children]) {
+        if (c.namespaceURI === A && c.localName === 'p') grid.push([para(c)]);
+        else if (c.namespaceURI === A && c.localName === 'tbl')
+          grid.push(...[...c.getElementsByTagNameNS(A, 'tr')].map((tr) => [...tr.getElementsByTagNameNS(A, 'tc')].map((tc) => [...tc.getElementsByTagNameNS(A, 'p')].map(para).filter(Boolean).join(' '))));
+        else walk(c);
+      }
+    };
+    walk(doc.documentElement);
+    sheets.push({ name: `Slide ${i + 1}`, grid });
+  }
+  return sheets;
+}
+
+/** Imagens coladas dentro de Word/PowerPoint/Writer (calendário "tirado de print"), prontas para a IA ler. */
+export async function embeddedImages(file: File, max = 4): Promise<string[]> {
+  const ext = fileExtension(file.name);
+  if (!['docx', 'docm', 'pptx', 'ppsx', 'odt', 'xlsx'].includes(ext)) return [];
+  const JSZip = (await import('jszip')).default;
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const media = Object.keys(zip.files).filter((n) => /\.(png|jpe?g|webp|bmp|gif)$/i.test(n) && /(media|Pictures)\//i.test(n));
+  const blobs = await Promise.all(media.map(async (n) => ({ n, blob: await zip.file(n)!.async('blob') })));
+  const out: string[] = [];
+  for (const { blob } of blobs.sort((a, b) => b.blob.size - a.blob.size).slice(0, max)) {
+    if (blob.size < 15_000) continue; // ícones e logos
+    try {
+      out.push(await imageToDataUrl(blob));
+    } catch {
+      /* imagem ilegível: ignora */
+    }
+  }
+  return out;
+}
+
+/* ------------------------------ RTF e Word antigo ------------------------------ */
+export function rtfToText(rtf: string): string {
+  let out = '';
+  const stack: boolean[] = []; // true = grupo ignorado (fontes, cores, {\* ...})
+  let skip = false;
+  let uc = 1;
+  for (let i = 0; i < rtf.length; i++) {
+    const c = rtf[i];
+    if (c === '{') {
+      stack.push(skip);
+      const rest = rtf.slice(i + 1, i + 16);
+      if (/^\\(\*|fonttbl|colortbl|stylesheet|info|pict|header|footer)/.test(rest)) skip = true;
+    } else if (c === '}') skip = stack.pop() ?? false;
+    else if (c === '\\') {
+      const n = rtf[i + 1];
+      if (n === "'") {
+        if (!skip) out += new TextDecoder('windows-1252').decode(new Uint8Array([parseInt(rtf.slice(i + 2, i + 4), 16) || 63]));
+        i += 3;
+      } else if (n === '\\' || n === '{' || n === '}') {
+        if (!skip) out += n;
+        i++;
+      } else {
+        const m = /^\\([a-zA-Z]+)(-?\d+)? ?/.exec(rtf.slice(i, i + 40));
+        if (!m) continue;
+        i += m[0].length - 1;
+        if (skip) continue;
+        if (m[1] === 'par' || m[1] === 'line' || m[1] === 'row') out += '\n';
+        else if (m[1] === 'tab' || m[1] === 'cell') out += '\t';
+        else if (m[1] === 'uc') uc = Number(m[2] ?? 1);
+        else if (m[1] === 'u') {
+          const code = Number(m[2]);
+          out += String.fromCharCode(code < 0 ? code + 65536 : code);
+          i += uc; // caractere de reserva depois do \uN
+        }
+      }
+    } else if (!skip && c !== '\r' && c !== '\n') out += c;
+  }
+  return out;
+}
+
+/** .doc (Word 97–2003): sem biblioteca, procura trechos de texto (cp1252 ou UTF-16) no binário. Serve para listas e tabelas simples. */
+export function oldWordToText(buf: ArrayBuffer): string {
+  const b = new Uint8Array(buf);
+  // Só bytes que aparecem em texto português (letras acentuadas, aspas, travessão…): o resto é ruído do arquivo.
+  const HIGH = new Set([0x85, 0x91, 0x92, 0x93, 0x94, 0x96, 0x97, 0xa0, 0xaa, 0xb0, 0xba]);
+  const ok = (x: number) => x === 9 || x === 10 || x === 13 || x === 7 || (x >= 32 && x < 127) || HIGH.has(x) || (x >= 0xc0 && x < 0xff && x !== 0xd7 && x !== 0xf7);
+  const runs: { at: number; text: string }[] = [];
+  // cp1252 (texto "comprimido" do Word: o comum em português)
+  for (let i = 0; i < b.length; ) {
+    if (!ok(b[i])) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < b.length && ok(b[j])) j++;
+    if (j - i >= 14) runs.push({ at: i, text: new TextDecoder('windows-1252').decode(b.subarray(i, j)) });
+    i = j;
+  }
+  // UTF-16LE (documentos com caracteres fora do latim)
+  for (let i = 0; i + 1 < b.length; ) {
+    if (!(b[i + 1] === 0 && ok(b[i]))) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j + 1 < b.length && b[j + 1] === 0 && ok(b[j])) j += 2;
+    if ((j - i) / 2 >= 14) runs.push({ at: i, text: new TextDecoder('utf-16le').decode(b.subarray(i, j)) });
+    i = j;
+  }
+  return runs
+    .sort((x, y) => x.at - y.at)
+    .map((r) => r.text.replace(/\x07\x07/g, '\n').replace(/\x07/g, '\t').replace(/[\r\x0b]/g, '\n'))
+    .filter((t) => /\p{L}{3}/u.test(t) && (t.match(/[\p{L}\p{N}\s.,:;/()\-–—'"º°ª%&]/gu)?.length ?? 0) >= t.length * 0.9)
+    .join('\n');
+}
+
+/** HTML: tabelas viram linhas de células; o resto, uma linha por bloco de texto. */
+function htmlToGrid(html: string): Grid {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const grid: Grid = [];
+  const BLOCK = /^(p|div|li|h[1-6]|br|tr|section|article|header|footer|ul|ol|blockquote|pre)$/i;
+  let line = '';
+  const flush = () => {
+    if (line.trim()) grid.push([line.replace(/\s+/g, ' ').trim()]);
+    line = '';
+  };
+  const walk = (el: Node) => {
+    for (const c of [...el.childNodes]) {
+      if (c.nodeType === 3) line += c.textContent ?? '';
+      else if (c.nodeType === 1) {
+        const e = c as Element;
+        if (/^(script|style|head)$/i.test(e.tagName)) continue;
+        if (/^table$/i.test(e.tagName)) {
+          flush();
+          for (const tr of [...e.querySelectorAll('tr')]) grid.push([...tr.querySelectorAll('th,td')].map((td) => (td.textContent ?? '').replace(/\s+/g, ' ').trim()));
+        } else {
+          if (BLOCK.test(e.tagName)) flush();
+          walk(e);
+          if (BLOCK.test(e.tagName)) flush();
+        }
+      }
+    }
+  };
+  walk(doc.body);
+  flush();
+  return grid;
 }
 
 /* ------------------------ Texto posicionado → tabela ------------------------ */
@@ -246,7 +456,7 @@ export function itemsToGrid(items: Item[]): Grid {
 }
 
 /* ----------------------------------- PDF ----------------------------------- */
-async function pdfToGrids(file: File, progress: Progress): Promise<GridSheet[]> {
+async function pdfToGrids(file: File, progress: Progress, opts: GridOptions = {}): Promise<GridSheet[]> {
   const pdfjs = await import('pdfjs-dist');
   pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
   const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
@@ -267,6 +477,8 @@ async function pdfToGrids(file: File, progress: Progress): Promise<GridSheet[]> 
     }
     if (items.map((i) => i.text).join('').length > 20) {
       sheets.push({ name: `Página ${n}`, grid: itemsToGrid(items) });
+    } else if (opts.noOcr) {
+      sheets.push({ name: `Página ${n}`, grid: [], scanned: true });
     } else {
       // Página escaneada (imagem): lê com OCR.
       const scale = 2.5;
@@ -516,4 +728,53 @@ async function ocrToGrid(source: HTMLCanvasElement, onPct: (p: number) => void):
   } finally {
     await worker.terminate();
   }
+}
+
+/* ------------------- Imagens para a IA (calendário em foto, PDF desenhado) ------------------- */
+/** Qualquer imagem → JPEG em data URL, no máximo `max` px (cabe no limite da IA). */
+export async function imageToDataUrl(src: Blob, max = 1800): Promise<string> {
+  let bmp: ImageBitmap;
+  try {
+    bmp = await createImageBitmap(src);
+  } catch {
+    throw new Error('Não consegui abrir esta imagem. Se for HEIC (iPhone), exporte como JPG ou tire um print da tela.');
+  }
+  return canvasToJpeg(bmp, bmp.width, bmp.height, max);
+}
+
+function canvasToJpeg(src: CanvasImageSource, w: number, h: number, max: number): string {
+  let side = max;
+  for (let q = 0.85; ; q -= 0.15) {
+    const s = Math.min(1, side / Math.max(w, h));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * s));
+    c.height = Math.max(1, Math.round(h * s));
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#fff';
+    g.fillRect(0, 0, c.width, c.height);
+    g.drawImage(src, 0, 0, c.width, c.height);
+    const url = c.toDataURL('image/jpeg', Math.max(q, 0.5));
+    if (url.length < 1_800_000 || side < 700) return url; // a IA aceita até ~2 MB por imagem
+    side = Math.round(side * 0.8);
+  }
+}
+
+/** Páginas do PDF como imagens (a IA lê calendários desenhados, escaneados ou em pôster). */
+export async function pdfToImages(file: File, max = 6, progress: Progress = () => {}): Promise<string[]> {
+  const pdfjs = await import('pdfjs-dist');
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const out: string[] = [];
+  for (let n = 1; n <= Math.min(doc.numPages, max); n++) {
+    progress(`Preparando a página ${n} do PDF…`);
+    const page = await doc.getPage(n);
+    const base = page.getViewport({ scale: 1 });
+    const v = page.getViewport({ scale: 1800 / Math.max(base.width, base.height) });
+    const canvas = document.createElement('canvas');
+    canvas.width = v.width;
+    canvas.height = v.height;
+    await page.render({ canvasContext: canvas.getContext('2d')!, viewport: v, canvas } as Parameters<typeof page.render>[0]).promise;
+    out.push(canvasToJpeg(canvas, canvas.width, canvas.height, 1800));
+  }
+  return out;
 }

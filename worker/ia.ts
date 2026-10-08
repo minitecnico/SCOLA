@@ -428,6 +428,75 @@ export async function aiSmart(ctx: Ctx, input: {
   return done(text, img?.image ?? null);
 }
 
+/* ============================ Calendário escolar (importar) ============================ */
+const CAL_CATEGORIES = ['Feriado', 'Avaliação', 'Recuperação Paralela', 'Pedagógico', 'Evento & Cultura', 'Data comemorativa', 'Marco do período', 'Evento'];
+
+/**
+ * Lê um calendário escolar pronto (foto, PDF desenhado, texto) e devolve os eventos já no padrão do sistema.
+ * Em duas etapas, como no resto da IA: a visão só transcreve a imagem; o modelo de texto monta o JSON.
+ */
+export async function aiCalendar(ctx: Ctx, input: { year?: number; text?: string; images?: string[] }) {
+  requireRole(ctx, 'gestor', 'professor', 'secretaria');
+  const env = ctx.env;
+  const year = Math.floor(Number(input?.year)) || new Date().getFullYear();
+  if (year < 2000 || year > 2100) fail('Ano inválido.');
+  const text = String(input?.text ?? '').trim().slice(0, 24_000);
+  const imgs = (Array.isArray(input?.images) ? input.images : []).filter(isImage).slice(0, 3);
+  if (text.length < 10 && !imgs.length) fail('Envie o calendário (arquivo ou foto).');
+  await spend(ctx);
+  const used: string[] = [];
+  let source = text;
+  if (imgs.length) {
+    const read = await readImages(env, imgs, `Estas ${imgs.length > 1 ? 'imagens são' : 'imagem é'} de um calendário escolar brasileiro. Transcreva TODO o conteúdo, na ordem em que aparece, sem resumir e sem inventar. Para cada mês: escreva o nome do mês (e o ano, se houver) e, embaixo, cada compromisso com a data (dia, ou dia a dia, ex.: "10 a 14") e o texto exato. Se o calendário for em grade (quadradinhos com os dias do mês) e houver dias coloridos, circulados ou marcados, liste cada dia marcado e diga o que a legenda informa sobre aquela cor ou símbolo. Copie também as legendas e as observações do rodapé.`);
+    used.push(`${read.model} (leitura da imagem)`);
+    source = `${text ? `${text}\n\n` : ''}${read.text}`.slice(0, 30_000);
+  }
+  const r = await ask(env, 'texto', [
+    { role: 'system', content: 'Você extrai eventos de calendários escolares brasileiros e responde somente com JSON válido, sem comentários.' },
+    { role: 'user', content: `Converta o calendário abaixo em eventos.
+Ano padrão (quando a data não disser o ano): ${year}. Datas no formato brasileiro (dia/mês). Se houver títulos de mês seguidos de dias ("MARÇO" e depois "10 a 14 - Provas"), o dia pertence àquele mês.
+Responda exatamente neste formato:
+{"eventos":[{"inicio":"AAAA-MM-DD","fim":"AAAA-MM-DD ou null","titulo":"texto curto","categoria":"..."}]}
+Regras:
+- Um item por compromisso. Período (10 a 14 de março, recesso de 13 a 24 de julho) = um item com inicio e fim. Dias soltos ("15 e 29") = itens separados.
+- "titulo": o nome do compromisso, sem a data. Não invente eventos nem datas; ignore totais ("200 dias letivos"), cabeçalhos e dias da semana.
+- "categoria": uma destas — ${CAL_CATEGORIES.join(', ')} — ou, se o calendário trouxer legenda de cores/categorias, o nome da legenda.
+- Inclua feriados, recessos e férias.
+
+Calendário:
+"""
+${source}
+"""` },
+  ], 6000, 0);
+  used.push(r.model);
+
+  // Aproveita item a item (resposta cortada no meio ainda rende o que veio completo).
+  const seen = new Set<string>();
+  const events: { title: string; start: string; end: string | null; category: string }[] = [];
+  const valid = (d: unknown): d is string => {
+    if (typeof d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+    const y = +d.slice(0, 4);
+    return new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d && y >= year - 1 && y <= year + 1;
+  };
+  for (const m of r.text.matchAll(/\{[^{}]*\}/g)) {
+    let o: { inicio?: unknown; fim?: unknown; titulo?: unknown; categoria?: unknown };
+    try {
+      o = JSON.parse(m[0]);
+    } catch {
+      continue;
+    }
+    const title = String(o.titulo ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    if (!valid(o.inicio) || title.length < 3) continue;
+    const end = valid(o.fim) && o.fim > o.inicio ? o.fim : null;
+    const key = `${o.inicio}|${end ?? ''}|${title.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    events.push({ title, start: o.inicio, end, category: String(o.categoria ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) || 'Evento' });
+    if (events.length >= 400) break;
+  }
+  return { events, used };
+}
+
 /* ==================================== Pareceres ==================================== */
 type ParecerStudent = { n: number; terms?: (number | null)[]; final?: number | null; activities?: { name: string; score: number | null; max: number }[] };
 const nf = (v: number | null | undefined) => (v == null ? 'sem nota' : v.toFixed(1).replace('.', ','));

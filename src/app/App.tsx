@@ -33,6 +33,7 @@ const AdminSuportePage = lazyPage(() => import('../pages/admin/AdminSuportePage'
 const SuportePage = lazyPage(() => import('../pages/SuportePage'), 'SuportePage');
 const ResetPasswordPage = lazyPage(() => import('../pages/ResetPasswordPage'), 'ResetPasswordPage');
 const AdminOverviewPage = lazyPage(() => import('../pages/admin/AdminOverviewPage'), 'AdminOverviewPage');
+const MetricsPage = lazyPage(() => import('../pages/admin/MetricsPage'), 'MetricsPage');
 const AdminPage = lazyPage(() => import('../pages/admin/AdminPage'), 'AdminPage');
 const PlanDocEditorPage = lazyPage(() => import('../pages/PlanDocEditorPage'), 'PlanDocEditorPage');
 const IAPage = lazyPage(() => import('../pages/IAPage'), 'IAPage');
@@ -85,6 +86,7 @@ function Protected() {
       <Suspense fallback={<Loading />}>
         <Routes>
           {isSuperadmin ? <Route path="/admin" element={<AdminOverviewPage />} /> : null}
+          {isSuperadmin ? <Route path="/admin/metricas" element={<MetricsPage />} /> : null}
           {isSuperadmin ? <Route path="/admin/escolas" element={<AdminPage />} /> : null}
           {isSuperadmin ? <Route path="/admin/suporte" element={<AdminSuportePage />} /> : null}
           {isSuperadmin ? <Route path="/admin/logs" element={<LogsPage />} /> : null}

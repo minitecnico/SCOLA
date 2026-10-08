@@ -17,6 +17,7 @@ import * as chamadas from './handlers/chamadas';
 import * as comunicacao from './handlers/comunicacao';
 import * as contas from './handlers/contas';
 import * as logs from './handlers/logs';
+import * as metricas from './handlers/metricas';
 import * as notas from './handlers/notas';
 import * as painel from './handlers/painel';
 import * as provas from './handlers/provas';
@@ -32,7 +33,7 @@ export { SupportHub } from './hub';
 type Handler = (ctx: Ctx, ...args: unknown[]) => Promise<unknown>;
 const INTERNAL = new Set(['filesOf', 'purgeFiles', 'fileUrl', 'composeTermActs', 'targetsFor', 'autoGrades', 'docInBase', 'folderInBase', 'canEditDoc', 'saveEditableContent', 'ragForget', 'chatStream']);
 const handlers: Record<string, Handler> = {};
-for (const mod of [acessos, alertas, anoletivo, cadastros, editor, feriados, folders, google, ia, chamadas, comunicacao, contas, logs, notas, painel, provas, seguranca, suporte, usuarios]) {
+for (const mod of [acessos, alertas, anoletivo, cadastros, editor, feriados, folders, google, ia, chamadas, comunicacao, contas, logs, metricas, notas, painel, provas, seguranca, suporte, usuarios]) {
   for (const [name, fn] of Object.entries(mod)) {
     if (typeof fn === 'function' && !INTERNAL.has(name)) handlers[name] = fn as Handler;
   }

@@ -415,6 +415,7 @@ function HeaderBaseSwitcher() {
 type AdminItem = { to: string; label: string; icon: LucideIcon };
 const ADMIN_NAV: { to?: string; title: string; end?: boolean; icon: LucideIcon; prefix?: string; items?: AdminItem[] }[] = [
   { to: '/admin', title: 'Visão geral', end: true, icon: LayoutGrid },
+  { to: '/admin/metricas', title: 'Métricas', icon: BarChart3 },
   {
     title: 'Escolas', icon: Building2, prefix: '/admin/escolas',
     items: [{ to: '/admin/escolas', label: 'Todas as escolas', icon: Building2 }, { to: '/admin/escolas?novo=1', label: 'Cadastrar escola', icon: Plus }],

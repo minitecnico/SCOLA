@@ -554,6 +554,23 @@ export interface LogOverview {
 }
 export const logOverview = () => rpc<LogOverview>('logOverview');
 
+export interface AdminMetrics {
+  generatedAt: string;
+  range: number;
+  today: string; // dia de hoje no fuso de Brasília
+  daily: { d: string; actions: number; logins: number; problems: number; failed: number; dau: number }[];
+  users: { dau: number; wau: number; mau: number; cur: number; prev: number };
+  mix: { category: string; action: string; label: string; n: number; bad: number }[];
+  heat: { w: number; h: number; n: number }[];
+  devices: { device: string | null; role: string | null; u: number }[];
+  growth: { users: { m: string; n: number }[]; bases: { m: string; n: number }[] };
+  sessions: { d: string; n: number }[];
+  schools: { id: string; name: string; plan: string; active: boolean; max: number | null; students: number; created: string; days: Record<string, { n: number; u: number }> }[];
+  engines: { engine_id: string; ok: number; fail: number; ewma_ms: number | null }[];
+  totals: { users: number; bases: number; students: number };
+}
+export const adminMetrics = (days: number, fresh = false) => rpc<AdminMetrics>('adminMetrics', days, fresh);
+
 /* ------------------------- Provas (gabarito e correção pela câmera) ------------------------- */
 export interface Exam {
   id: string;

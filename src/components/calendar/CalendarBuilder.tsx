@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthProvider";
-import { listLocalHolidays } from "../../lib/queries";
+import { listLocalHolidays, listSchools } from "../../lib/queries";
 import { useAi } from "../../lib/ia";
 import type { ImportedEvent } from "../../lib/importCalendarBuilder";
 import { commemorativeDates, listNationalHolidays, mergeHolidays, offDays } from "../../lib/holidays";
@@ -21,6 +21,7 @@ import { AgendaView, MonthCard } from "./views";
 import { CityModal, EditorsModal } from "./modals";
 import { ImportSmartModal } from "./ImportCalendarModal";
 import { LocalHolidaysModal } from "./LocalHolidaysModal";
+import { PrintCalendarModal } from "./PrintCalendarModal";
 import { CategoriesSection, EventsSection, HolidaysSection, IdentitySection, LetivosSection, PeriodsSection } from "./EditorSections";
 
 /* ============================== Construtor =============================== */
@@ -72,6 +73,8 @@ export function CalendarBuilder({
   const [showLocal, setShowLocal] = useState(true);
   const [showOptional, setShowOptional] = useState(true);
   const [holidaysOpen, setHolidaysOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
+  const { data: schools } = useQuery({ queryKey: ["schools"], queryFn: listSchools, staleTime: 5 * 60_000 });
   const [cityOpen, setCityOpen] = useState(false);
   const { activeOrgId } = useAuth();
   const ai = useAi();
@@ -395,7 +398,7 @@ export function CalendarBuilder({
     { label: "Feriados municipais", hint: "Dia do Professor, aniversário da cidade…", icon: <CalendarDays size={16} />, onClick: () => setHolidaysOpen(true), hidden: !canSetCity },
     { label: "Cidade da escola", hint: local?.city ? `${local.city} · feriados locais` : "Para mostrar feriados locais", icon: <MapPin size={16} />, onClick: () => setCityOpen(true), hidden: !canSetCity },
     { label: "Importar calendário", hint: "Excel, CSV, PDF, Word ou ICS", icon: <Upload size={16} />, onClick: () => setImportOpen(true), hidden: !canManage },
-    { label: "Imprimir / PDF", icon: <Printer size={16} />, onClick: () => window.print() },
+    { label: "Imprimir / PDF", icon: <Printer size={16} />, onClick: () => setPrintOpen(true), hint: "Ano em 1 folha, mês a mês, lista" },
     { label: "Baixar backup (.json)", icon: <Download size={16} />, onClick: exportJSON },
     { label: "Excluir calendário", icon: <Trash2 size={16} />, onClick: onDelete, danger: true, hidden: !canDelete },
   ];
@@ -587,6 +590,10 @@ export function CalendarBuilder({
           onApply={applyImported}
           onClose={() => setImportOpen(false)}
         />
+      ) : null}
+
+      {printOpen ? (
+        <PrintCalendarModal data={data} holidays={holidays} active={active} logo={schools?.[0]?.logo_url} viewId={viewId} onClose={() => setPrintOpen(false)} />
       ) : null}
 
       {holidaysOpen && canSetCity ? <LocalHolidaysModal year={data.year} onClose={() => setHolidaysOpen(false)} onChangeCity={() => { setHolidaysOpen(false); setCityOpen(true); }} /> : null}

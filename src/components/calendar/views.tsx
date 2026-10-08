@@ -1,7 +1,7 @@
 import React from "react";
 import { holidayKindLabel } from "../../lib/holidays";
 import type { CalendarHoliday, CalBuilderEvent as CalEvent, CalCategory as Category } from "../../lib/types";
-import { HOLIDAY_COLOR, LOCAL_HOLIDAY_COLOR, readableText } from "../../lib/calendarColors";
+import { holidayColor, readableText } from "../../lib/calendarColors";
 
 import { DOW, MONTHS_PT, WEEKDAY, chipLabel, daysInMonthFor, isoOf, pad2 } from "./dates";
 
@@ -36,7 +36,7 @@ export function monthEntries(
       days: [day],
       title: h.generic ? "Feriado municipal" : h.title,
       label: holidayKindLabel(h) + (h.generic ? " · confirme o nome" : ""),
-      color: h.scope === "national" ? HOLIDAY_COLOR : LOCAL_HOLIDAY_COLOR,
+      color: holidayColor(h.scope),
       holiday: true,
       endISO: h.date,
       weekday: wd(day),

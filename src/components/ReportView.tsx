@@ -372,7 +372,7 @@ function FreqGrid({ payload, minPct }: { payload: ReportPayload; minPct: number 
         <span><span className="inline-block h-2 w-2 rounded-full bg-orange-500" /> {minPct - 10}–{minPct - 1}%</span>
         <span><span className="inline-block h-2 w-2 rounded-full bg-red-500" /> abaixo de {minPct - 10}%</span>
         <span>Situação: frequência ≥ {minPct}% = Aprovado</span>
-        <span>Só dias letivos (seg–sex, sem feriados nacionais).</span>
+        <span>Só dias letivos (seg–sex, sem feriados).</span>
       </div>
     </div>
   );

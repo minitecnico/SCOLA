@@ -101,6 +101,8 @@ const term = (t: unknown, y?: unknown) => `${t}º tri${y ? ` ${y}` : ''}`;
 export const ACTIONS: Record<string, Spec> = {
   // Cadastros
   saveSchool: { cat: 'cadastro', label: 'Atualizou os dados da escola' },
+  saveSchoolHoliday: { cat: 'cadastro', label: (a) => ((a[0] as { id?: string })?.id ? 'Editou feriado da escola' : 'Cadastrou feriado da escola'), refs: (a) => ({ text: s(a[0]?.title) }) },
+  deleteSchoolHoliday: { cat: 'cadastro', label: 'Removeu feriado da escola' },
   saveClass: { cat: 'cadastro', label: (a) => ((a[0] as { id?: string })?.id ? 'Editou turma' : 'Criou turma'), refs: (a) => ({ text: s(a[0]?.name) }) },
   deleteClass: { cat: 'cadastro', label: 'Excluiu turma', refs: (a) => ({ classId: a[0] }), pre: true },
   bulkDeleteClasses: { cat: 'cadastro', label: 'Excluiu turmas', refs: (a) => ({ text: `${n(a[0])} turma(s)` }) },

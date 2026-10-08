@@ -2,9 +2,7 @@
  * Dias letivos para o "Mapa de chamada" mensal.
  *
  * Escola não funciona sábado nem domingo — só conta segunda a sexta. Feriados
- * nacionais (recebidos como conjunto de datas "YYYY-MM-DD") também saem da conta.
- * Recessos/feriados municipais específicos não são detectáveis aqui; ficam de fora
- * dessa regra (o coordenador pode lançar falta/observação manualmente se precisar).
+ * (nacionais, estaduais e municipais, recebidos como conjunto de datas "YYYY-MM-DD") também saem da conta.
  */
 
 const pad = (n: number) => String(n).padStart(2, '0');

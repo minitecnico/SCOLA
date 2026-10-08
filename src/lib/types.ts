@@ -268,7 +268,7 @@ export interface PlanMessage {
   authorName: string | null;
 }
 
-export type HolidayScope = 'national' | 'state' | 'city';
+export type HolidayScope = 'national' | 'state' | 'city' | 'optional';
 
 export interface CalendarHoliday {
   id: string;
@@ -280,7 +280,16 @@ export interface CalendarHoliday {
   city?: string | null;
   source?: string | null;
   generic?: boolean; // feriado municipal sem nome na fonte (só a data é conhecida)
+  custom?: string; // id do feriado cadastrado pela escola (pode ser editado/removido)
+  yearly?: boolean; // feriado da escola que se repete todo ano
   created_at?: string;
+}
+
+export interface SchoolHoliday {
+  id: string;
+  date: string;
+  title: string;
+  yearly: boolean;
 }
 
 export interface LocalHolidays {

@@ -58,3 +58,8 @@ export function readableText(hex: string) {
 
 export const HOLIDAY_COLOR = "#DC2626"; // feriado nacional (vermelho)
 export const LOCAL_HOLIDAY_COLOR = "#92400E"; // feriado estadual/municipal (marrom)
+export const OPTIONAL_HOLIDAY_COLOR = "#6B7280"; // ponto facultativo / data comemorativa (cinza)
+
+/** Cor do marcador de um feriado conforme o tipo. */
+export const holidayColor = (scope: "national" | "state" | "city" | "optional") =>
+  scope === "national" ? HOLIDAY_COLOR : scope === "optional" ? OPTIONAL_HOLIDAY_COLOR : LOCAL_HOLIDAY_COLOR;

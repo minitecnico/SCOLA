@@ -21,13 +21,14 @@ import { ShareModal } from '../components/ShareModal';
 import { EmptyState, FilterBar, FilterField, Loading, Modal, PageHeader, SegmentedField, fieldCls } from '../components/ui';
 import { cn } from '../lib/cn';
 
-import { listNationalHolidays } from '../lib/holidays';
+import { useAuth } from '../auth/AuthProvider';
+import { listNationalHolidays, offDays } from '../lib/holidays';
 
 import { downloadXlsx } from '../lib/importSheet';
 
 import { groupByMonth, schoolDaysBetween, weekdayLetter } from '../lib/schooldays';
 
-import { classLabel, listAllClasses, listStudentsByClass, reportAttendance, reportTerms, reportTermDetails } from '../lib/queries';
+import { classLabel, listAllClasses, listLocalHolidays, listStudentsByClass, reportAttendance, reportTerms, reportTermDetails } from '../lib/queries';
 import { CREDITO_OVERRIDE_KEY, MONTHS, SCHOOL_YEAR_MONTHS, SUBJECT, SUBJECT_SHORT, TERM_MONTHS, collapseCreditoColumns, creditoSumFrom, isCreditoActivity, type ReportPayload } from '../lib/types';
 
 import { DateInput } from '../components/DateInput';
@@ -41,6 +42,7 @@ const iso = (d: Date) => format(d, 'yyyy-MM-dd');
 const fmtBR = (s: string) => s.split('-').reverse().join('/');
 
 export function ReportsPage() {
+  const { activeOrgId } = useAuth();
   const [tipo, setTipo] = useState<Tipo>('freq');
   const [classId, setClassId] = useState('');
   const [from, setFrom] = useState(iso(startOfMonth(today)));
@@ -160,11 +162,17 @@ export function ReportsPage() {
   const fromYear = Number(from.slice(0, 4));
   const toYear = Number(to.slice(0, 4));
   const holidaysQ = useQuery({
-    queryKey: ['national-holidays', fromYear, toYear],
+    queryKey: ['off-days', activeOrgId, fromYear, toYear],
     queryFn: async () => {
       const years = Array.from({ length: toYear - fromYear + 1 }, (_, i) => fromYear + i);
-      const lists = await Promise.all(years.map((y) => listNationalHolidays(y)));
-      return new Set(lists.flat().map((h) => h.date));
+      // Nacionais + estaduais/municipais (inclui os cadastrados pela escola); se o local falhar, segue só com os nacionais.
+      const lists = await Promise.all(
+        years.map(async (y) => {
+          const [national, local] = await Promise.all([listNationalHolidays(y), listLocalHolidays(y).catch(() => null)]);
+          return [...national, ...(local?.holidays ?? [])];
+        }),
+      );
+      return offDays(lists.flat());
     },
     enabled: tipo === 'freq' && freqLayout === 'grid' && !!classId,
   });

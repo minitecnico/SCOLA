@@ -176,7 +176,7 @@ export function LetivosSection({
 }
 
 export function HolidaysSection({
-  year, holidayCount, city, cityShort, cityStatus, canSetCity, onAdd, onChangeCity,
+  year, holidayCount, city, cityShort, cityStatus, canSetCity, onAdd, onChangeCity, onManage,
 }: {
   year: number;
   holidayCount: number;
@@ -186,6 +186,7 @@ export function HolidaysSection({
   canSetCity: boolean;
   onAdd: () => void;
   onChangeCity: () => void;
+  onManage: () => void;
 }) {
   return (
     <Section title="Feriados" count={holidayCount || undefined}>
@@ -194,6 +195,11 @@ export function HolidaysSection({
         Para deixá-los fixos e editáveis, adicione como eventos na categoria “Feriado”.
       </p>
       <button className="cb-add" onClick={onAdd}>+ Adicionar feriados de {year}</button>
+      {canSetCity ? (
+        <p className="cb-help cb-mt">
+          Falta algum feriado da sua cidade (Dia do Professor, aniversário do município…)? <button className="cb-link" onClick={() => onManage()}>Cadastrar feriado municipal</button>
+        </p>
+      ) : null}
       {cityStatus === "ok" ? (
         <p className="cb-help cb-mt">
           Feriados locais para <b>{city}</b>. {canSetCity ? <button className="cb-link" onClick={() => onChangeCity()}>Alterar cidade</button> : null}

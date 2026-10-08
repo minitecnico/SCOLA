@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthProvider";
 import { listLocalHolidays } from "../../lib/queries";
 import type { ImportedEvent } from "../../lib/importCalendarBuilder";
-import { listNationalHolidays, mergeHolidays } from "../../lib/holidays";
+import { commemorativeDates, listNationalHolidays, mergeHolidays, offDays } from "../../lib/holidays";
 import { ArrowLeft, CalendarDays, Download, List as ListIcon, MapPin, MoreHorizontal, Pencil, Printer, Trash2, Upload, Users } from "lucide-react";
 import { DropdownMenu, type MenuAction } from "../ui";
 import type { OrgPerson, CalBuilderEvent as CalEvent, CalCategory as Category, CalendarBuilderData as CalendarData, CalPeriod as Period } from "../../lib/types";
@@ -11,13 +11,14 @@ import { DateInput } from "../DateInput";
 import { downloadBlob } from "../../lib/storage";
 import { CalendarFilters, type FilterChip } from "./CalendarFilters";
 import "./calendar.css";
-import { CAT_PALETTE, HOLIDAY_COLOR, LOCAL_HOLIDAY_COLOR } from "../../lib/calendarColors";
+import { CAT_PALETTE, HOLIDAY_COLOR, LOCAL_HOLIDAY_COLOR, OPTIONAL_HOLIDAY_COLOR } from "../../lib/calendarColors";
 import { askConfirm } from "../Feedback";
 
 import { eventDays, isoOf, todayISO, uid, whenLabel } from "./dates";
 import { initialView } from "./calendarData";
 import { AgendaView, MonthCard } from "./views";
 import { CityModal, EditorsModal, ImportSmartModal } from "./modals";
+import { LocalHolidaysModal } from "./LocalHolidaysModal";
 import { CategoriesSection, EventsSection, HolidaysSection, IdentitySection, LetivosSection, PeriodsSection } from "./EditorSections";
 
 /* ============================== Construtor =============================== */
@@ -67,6 +68,8 @@ export function CalendarBuilder({
   const [editorsOpen, setEditorsOpen] = useState(false);
   const [showHolidays, setShowHolidays] = useState(true);
   const [showLocal, setShowLocal] = useState(true);
+  const [showOptional, setShowOptional] = useState(true);
+  const [holidaysOpen, setHolidaysOpen] = useState(false);
   const [cityOpen, setCityOpen] = useState(false);
   const { activeOrgId } = useAuth();
   const [eventQuery, setEventQuery] = useState("");
@@ -92,7 +95,8 @@ export function CalendarBuilder({
     staleTime: 60 * 60_000,
     retry: 1,
   });
-  const allHolidays = useMemo(() => mergeHolidays(nationalHolidays, local?.holidays ?? []), [nationalHolidays, local]);
+  const optionalHolidays = useMemo(() => commemorativeDates(data.year), [data.year]);
+  const allHolidays = useMemo(() => mergeHolidays(nationalHolidays, local?.holidays ?? [], optionalHolidays), [nationalHolidays, local, optionalHolidays]);
   // Não duplica: esconde o marcador automático quando o feriado já virou evento (mesma data+título).
   const eventKeys = useMemo(
     () => new Set(data.events.map((e) => `${e.start}|${e.title.toLowerCase()}`)),
@@ -101,9 +105,9 @@ export function CalendarBuilder({
   const holidays = useMemo(
     () =>
       allHolidays.filter(
-        (h) => (h.scope === "national" ? showHolidays : showLocal) && !eventKeys.has(`${h.date}|${h.title.toLowerCase()}`)
+        (h) => (h.scope === "national" ? showHolidays : h.scope === "optional" ? showOptional : showLocal) && !eventKeys.has(`${h.date}|${h.title.toLowerCase()}`)
       ),
-    [showHolidays, showLocal, allHolidays, eventKeys]
+    [showHolidays, showLocal, showOptional, allHolidays, eventKeys]
   );
   const cityShort = (local?.city ?? "").replace(/\s*[-–/,]\s*[A-Za-z]{2}$/, "");
   const localCount = local?.holidays.length ?? 0;
@@ -172,11 +176,14 @@ export function CalendarBuilder({
     });
     let national = 0;
     let state = 0;
+    let optional = 0;
     allHolidays.forEach((h) => {
       if (!inPeriod(h.date) || eventKeys.has(`${h.date}|${h.title.toLowerCase()}`)) return;
-      h.scope === "national" ? national++ : state++;
+      if (h.scope === "national") national++;
+      else if (h.scope === "optional") optional++;
+      else state++;
     });
-    return { byCat, national, state };
+    return { byCat, national, state, optional };
   }, [data.events, data.year, months, allHolidays, eventKeys]);
   const next = useMemo(() => {
     const all = [
@@ -200,6 +207,7 @@ export function CalendarBuilder({
     setActive(on ? new Set(data.categories.map((c) => c.id)) : new Set());
     setShowHolidays(on);
     setShowLocal(on);
+    setShowOptional(on);
   };
   const filterChips: FilterChip[] = [
     ...data.categories.map((c) => ({
@@ -216,6 +224,7 @@ export function CalendarBuilder({
     ...(localCount > 0
       ? [{ id: "feriados-locais", label: `Feriados de ${cityShort || "sua cidade"}`, color: LOCAL_HOLIDAY_COLOR, count: periodCounts.state, on: showLocal, onToggle: () => setShowLocal((v) => !v), title: `Feriados do estado e do município (${local?.city ?? ""})` }]
       : []),
+    { id: "datas-comemorativas", label: "Datas comemorativas", color: OPTIONAL_HOLIDAY_COLOR, count: periodCounts.optional, on: showOptional, onToggle: () => setShowOptional((v) => !v), title: "Dia do Professor, Dia do Servidor, Quarta de Cinzas… (pontos facultativos — não tiram o dia letivo)" },
   ];
 
   const addCategory = () =>
@@ -272,7 +281,7 @@ export function CalendarBuilder({
       !(await askConfirm("Já existem dias letivos preenchidos.\n\nSubstituir pelos valores sugeridos?", { confirmLabel: "Substituir" }))
     )
       return;
-    const off = new Set<string>(nationalHolidays.map((h) => h.date));
+    const off = offDays(allHolidays); // nacionais, estaduais e municipais (inclui os cadastrados pela escola)
     data.events.forEach((ev) => {
       if (/feriado|recesso|f[ée]rias/i.test(catById[ev.categoryId]?.label ?? "")) {
         eventDays(ev).forEach((x) => off.add(isoOf(x.y, x.m, x.d)));
@@ -368,7 +377,7 @@ export function CalendarBuilder({
     }
     const existing = new Set(data.events.map((e) => `${e.start}|${e.title.toLowerCase()}`));
     const toAdd = allHolidays
-      .filter((h) => !existing.has(`${h.date}|${h.title.toLowerCase()}`))
+      .filter((h) => h.scope !== "optional" && !existing.has(`${h.date}|${h.title.toLowerCase()}`))
       .map((h) => ({ id: uid(), title: h.generic ? "Feriado municipal" : h.title, categoryId: cat!.id, start: h.date }));
     if (!toAdd.length) {
       alert(`Os feriados de ${data.year} já estão no calendário.`);
@@ -380,6 +389,7 @@ export function CalendarBuilder({
 
   const menuItems: MenuAction[] = [
     { label: "Participantes", hint: "Quem mais pode editar", icon: <Users size={16} />, onClick: () => setEditorsOpen(true), hidden: !canManageEditors },
+    { label: "Feriados municipais", hint: "Dia do Professor, aniversário da cidade…", icon: <CalendarDays size={16} />, onClick: () => setHolidaysOpen(true), hidden: !canSetCity },
     { label: "Cidade da escola", hint: local?.city ? `${local.city} · feriados locais` : "Para mostrar feriados locais", icon: <MapPin size={16} />, onClick: () => setCityOpen(true), hidden: !canSetCity },
     { label: "Importar calendário", hint: "Excel, CSV, PDF, Word ou ICS", icon: <Upload size={16} />, onClick: () => setImportOpen(true), hidden: !canManage },
     { label: "Imprimir / PDF", icon: <Printer size={16} />, onClick: () => window.print() },
@@ -447,7 +457,7 @@ export function CalendarBuilder({
 
             <LetivosSection byMonth={data.letivosByMonth} total={yearLetivos} onChange={setLetivos} onSuggest={suggestLetivos} />
 
-            <HolidaysSection year={data.year} holidayCount={allHolidays.length} city={local?.city} cityShort={cityShort} cityStatus={local?.status} canSetCity={canSetCity} onAdd={addHolidays} onChangeCity={() => setCityOpen(true)} />
+            <HolidaysSection year={data.year} holidayCount={allHolidays.length} city={local?.city} cityShort={cityShort} cityStatus={local?.status} canSetCity={canSetCity} onAdd={addHolidays} onChangeCity={() => setCityOpen(true)} onManage={() => setHolidaysOpen(true)} />
 
             <IdentitySection data={data} onChange={set} />
           </aside>
@@ -506,29 +516,22 @@ export function CalendarBuilder({
 
           <CalendarFilters chips={filterChips} onSetAll={setAllFilters} />
 
-          {local && local.status !== "ok" ? (
-            <div className="cb-notice">
+          {local ? (
+            <div className={local.status === "ok" ? "cb-notice cb-notice-soft" : "cb-notice"}>
               <MapPin size={16} aria-hidden />
               <span>
                 {local.status === "sem-cidade"
                   ? canSetCity
-                    ? "Informe a cidade da escola para ver também os feriados do estado e do município."
+                    ? "Informe a cidade da escola para ver os feriados do estado e do município — ou cadastre aqui os feriados da sua cidade."
                     : "A coordenação ainda não informou a cidade da escola — por isso só aparecem os feriados nacionais."
-                  : `Ainda não há feriados estaduais/municipais publicados para ${data.year}. Os nacionais continuam aparecendo.`}
+                  : localCount > 0
+                    ? `Feriados do estado e de ${cityShort} (${local.uf}) vêm de dados abertos e do cadastro da escola. Falta algum, como o Dia do Professor? ${canSetCity ? "Cadastre-o." : "Peça à coordenação para cadastrar."}`
+                    : `Não há feriados do estado ou de ${cityShort} publicados para ${data.year}. ${canSetCity ? "Cadastre os da sua cidade." : "Peça à coordenação para cadastrá-los."}`}
               </span>
+              {canSetCity ? <button className="cb-link" onClick={() => setHolidaysOpen(true)}>Cadastrar feriado</button> : null}
               {local.status === "sem-cidade" && canSetCity ? (
                 <button className="cb-link" onClick={() => setCityOpen(true)}>Definir cidade</button>
               ) : null}
-            </div>
-          ) : local && local.status === "ok" ? (
-            <div className="cb-notice cb-notice-soft">
-              <MapPin size={16} aria-hidden />
-              <span>
-                {localCount > 0
-                  ? `Feriados do estado e de ${cityShort} (${local.uf}) vêm de dados abertos — confirme com a prefeitura. Onde a fonte não traz o nome, aparece “Feriado municipal”.`
-                  : `Nenhum feriado do estado ou de ${cityShort} encontrado em ${data.year}. Se houver algum, cadastre-o como evento.`}
-              </span>
-              {canSetCity ? <button className="cb-link" onClick={() => setCityOpen(true)}>Alterar cidade</button> : null}
             </div>
           ) : null}
 
@@ -580,6 +583,7 @@ export function CalendarBuilder({
         />
       ) : null}
 
+      {holidaysOpen && canSetCity ? <LocalHolidaysModal year={data.year} onClose={() => setHolidaysOpen(false)} onChangeCity={() => { setHolidaysOpen(false); setCityOpen(true); }} /> : null}
       {cityOpen && canSetCity ? <CityModal onClose={() => setCityOpen(false)} /> : null}
 
       {editorsOpen && canManageEditors ? (

@@ -30,6 +30,7 @@ function fallbackNationalHolidays(year: number): CalendarHoliday[] {
   const easter = easterDate(year);
   const goodFriday = addDays(easter, -2);
   const carnival = addDays(easter, -47);
+  const carnivalMonday = addDays(easter, -48);
   const corpusChristi = addDays(easter, 60);
   const fixed = [
     [`${year}-01-01`, 'Confraternização Universal'],
@@ -40,8 +41,10 @@ function fallbackNationalHolidays(year: number): CalendarHoliday[] {
     [`${year}-11-02`, 'Finados'],
     [`${year}-11-15`, 'Proclamação da República'],
     [`${year}-12-25`, 'Natal'],
+    ...(year >= 2024 ? [[`${year}-11-20`, 'Dia da Consciência Negra']] : []),
   ];
   const movable = [
+    [iso(carnivalMonday), 'Carnaval'],
     [iso(carnival), 'Carnaval'],
     [iso(goodFriday), 'Sexta-feira Santa'],
     [iso(corpusChristi), 'Corpus Christi'],
@@ -81,15 +84,38 @@ function easterDate(year: number) {
   return new Date(year, month - 1, day);
 }
 
-/** Une os feriados nacionais aos locais (estado/município). Se a data já é feriado nacional, o local é descartado
- *  (muitas cidades repetem Sexta-feira Santa, Corpus Christi etc. como feriado municipal). */
-export function mergeHolidays(national: CalendarHoliday[], local: CalendarHoliday[]): CalendarHoliday[] {
+/** Datas que muitas redes de ensino tratam como ponto facultativo/recesso, mas que não são feriado por lei
+ *  (Dia do Professor, Dia do Servidor, Quarta de Cinzas…). Aparecem no calendário como aviso e NÃO tiram o dia letivo,
+ *  a menos que a escola cadastre a data como feriado dela. */
+export function commemorativeDates(year: number): CalendarHoliday[] {
+  const ashWednesday = iso(addDays(easterDate(year), -46));
+  return [
+    [ashWednesday, 'Quarta-feira de Cinzas'],
+    [`${year}-10-15`, 'Dia do Professor'],
+    [`${year}-10-28`, 'Dia do Servidor Público'],
+    [`${year}-12-24`, 'Véspera de Natal'],
+    [`${year}-12-31`, 'Véspera de Ano Novo'],
+  ].map(([date, title]) => ({ id: `optional-${date}`, title, date, scope: 'optional', source: 'Data comemorativa' }));
+}
+
+/** Une os feriados nacionais, os locais (estado/município) e as datas comemorativas. Se a data já é feriado,
+ *  o item de menor peso é descartado (muitas cidades repetem Sexta-feira Santa, Corpus Christi etc. como municipal). */
+export function mergeHolidays(national: CalendarHoliday[], local: CalendarHoliday[], optional: CalendarHoliday[] = []): CalendarHoliday[] {
   const nationalDates = new Set(national.map((h) => h.date));
-  return [...national, ...local.filter((h) => !nationalDates.has(h.date))].sort((a, b) => a.date.localeCompare(b.date));
+  const localKept = local.filter((h) => !nationalDates.has(h.date));
+  const taken = new Set([...nationalDates, ...localKept.map((h) => h.date)]);
+  const optionalKept = optional.filter((h) => !taken.has(h.date));
+  return [...national, ...localKept, ...optionalKept].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Datas em que NÃO há aula: nacionais, estaduais e municipais (pontos facultativos ficam de fora). */
+export function offDays(holidays: CalendarHoliday[]): Set<string> {
+  return new Set(holidays.filter((h) => h.scope !== 'optional').map((h) => h.date));
 }
 
 /** Texto curto do tipo de feriado: "Feriado nacional", "Feriado estadual · GO", "Feriado municipal · Goiânia". */
 export function holidayKindLabel(h: CalendarHoliday): string {
+  if (h.scope === 'optional') return 'Ponto facultativo · data comemorativa';
   if (h.scope === 'state') return `Feriado estadual${h.state ? ` · ${h.state}` : ''}`;
   if (h.scope === 'city') return `Feriado municipal${h.city ? ` · ${h.city.replace(/\s*[-–/,]\s*[A-Za-z]{2}$/, '')}` : ''}`;
   return 'Feriado nacional';

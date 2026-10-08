@@ -11,6 +11,7 @@ import type { PlanFolder,
   AttendanceSession,
   CalendarBuilderData,
   LocalHolidays,
+  SchoolHoliday,
   ClassRoom,
   GradeActivity,
   LessonPlan,
@@ -377,6 +378,9 @@ export interface UpcomingEvent {
 export const listUpcomingEvents = (limit = 6) => rpc<UpcomingEvent[]>('listUpcomingEvents', limit);
 
 export const listLocalHolidays = (year: number) => rpc<LocalHolidays>('listLocalHolidays', year);
+export const listSchoolHolidays = () => rpc<SchoolHoliday[]>('listSchoolHolidays');
+export const saveSchoolHoliday = (input: { id?: string; date: string; title: string; yearly: boolean }) => rpc<{ id: string }>('saveSchoolHoliday', input);
+export const deleteSchoolHoliday = (id: string) => rpc<{ ok: true }>('deleteSchoolHoliday', id);
 
 export interface CalendarSummary {
   id: string;

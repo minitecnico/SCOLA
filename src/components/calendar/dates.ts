@@ -1,10 +1,11 @@
 import type { CalBuilderEvent as CalEvent } from "../../lib/types";
 
 import { d } from "./calendarData";
+import { DAY, MONTHS, WEEKDAYS_ABBR, WEEKDAYS_ABBR_CAP_MON } from "../../lib/constants";
 
-export const MONTHS_PT = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-export const DOW = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"]; // semana inicia na segunda
-export const WEEKDAY = ["dom","seg","ter","qua","qui","sex","sáb"]; // índice de Date.getDay()
+export const MONTHS_PT: string[] = [...MONTHS];
+export const DOW = WEEKDAYS_ABBR_CAP_MON; // semana inicia na segunda
+export const WEEKDAY = WEEKDAYS_ABBR; // índice de Date.getDay()
 export const uid = () => Math.random().toString(36).slice(2, 9);
 export const pad2 = (n: number) => String(n).padStart(2, "0");
 export const isoOf = (y: number, m: number, d: number) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
@@ -20,7 +21,7 @@ export function parseISO(s: string) {
 export function whenLabel(today: string, start: string, end: string) {
   const br = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
   if (start <= today && today <= end) return start === end ? "hoje" : `em andamento · até ${br(end)}`;
-  const diff = Math.round((parseISO(start).getTime() - parseISO(today).getTime()) / 86400000);
+  const diff = Math.round((parseISO(start).getTime() - parseISO(today).getTime()) / DAY);
   return diff === 1 ? `amanhã · ${br(start)}` : `em ${diff} dias · ${br(start)}`;
 }
 /** Lista de {y,m,d} cobertos por um evento (intervalo inclusivo). */

@@ -23,6 +23,7 @@ import { ImportSmartModal } from "./ImportCalendarModal";
 import { LocalHolidaysModal } from "./LocalHolidaysModal";
 import { PrintCalendarModal } from "./PrintCalendarModal";
 import { CategoriesSection, EventsSection, HolidaysSection, IdentitySection, LetivosSection, PeriodsSection } from "./EditorSections";
+import { MINUTE, HOUR } from "../../lib/constants";
 
 /* ============================== Construtor =============================== */
 export type SaveResult = "conflict" | { version: number; stamp: string | null };
@@ -74,7 +75,7 @@ export function CalendarBuilder({
   const [showOptional, setShowOptional] = useState(true);
   const [holidaysOpen, setHolidaysOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
-  const { data: schools } = useQuery({ queryKey: ["schools"], queryFn: listSchools, staleTime: 5 * 60_000 });
+  const { data: schools } = useQuery({ queryKey: ["schools"], queryFn: listSchools, staleTime: 5 * MINUTE });
   const [cityOpen, setCityOpen] = useState(false);
   const { activeOrgId } = useAuth();
   const ai = useAi();
@@ -98,7 +99,7 @@ export function CalendarBuilder({
   const { data: local } = useQuery({
     queryKey: ["local-holidays", activeOrgId, data.year],
     queryFn: () => listLocalHolidays(data.year),
-    staleTime: 60 * 60_000,
+    staleTime: HOUR,
     retry: 1,
   });
   const optionalHolidays = useMemo(() => commemorativeDates(data.year), [data.year]);

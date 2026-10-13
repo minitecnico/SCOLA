@@ -10,6 +10,7 @@
 import type { AttendanceStatus } from './types';
 import { fileToGrids, type Progress } from './anyToGrid';
 import { assertImportRowLimit } from './fileSecurity';
+import { DAY } from './constants';
 
 export type Mapped = AttendanceStatus | 'ignore';
 export interface RawEntry {
@@ -54,7 +55,7 @@ export function parseDateCell(v: unknown, yearHint: number): string | null {
     return isoOf(v.getFullYear(), v.getMonth() + 1, v.getDate());
   }
   if (typeof v === 'number' && v > 20000 && v < 80000) {
-    const ms = Math.round((v - 25569) * 86400_000);
+    const ms = Math.round((v - 25569) * DAY);
     const d = new Date(ms);
     return isoOf(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
   }

@@ -6,6 +6,7 @@
  * Em PDF e foto, as colunas são reconstruídas pela posição do texto na página.
  */
 import { fileExtension } from './fileSecurity';
+import { IMAGE_EXT, MAX_READ_FILE_SIZE } from './constants';
 
 export type Grid = unknown[][];
 export interface GridSheet {
@@ -22,10 +23,9 @@ export interface GridOptions {
 }
 export type Progress = (msg: string) => void;
 
-export const MAX_ANY_FILE = 25 * 1024 * 1024;
+export const MAX_ANY_FILE = MAX_READ_FILE_SIZE;
 const SHEET_EXT = ['xlsx', 'xlsm', 'xlsb', 'xls', 'ods', 'fods', 'xml', 'html', 'htm', 'numbers', 'dif', 'sylk', 'slk', 'prn', 'dbf', 'wk1', 'wk3', 'qpw'];
 const TEXT_EXT = ['csv', 'tsv', 'txt', 'tab', 'dat', 'md'];
-const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'tif', 'tiff', 'heic', 'heif', 'avif'];
 
 export async function fileToGrids(file: File, progress: Progress = () => {}, opts: GridOptions = {}): Promise<GridSheet[]> {
   if (file.size > MAX_ANY_FILE) throw new Error('Arquivo muito grande (máximo 25 MB).');

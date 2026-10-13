@@ -3,6 +3,7 @@ import { EMAIL_RE, hashPassword, iterationsFor, validatePassword, type UserRow }
 import { deviceOf } from './audit';
 import { all, fail, first, now, run, uid, type Env } from './db';
 import { bestMatch, MATCH_SURE } from './match';
+import { MINUTE, DAY } from '../src/lib/constants';
 
 /**
  * Telas públicas: pedir cadastro e pedir nova senha. Nada vira conta sozinho:
@@ -19,11 +20,11 @@ const clean = (v: unknown, max: number) => String(v ?? '').replace(/\s+/g, ' ').
 
 /** Limite por endereço: devolve false quando passou do máximo na janela. */
 async function allow(db: D1Database, key: string, max: number, windowMin: number): Promise<boolean> {
-  const since = new Date(Date.now() - windowMin * 60_000).toISOString();
+  const since = new Date(Date.now() - windowMin * MINUTE).toISOString();
   const row = await first<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM rate_limits WHERE key = ? AND at > ?', key, since);
   if ((row?.n ?? 0) >= max) return false;
   await run(db, 'INSERT INTO rate_limits (key, at) VALUES (?, ?)', key, now());
-  if (Math.random() < 0.05) await run(db, 'DELETE FROM rate_limits WHERE at < ?', new Date(Date.now() - 86400_000).toISOString()).catch(() => null);
+  if (Math.random() < 0.05) await run(db, 'DELETE FROM rate_limits WHERE at < ?', new Date(Date.now() - DAY).toISOString()).catch(() => null);
   return true;
 }
 

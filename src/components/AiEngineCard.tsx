@@ -6,6 +6,7 @@ import { cn } from '../lib/cn';
 import { ia, type EngineHealth, type EngineInfo, type EngineMode } from '../lib/ia';
 import { Button, Card, Field, Input, Modal } from './ui';
 import { askConfirm } from './Feedback';
+import { MINUTE } from '../lib/constants';
 
 /**
  * Motor de IA (só o administrador). Vários motores compatíveis com a API da OpenAI (OpenRouter, OpenAI,
@@ -33,7 +34,7 @@ const ago = (iso: string | null) => (iso ? timeAgo(iso) : null);
 /** Verde-escuro/cinza/vermelho: estado de saúde pelo histórico recente. */
 function health(h: EngineHealth, enabled: boolean) {
   if (!enabled) return { label: 'Desligado', dot: 'bg-neutral-300' };
-  if (h.restingUntil) return { label: `Em descanso (${Math.max(1, Math.ceil((h.restingUntil - Date.now()) / 60000))} min)`, dot: 'bg-red-600' };
+  if (h.restingUntil) return { label: `Em descanso (${Math.max(1, Math.ceil((h.restingUntil - Date.now()) / MINUTE))} min)`, dot: 'bg-red-600' };
   if (!h.calls) return { label: 'Sem uso ainda', dot: 'bg-neutral-400' };
   if (h.streak > 0 || (h.successRate ?? 100) < 80) return { label: 'Instável', dot: 'bg-orange-500' };
   return { label: 'Saudável', dot: 'bg-green-600' };

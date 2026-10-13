@@ -30,6 +30,7 @@ import type { AttendanceStatus, ClassRoom } from '../lib/types';
 import { DateInput } from '../components/DateInput';
 
 import { useClasses } from '../lib/hooks';
+import { LOCALE, STORAGE } from '../lib/constants';
 
 
 export function AttendancePage() {
@@ -40,7 +41,7 @@ export function AttendancePage() {
   const { data: classes = [] } = useClasses(orgReady);
 
   const [mode, setMode] = usePersistentState<'turma' | 'prova'>('scola:attendance:mode', 'turma');
-  const [classId, setClassId] = usePersistentState('scola:attendance:classId', '');
+  const [classId, setClassId] = usePersistentState(STORAGE.attendanceClassId, '');
   const [importing, setImporting] = useState(false);
   // Sempre inicia no dia de HOJE (não persiste) — evita o professor lançar chamada em data antiga por engano.
   const [date, setDate] = useState(today);
@@ -397,7 +398,7 @@ function ExamRoll({
       const groups = await Promise.all(selIds.map((id) => listStudentsByClass(id)));
       return groups
         .flat()
-        .sort((a, b) => a.full_name.localeCompare(b.full_name, 'pt-BR'));
+        .sort((a, b) => a.full_name.localeCompare(b.full_name, LOCALE));
     },
     enabled: !!activeOrgId && selIds.length > 0,
   });

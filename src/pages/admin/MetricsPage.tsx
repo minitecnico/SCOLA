@@ -5,10 +5,11 @@ import { Link } from 'react-router-dom';
 import { BAD, Chart, Delta, Donut, GRAY, HBars, Heat, SOFT, Spark } from '../../components/Charts';
 import { Button, Card, Loading, PageHeader, Segmented } from '../../components/ui';
 import { adminMetrics, type AdminMetrics } from '../../lib/queries';
+import { WEEKDAYS_ABBR, MONTHS_ABBR } from '../../lib/constants';
 
 const sum = (a: number[]) => a.reduce((s, v) => s + v, 0);
 const br = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
-const WEEK = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const WEEK = WEEKDAYS_ABBR;
 const DAYNAME = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
 const pct = (n: number) => `${Math.round(n)}%`;
 const CATEGORY: Record<string, string> = { cadastro: 'Cadastros', chamada: 'Chamadas', notas: 'Notas e provas', comunicacao: 'Comunicação', equipe: 'Equipe', acesso: 'Acesso', admin: 'Administração', sistema: 'Sistema' };
@@ -82,7 +83,7 @@ function derive(m: AdminMetrics) {
 }
 
 const monthsBack = (today: string, n: number) => Array.from({ length: n }, (_, i) => { const d = new Date(`${today.slice(0, 7)}-15T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() - (n - 1 - i)); return d.toISOString().slice(0, 7); });
-const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const MES = MONTHS_ABBR;
 
 export function MetricsPage() {
   const [range, setRange] = useState(30);

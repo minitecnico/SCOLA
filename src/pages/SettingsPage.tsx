@@ -22,6 +22,7 @@ import { changePassword, getProfile, getSecurityStatus, listOrgAdmin, saveSchool
 import { ROLE_LABEL } from '../lib/types';
 
 import { useSchools } from '../lib/hooks';
+import { LOCALE } from '../lib/constants';
 
 
 /**
@@ -616,7 +617,7 @@ function PlanSection({ baseId }: { baseId: string }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm">
             <StatusBadge tone={base.active ? 'ok' : 'bad'}>{base.active ? 'Ativa' : 'Suspensa'}</StatusBadge>
-            <span className="text-muted-foreground">desde o cadastro em {new Date(base.created_at).toLocaleDateString('pt-BR')}</span>
+            <span className="text-muted-foreground">desde o cadastro em {new Date(base.created_at).toLocaleDateString(LOCALE)}</span>
           </div>
           <Button
             variant={base.active ? 'danger' : 'primary'}

@@ -8,9 +8,10 @@ import type { PlanDoc } from '../lib/types';
 import { Button, Modal } from './ui';
 import { successToast } from './Feedback';
 import { cn } from '../lib/cn';
+import { MB } from '../lib/constants';
 
 type G = { available: boolean; connected: boolean; email: string | null; canMail: boolean } | undefined;
-const MAX_ATTACH = 17 * 1024 * 1024; // ~25 MB do Gmail depois do base64
+const MAX_ATTACH = 17 * MB; // ~25 MB do Gmail depois do base64
 const ROLE: Record<string, string> = { gestor: 'Gestão', secretaria: 'Secretaria', professor: 'Professor' };
 const KEY = 'scola:mail-to';
 const mb = (n: number) => `${(n / 1048576).toFixed(1).replace('.', ',')} MB`;

@@ -42,6 +42,7 @@ import { DateInput } from '../components/DateInput';
 import { fmtDM } from '../lib/format';
 
 import { useClasses, useSchools } from '../lib/hooks';
+import { LOCALE, STORAGE } from '../lib/constants';
 
 
 /** Cabeçalho profissional para impressão (logo, escola, contato) — usado no boletim e no relatório.
@@ -61,7 +62,7 @@ function schoolHeaderHtml(school: School | undefined, label: string, compact = f
       ${subject ? `<div style="font-size:${compact ? 11 : 12}px; font-weight:800; color:#334155; margin-top:1px;">Disciplina: ${escapeHtml(subject)}</div>` : ''}
       ${contato ? `<div style="font-size:10px; color:#94a3b8; margin-top:2px;">${contato}</div>` : ''}
     </div>
-    <div style="text-align:right; font-size:10px; color:#94a3b8;">Gerado em<br/>${new Date().toLocaleDateString('pt-BR')}</div>
+    <div style="text-align:right; font-size:10px; color:#94a3b8;">Gerado em<br/>${new Date().toLocaleDateString(LOCALE)}</div>
   </div>`;
 }
 
@@ -72,7 +73,7 @@ export function NotasPage() {
   const { activeOrgId, ctxLoading, role } = useAuth();
   const canClear = canManageOrg(role); // só coordenação/direção limpa notas
   const now = new Date();
-  const [classId, setClassId] = usePersistentState('scola:notas:classId', '');
+  const [classId, setClassId] = usePersistentState(STORAGE.notasClassId, '');
   const [term, setTerm] = usePersistentState('scola:notas:term', 1);
   const [year, setYear] = usePersistentState('scola:notas:year', now.getFullYear());
   const [q, setQ] = useState('');
@@ -929,7 +930,7 @@ function BoletimModal({
       className,
       title: `Relatório parcial de notas`,
       period: `${term}º trimestre / ${year}`,
-      generatedAt: new Date().toLocaleDateString('pt-BR'),
+      generatedAt: new Date().toLocaleDateString(LOCALE),
       subject: SUBJECT,
       notasRows,
       notasTerm: term,

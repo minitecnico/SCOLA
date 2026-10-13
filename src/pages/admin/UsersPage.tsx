@@ -12,6 +12,7 @@ import {
 } from '../../lib/queries';
 import { ASSIGNABLE_ROLES, ROLE_LABEL, type AppRole } from '../../lib/types';
 import { WhatsAppLink } from '../../components/WhatsAppLink';
+import { LOCALE } from '../../lib/constants';
 
 /**
  * Usuários da plataforma: todas as contas de todas as bases, num lugar só.
@@ -19,7 +20,7 @@ import { WhatsAppLink } from '../../components/WhatsAppLink';
  * desconecta dos aparelhos, vincula a bases e exclui.
  */
 type Filter = 'todos' | 'bloqueados' | 'convite' | 'nunca';
-const fmt = (s: string | null) => (s ? new Date(s).toLocaleDateString('pt-BR') : 'nunca');
+const fmt = (s: string | null) => (s ? new Date(s).toLocaleDateString(LOCALE) : 'nunca');
 const initials = (u: AdminUser) => (u.full_name || u.email).slice(0, 1).toUpperCase();
 
 export function UsersPage() {

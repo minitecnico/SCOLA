@@ -376,10 +376,7 @@ export function setSubject(value: string | null | undefined) {
     : known ?? SUBJECT.split(/\s+/).map((w) => (w.length > 4 ? `${w.slice(0, 4)}.` : w)).join(' ');
 }
 
-export const MONTHS = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-] as const;
+export { MONTHS } from './constants';
 
 /* ---- Notas por trimestre (composição de atividades) ---- */
 export interface GradeActivity {

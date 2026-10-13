@@ -1,5 +1,6 @@
 import { assertClassInBase, requireBase, requireRole, type Ctx } from '../auth';
 import { all, fail, first, now, run, uid } from '../db';
+import { MB } from '../../src/lib/constants';
 
 /**
  * Editor de documentos e planilhas do Planejamento (alternativa ao Google Docs/Sheets,
@@ -108,7 +109,7 @@ export async function saveEditableContent(ctx: Ctx, env: { FILES: KVNamespace },
   if (!canEditDoc(ctx, d)) fail('Você pode ver, mas não editar este documento.', 403);
   if (lockActive(d) && d.lock_by !== ctx.user.id) fail('Outra pessoa está editando este documento agora.', 409);
   if (d.kind !== 'file' && input.baseVersion !== d.version) fail('Este documento foi alterado em outra janela. Recarregue para ver a versão mais nova.', 409);
-  if (input.content.length > 20 * 1024 * 1024) fail('Documento grande demais (máximo 20 MB, incluindo imagens).');
+  if (input.content.length > 20 * MB) fail('Documento grande demais (máximo 20 MB, incluindo imagens).');
 
   // Histórico: guarda o conteúdo anterior se a última cópia tiver mais de 15 min.
   if (d.kind !== 'file' && d.version > 0) {

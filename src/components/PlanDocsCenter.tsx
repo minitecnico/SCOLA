@@ -31,6 +31,7 @@ import { successToast, askConfirm } from './Feedback';
 import { cn } from '../lib/cn';
 
 import { useClasses } from '../lib/hooks';
+import { DAY, LOCALE } from '../lib/constants';
 
 
 /** Segmentos da escola — fácil de estender (basta adicionar aqui). */
@@ -54,8 +55,8 @@ const fmtSize = (n?: number | null) => (!n ? '—' : n < 1024 ? `${n} B` : n < 1
 function fmtRel(iso?: string | null) {
   if (!iso) return '—';
   const d = new Date(iso);
-  const days = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 86400000);
-  if (days <= 0) return `Hoje, ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  const days = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / DAY);
+  if (days <= 0) return `Hoje, ${d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })}`;
   if (days === 1) return 'Ontem';
   if (days < 7) return `Há ${days} dias`;
   if (days < 30) { const w = Math.floor(days / 7); return `Há ${w} ${w === 1 ? 'semana' : 'semanas'}`; }
@@ -165,7 +166,7 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
   const toggleSort = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: key === 'name' ? 1 : -1 }));
   const children = folders
     .filter((f) => (f.parent_id ?? null) === folderId)
-    .sort((a, b) => (sort.key === 'date' ? (a.created_at ?? '').localeCompare(b.created_at ?? '') * sort.dir : a.name.localeCompare(b.name, 'pt-BR') * (sort.key === 'name' ? sort.dir : 1)));
+    .sort((a, b) => (sort.key === 'date' ? (a.created_at ?? '').localeCompare(b.created_at ?? '') * sort.dir : a.name.localeCompare(b.name, LOCALE) * (sort.key === 'name' ? sort.dir : 1)));
   // Caminho da raiz até a pasta (para o "Pastas / A / B") e rótulos "A / B" no seletor de mover.
   const pathOf = (id: string | null): PlanFolder[] => {
     const out: PlanFolder[] = [];
@@ -218,7 +219,7 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
   const sortedFiles = useMemo(() => {
     const f = [...filtered];
     const by = (d: PlanDoc) => (sort.key === 'size' ? d.size ?? 0 : sort.key === 'date' ? Date.parse(d.updated_at ?? d.created_at) : 0);
-    return f.sort((a, b) => (sort.key === 'name' ? a.name.localeCompare(b.name, 'pt-BR', { numeric: true }) * sort.dir : (by(a) - by(b)) * sort.dir));
+    return f.sort((a, b) => (sort.key === 'name' ? a.name.localeCompare(b.name, LOCALE, { numeric: true }) * sort.dir : (by(a) - by(b)) * sort.dir));
   }, [filtered, sort]);
 
   const grouped = useMemo(() => {
@@ -358,7 +359,7 @@ function FileCenter({ segKey, docs, folders, classes, loading }: { segKey: strin
           >
             <option value="" className="text-slate-900">Mover para…</option>
             {folderId ? <option value="__root" className="text-slate-900">Início (sem pasta)</option> : null}
-            {[...folders].filter((f) => f.id !== folderId).sort((a, b) => labelOfFolder(a.id).localeCompare(labelOfFolder(b.id), 'pt-BR')).map((f) => <option key={f.id} value={f.id} className="text-slate-900">{labelOfFolder(f.id)}</option>)}
+            {[...folders].filter((f) => f.id !== folderId).sort((a, b) => labelOfFolder(a.id).localeCompare(labelOfFolder(b.id), LOCALE)).map((f) => <option key={f.id} value={f.id} className="text-slate-900">{labelOfFolder(f.id)}</option>)}
           </select>
           <button onClick={() => sel.setAll(filtered.map((d) => d.id))} className="text-xs font-bold underline">Selecionar todos ({filtered.length})</button>
           <button onClick={sel.clear} className="ml-auto text-xs font-bold underline">Limpar</button>

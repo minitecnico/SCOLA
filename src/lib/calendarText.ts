@@ -1,3 +1,4 @@
+import { HOUR, DAY } from './constants';
 /**
  * Leitor de calendários escolares: transforma tabelas (planilha, Word, PDF, foto lida por OCR) e textos
  * em eventos (data, título, categoria). Puro (sem DOM), para rodar também em teste.
@@ -209,12 +210,12 @@ export function cellText(v: unknown): string {
   if (v == null) return '';
   if (v instanceof Date) {
     if (isNaN(v.getTime())) return '';
-    const d = new Date(v.getTime() + 12 * 3600_000); // folga de fuso: data do Excel vem a poucos minutos de meia-noite
+    const d = new Date(v.getTime() + 12 * HOUR); // folga de fuso: data do Excel vem a poucos minutos de meia-noite
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
   if (typeof v === 'number') {
     if (Number.isInteger(v) && v >= 36526 && v <= 73050) {
-      const d = new Date(Math.round((v - 25569) * 86400_000) + 12 * 3600_000);
+      const d = new Date(Math.round((v - 25569) * DAY) + 12 * HOUR);
       return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
     }
     return String(v);

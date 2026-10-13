@@ -8,6 +8,7 @@ import { Button, EmptyState, Input, Loading, PageHeader, Select } from '../compo
 import { cn } from '../lib/cn';
 import { canManageOrg } from '../lib/permissions';
 import { closeSchoolYear, reopenSchoolYear, schoolYearOverview, type YearOverview } from '../lib/queries';
+import { LOCALE } from '../lib/constants';
 
 /**
  * Ano letivo: encerra o ano (arquiva as turmas, que ficam só para consulta),
@@ -16,7 +17,7 @@ import { closeSchoolYear, reopenSchoolYear, schoolYearOverview, type YearOvervie
 type OClass = YearOverview['classes'][number];
 type NewClass = { key: string; name: string; shift: string; from: string | null };
 
-const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '');
+const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(LOCALE) : '');
 const SHIFTS = ['Manhã', 'Tarde', 'Noite', 'Integral'];
 
 /** "6º ano A" → "7º ano A" · "9º ano A" → "1ª série A" · "1ª série" → "2ª série" · sem número: mantém. */

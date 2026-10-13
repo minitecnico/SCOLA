@@ -1,3 +1,4 @@
+import { MINUTE, LOCALE } from './constants';
 export function fmtNumber(n: number | null | undefined, decimals = 1): string {
   if (n == null || Number.isNaN(n)) return '—';
   const fixed = n.toFixed(decimals);
@@ -11,7 +12,7 @@ export const localIso = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMont
 
 /** "agora", "há 5 min", "há 3 h", "ontem", "há 12 dias" — e a data completa depois de 30 dias. */
 export function timeAgo(iso: string): string {
-  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / MINUTE);
   if (min < 1) return 'agora';
   if (min < 60) return `há ${min} min`;
   const h = Math.round(min / 60);
@@ -19,11 +20,11 @@ export function timeAgo(iso: string): string {
   const d = Math.round(h / 24);
   if (d === 1) return 'ontem';
   if (d < 30) return `há ${d} dias`;
-  return new Date(iso).toLocaleDateString('pt-BR');
+  return new Date(iso).toLocaleDateString(LOCALE);
 }
 
 /** Número pt-BR com até 2 casas (notas, pontos): 7,5 · 10 · 8,25. */
-export const fmtScore = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+export const fmtScore = (n: number) => n.toLocaleString(LOCALE, { maximumFractionDigits: 2 });
 
 /** "2026-10-06" → "06/10". */
 export const fmtDM = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
@@ -34,4 +35,4 @@ export function escapeHtml(s: string): string {
 
 /** "06/10 14:30" — dia, mês e hora de um instante ISO. */
 export const fmtDayTime = (iso: string) =>
-  new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  new Date(iso).toLocaleString(LOCALE, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });

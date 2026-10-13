@@ -9,6 +9,7 @@ import { smartAlerts, type AlertSeverity, type AlertSignal, type ClassAlert, typ
 import { TONE, type Tone } from '../lib/tone';
 import { DropdownMenu, StatusBadge } from './ui';
 import { waLink } from '../lib/phone';
+import { DAY, STORAGE } from '../lib/constants';
 
 /**
  * Central de alertas do painel. O servidor cruza frequência, faltas seguidas,
@@ -94,7 +95,7 @@ export function SmartAlerts({ side = false }: { side?: boolean }) {
   function toggleCiente(key: string) {
     const next = { ...ciente };
     if (next[key]) delete next[key];
-    else next[key] = Date.now() + CIENTE_DIAS * 86_400_000;
+    else next[key] = Date.now() + CIENTE_DIAS * DAY;
     setCiente(next);
     writeCiente(next);
   }
@@ -159,8 +160,8 @@ export function SmartAlerts({ side = false }: { side?: boolean }) {
                   signals={[c.signal]}
                   primary={
                     isCall
-                      ? { label: 'Fazer chamada', icon: <ClipboardCheck size={15} />, onClick: () => openWith('/chamadas', 'scola:attendance:classId', c.class_id) }
-                      : { label: 'Lançar notas', icon: <Award size={15} />, onClick: () => openWith('/notas', 'scola:notas:classId', c.class_id) }
+                      ? { label: 'Fazer chamada', icon: <ClipboardCheck size={15} />, onClick: () => openWith('/chamadas', STORAGE.attendanceClassId, c.class_id) }
+                      : { label: 'Lançar notas', icon: <Award size={15} />, onClick: () => openWith('/notas', STORAGE.notasClassId, c.class_id) }
                   }
                   menu={[{ label: isCiente ? 'Voltar a alertar' : `Ciente por ${CIENTE_DIAS} dias`, icon: isCiente ? <RotateCcw size={15} /> : <BellOff size={15} />, onClick: () => toggleCiente(item.key) }]}
                 />
@@ -189,7 +190,7 @@ export function SmartAlerts({ side = false }: { side?: boolean }) {
                     ? { label: 'Falar com a família', icon: <MessageCircle size={15} />, href: wa }
                     : hasFreq
                     ? { label: 'Ver frequência', icon: <BarChart3 size={15} />, onClick: () => openReport(a.class_id, 'freq') }
-                    : { label: 'Ver notas', icon: <Award size={15} />, onClick: () => openWith('/notas', 'scola:notas:classId', a.class_id) }
+                    : { label: 'Ver notas', icon: <Award size={15} />, onClick: () => openWith('/notas', STORAGE.notasClassId, a.class_id) }
                 }
                 menu={[
                   { label: 'Falar com a família', hint: 'Mensagem pronta no WhatsApp.', icon: <MessageCircle size={15} />, onClick: () => window.open(wa!, '_blank', 'noopener'), hidden: !wa || hasFreq },

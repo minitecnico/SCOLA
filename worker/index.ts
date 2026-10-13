@@ -27,6 +27,7 @@ import * as ia from './ia';
 import * as suporte from './handlers/suporte';
 import { authRoutes } from './authflow';
 import { signupRoutes } from './signup';
+import { MB } from '../src/lib/constants';
 export { SupportHub } from './hub';
 
 /* ---------------------------------- Registro RPC ---------------------------------- */
@@ -41,7 +42,7 @@ for (const mod of [acessos, alertas, anoletivo, cadastros, editor, feriados, fol
 // Enquanto a senha provisória não for trocada, só isto é permitido.
 const ALLOWED_BEFORE_PW_CHANGE = new Set(['changePassword', 'getProfile']);
 
-const MAX_FILE = 20 * 1024 * 1024; // KV aceita até 25 MB por valor
+const MAX_FILE = 20 * MB; // KV aceita até 25 MB por valor
 const BLOCKED_EXT = /\.(exe|msi|bat|cmd|com|scr|pif|cpl|jar|js|jse|vbs|vbe|ps1|psm1|sh|app|apk|dll|sys|reg|lnk|hta|wsf|wsh|gadget)$/i;
 
 const app = new Hono<{ Bindings: Env; Variables: { user: UserRow } }>();
@@ -341,7 +342,7 @@ app.get('/api/google/callback', async (c) => {
 });
 
 /** Envia um e-mail (já montado pelo navegador, formato RFC 822) pelo Gmail do usuário. O Worker só repassa o corpo, sem processar. */
-const MAX_MAIL = 25 * 1024 * 1024;
+const MAX_MAIL = 25 * MB;
 app.post('/api/google/send-mail', async (c) => {
   const ctx = await authed(c);
   const len = Number(c.req.header('content-length') || 0);

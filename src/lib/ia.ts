@@ -3,6 +3,7 @@ import { marked, type Tokens } from 'marked';
 import { rpc } from './api';
 import { createEditableDoc, saveDocContent } from './queries';
 import { downloadBlob } from './storage';
+import { MINUTE, MAX_READ_FILE_SIZE } from './constants';
 
 /**
  * Central de IA do navegador (o servidor correspondente é worker/ia.ts):
@@ -57,7 +58,7 @@ export const ia = {
 
 /** A IA está ligada? (para mostrar ou esconder os botões) */
 export function useAi() {
-  return useQuery({ queryKey: ['ai-status'], queryFn: ia.status, staleTime: 5 * 60_000, retry: false }).data;
+  return useQuery({ queryKey: ['ai-status'], queryFn: ia.status, staleTime: 5 * MINUTE, retry: false }).data;
 }
 
 type ApiPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
@@ -241,7 +242,7 @@ export async function extractText(blob: Blob, name: string) {
 
 /** Anexo da conversa: documento vira texto; imagem e PDF escaneado (5 primeiras páginas) viram imagem. */
 export async function readAttachment(file: File): Promise<Attachment[]> {
-  if (file.size > 25 * 1024 * 1024) throw new Error(`${file.name}: maior que 25 MB.`);
+  if (file.size > MAX_READ_FILE_SIZE) throw new Error(`${file.name}: maior que 25 MB.`);
   const ext = (file.name.split('.').pop() || '').toLowerCase();
   if (file.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'].includes(ext)) return [{ name: file.name, kind: 'image', image: await toDataUrl(file) }];
   if (ext === 'doc') throw new Error(`${file.name}: Word antigo (.doc). Salve como .docx e anexe de novo.`);

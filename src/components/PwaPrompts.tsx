@@ -1,6 +1,7 @@
 import { Download, RefreshCw, Share, SquarePlus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
+import { DAY, HOUR } from '../lib/constants';
 
 /**
  * App instalável (PWA):
@@ -22,7 +23,7 @@ const isMobile = () => window.matchMedia?.('(pointer: coarse)').matches || windo
 function dismissedRecently() {
   try {
     const t = Number(localStorage.getItem(DISMISS_KEY) || 0);
-    return Date.now() - t < DISMISS_DAYS * 86400_000;
+    return Date.now() - t < DISMISS_DAYS * DAY;
   } catch {
     return false;
   }
@@ -70,7 +71,7 @@ export function PwaPrompts() {
   } = useRegisterSW({
     onRegisteredSW(_url, reg) {
       // Confere se há versão nova a cada hora (app aberto o dia todo na escola).
-      if (reg) setInterval(() => void reg.update(), 60 * 60 * 1000);
+      if (reg) setInterval(() => void reg.update(), HOUR);
     },
   });
   const { canPrompt, ios, install } = useInstall();

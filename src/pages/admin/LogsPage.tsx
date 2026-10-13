@@ -7,6 +7,7 @@ import { Button, EmptyState, FilterBar, FilterField, Loading, PageHeader, Segmen
 import { cn } from '../../lib/cn';
 import { downloadXlsx } from '../../lib/importSheet';
 import { listLogs, listOrgAdmin, logOverview, type LogFilters, type LogRow } from '../../lib/queries';
+import { DAY, MINUTE, LOCALE } from '../../lib/constants';
 
 /**
  * Central de logs do administrador: quem fez o quê, em qual base, quando e de onde.
@@ -30,8 +31,8 @@ const PERIODS = [
   { value: '90d', label: '90 dias' },
 ] as const;
 
-const time = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-const dateTime = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
+const time = (iso: string) => new Date(iso).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
+const dateTime = (iso: string) => new Date(iso).toLocaleString(LOCALE, { dateStyle: 'short', timeStyle: 'medium' });
 function dayLabel(iso: string) {
   const d = new Date(iso);
   const today = new Date();
@@ -39,11 +40,11 @@ function dayLabel(iso: string) {
   y.setDate(today.getDate() - 1);
   if (d.toDateString() === today.toDateString()) return 'Hoje';
   if (d.toDateString() === y.toDateString()) return 'Ontem';
-  return d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+  return d.toLocaleDateString(LOCALE, { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 function ago(iso: string | null) {
   if (!iso) return 'nunca usada';
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400_000);
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / DAY);
   if (days <= 0) return 'hoje';
   if (days === 1) return 'ontem';
   return `há ${days} dias`;
@@ -66,7 +67,7 @@ export function LogsPage() {
 
   const filters: LogFilters = { period, baseId: baseId || null, category: category || null, status: status || null, q: q || null };
   const { data: bases = [] } = useQuery({ queryKey: ['admin-bases'], queryFn: listOrgAdmin });
-  const overview = useQuery({ queryKey: ['log-overview'], queryFn: logOverview, refetchInterval: 60_000 });
+  const overview = useQuery({ queryKey: ['log-overview'], queryFn: logOverview, refetchInterval: MINUTE });
   const logs = useInfiniteQuery({
     queryKey: ['logs', filters],
     queryFn: ({ pageParam }) => listLogs({ ...filters, before: pageParam }),

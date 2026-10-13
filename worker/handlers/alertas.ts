@@ -3,6 +3,7 @@ import { cached } from '../cache';
 import { requireBase, type Ctx } from '../auth';
 import { all, parse } from '../db';
 import { composeTermActs } from './notas';
+import { LOCALE } from '../../src/lib/constants';
 
 /**
  * Central de alertas: cruza frequência, sequência de faltas, tendência recente,
@@ -41,7 +42,7 @@ export interface ClassAlert {
 
 const RANK: Record<Severity, number> = { critical: 3, warning: 2, info: 1 };
 const worst = (list: Severity[]): Severity => list.reduce((a, b) => (RANK[b] > RANK[a] ? b : a), 'info' as Severity);
-const pctFmt = (n: number) => `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+const pctFmt = (n: number) => `${n.toLocaleString(LOCALE, { maximumFractionDigits: 1 })}%`;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const dayMinus = (iso: string, days: number) => {
   const d = new Date(`${iso}T12:00:00Z`);
@@ -187,7 +188,7 @@ async function smartAlertsRaw(ctx: Ctx, year: number, today: string, minPct = 75
       signals.push({
         kind: 'grade_low',
         severity: 'warning',
-        label: `Média ${g.media.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} no ${g.term}º tri`,
+        label: `Média ${g.media.toLocaleString(LOCALE, { minimumFractionDigits: 1 })} no ${g.term}º tri`,
         detail: g.hasRecovery ? 'Abaixo da média mesmo com a recuperação.' : 'Abaixo da média. Recuperação ainda não lançada.',
       });
     }
@@ -213,7 +214,7 @@ async function smartAlertsRaw(ctx: Ctx, year: number, today: string, minPct = 75
       signals,
     });
   }
-  studentAlerts.sort((x, y) => y.score - x.score || x.name.localeCompare(y.name, 'pt-BR'));
+  studentAlerts.sort((x, y) => y.score - x.score || x.name.localeCompare(y.name, LOCALE));
 
   /* ------------------------------------ Turmas ------------------------------------ */
   const classAlerts: ClassAlert[] = [];
@@ -261,7 +262,7 @@ async function smartAlertsRaw(ctx: Ctx, year: number, today: string, minPct = 75
       });
     }
   }
-  classAlerts.sort((x, y) => RANK[y.severity] - RANK[x.severity] || x.class_name.localeCompare(y.class_name, 'pt-BR'));
+  classAlerts.sort((x, y) => RANK[y.severity] - RANK[x.severity] || x.class_name.localeCompare(y.class_name, LOCALE));
 
   return { minPct: min, media: MEDIA_APROVACAO, students: studentAlerts, classes: classAlerts };
 }

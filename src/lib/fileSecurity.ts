@@ -1,5 +1,4 @@
-const MB = 1024 * 1024;
-
+import { MB } from './constants';
 export const MAX_SHEET_FILE_SIZE = 5 * MB;
 export const MAX_UPLOAD_FILE_SIZE = 20 * MB;
 export const MAX_IMPORT_ROWS = 5000;

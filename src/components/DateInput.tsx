@@ -2,6 +2,7 @@ import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { cn } from '../lib/cn';
+import { MONTHS } from '../lib/constants';
 
 /**
  * Campo de data SEMPRE no padrão brasileiro (dd/mm/aaaa), independente do idioma
@@ -9,7 +10,7 @@ import { cn } from '../lib/cn';
  * e aparece como mm/dd/yyyy em computadores em inglês.
  * Valor de entrada/saída continua ISO (aaaa-mm-dd), então nada muda no resto do código.
  */
-const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const MESES = MONTHS;
 const SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
 const pad = (n: number) => String(n).padStart(2, '0');

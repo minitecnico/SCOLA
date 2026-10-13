@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '../lib/cn';
+import { WEEKDAYS_ABBR_CAP } from '../lib/constants';
 
 /* Gráficos leves em SVG/HTML (sem biblioteca): responsivos, com dica ao passar o dedo/mouse e só tons de cinza (vermelho = problema). */
 export const INK = '#0A0A0A';
@@ -146,7 +147,7 @@ export function HBars({ items, fmt = (n) => String(n) }: { items: { label: strin
   );
 }
 
-const DOW = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const DOW = WEEKDAYS_ABBR_CAP;
 /** Mapa de calor semana × hora (grade[dia 0=dom][hora]). Começa na segunda. */
 export function Heat({ grid }: { grid: number[][] }) {
   const max = Math.max(1, ...grid.flat());

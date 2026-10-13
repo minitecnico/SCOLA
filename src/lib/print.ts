@@ -1,3 +1,4 @@
+import { PRINT_ROOT_ID, PRINT_STYLE_ID } from './constants';
 /**
  * Impressão de documentos (boletins, relatórios de notas) SEM abrir aba nova:
  * o documento é montado nesta página, isolado num Shadow DOM (o estilo dele não
@@ -32,10 +33,10 @@ function mount(host: HTMLElement, bodyHtml: string) {
 }
 
 function printNow(title: string, bodyHtml: string) {
-  document.getElementById('scola-print')?.remove();
-  document.getElementById('scola-print-style')?.remove();
+  document.getElementById(PRINT_ROOT_ID)?.remove();
+  document.getElementById(PRINT_STYLE_ID)?.remove();
   const style = document.createElement('style');
-  style.id = 'scola-print-style';
+  style.id = PRINT_STYLE_ID;
   style.textContent = `
     #scola-print { display: none; }
     @media print {

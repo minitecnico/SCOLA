@@ -46,6 +46,7 @@ import { ROLE_LABEL } from '../lib/types';
 import { useOnlineStatus } from '../lib/useOnlineStatus';
 import { Logo } from './Logo';
 import { IosInstallHelp, useInstall } from './PwaPrompts';
+import { MINUTE } from '../lib/constants';
 
 type NavItem = { label: string; to: string; icon: ReactNode; module: ModuleKey };
 
@@ -127,19 +128,19 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     queryKey: ['notices-unread', user?.id],
     queryFn: () => unreadNoticeCount(),
     enabled: !!user && inBase,
-    refetchInterval: 60_000,
+    refetchInterval: MINUTE,
   });
   const { data: planUnreadMap = {} } = useQuery({
     queryKey: ['plan-unread'],
     queryFn: planUnreadCounts,
     enabled: !!user && inBase,
-    refetchInterval: 60_000,
+    refetchInterval: MINUTE,
     retry: false,
   });
   const planUnread = Object.values(planUnreadMap).reduce((a, b) => a + b, 0);
   const adminUnread = useAdminSupportUnread();
   const accessPending = useAccessPending();
-  const { data: supUnread = 0 } = useQuery({ queryKey: ['support-unread'], queryFn: suporte.unread, enabled: !!user && inBase && !isSuperadmin, refetchInterval: 60_000 });
+  const { data: supUnread = 0 } = useQuery({ queryKey: ['support-unread'], queryFn: suporte.unread, enabled: !!user && inBase && !isSuperadmin, refetchInterval: MINUTE });
 
   const visibleGroups = inBase
     ? groups.map((g) => ({ ...g, items: g.items.filter((it) => can(role, it.module) && !(isSuperadmin && it.to === '/suporte')) })).filter((g) => g.items.length > 0)
@@ -246,8 +247,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 function useCounts() {
   const { user, activeBase } = useAuth();
   const inBase = !!activeBase;
-  const { data: unread = 0 } = useQuery({ queryKey: ['notices-unread', user?.id], queryFn: () => unreadNoticeCount(), enabled: !!user && inBase, refetchInterval: 60_000 });
-  const { data: planMap = {} } = useQuery({ queryKey: ['plan-unread'], queryFn: planUnreadCounts, enabled: !!user && inBase, refetchInterval: 60_000, retry: false });
+  const { data: unread = 0 } = useQuery({ queryKey: ['notices-unread', user?.id], queryFn: () => unreadNoticeCount(), enabled: !!user && inBase, refetchInterval: MINUTE });
+  const { data: planMap = {} } = useQuery({ queryKey: ['plan-unread'], queryFn: planUnreadCounts, enabled: !!user && inBase, refetchInterval: MINUTE, retry: false });
   return { unread, planUnread: Object.values(planMap).reduce((a, b) => a + b, 0) };
 }
 

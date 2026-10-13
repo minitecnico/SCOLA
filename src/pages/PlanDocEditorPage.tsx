@@ -13,6 +13,7 @@ import {
   getPlanDocMeta, listPlanDocVersions, loadDocContent, loadDocVersion, lockPlanDoc, saveDocContent, unlockPlanDoc, type EditableKind, type PlanDocMeta,
 } from '../lib/queries';
 import { askConfirm } from '../components/Feedback';
+import { LOCALE } from '../lib/constants';
 
 /**
  * Editor do Planejamento (documento ou planilha), em tela cheia.
@@ -28,8 +29,8 @@ const kindOf = (m: PlanDocMeta): EditableKind | null => {
   return null;
 };
 const stripExt = (n: string) => n.replace(/\.(docx?|xlsx?|xlsm|csv|tsv|ods|odt)$/i, '');
-const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-const dt = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const hhmm = (iso: string) => new Date(iso).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
+const dt = (iso: string) => new Date(iso).toLocaleString(LOCALE, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 export function PlanDocEditorPage() {
   const { id = '' } = useParams();

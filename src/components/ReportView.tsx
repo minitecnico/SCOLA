@@ -4,10 +4,11 @@ import { fmtNumber } from '../lib/format';
 import { groupByMonth, weekdayLetter } from '../lib/schooldays';
 import { MONTHS, type ReportPayload } from '../lib/types';
 import { TONE, freqTone, gradeTone, situationOf, type Tone } from '../lib/tone';
+import { WEEKDAYS_ABBR } from '../lib/constants';
 
 const exact = { printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' } as const;
 
-const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const WEEKDAYS = WEEKDAYS_ABBR;
 
 /** Lista de datas em chips, com limite e botão "+N" para expandir (evita estourar com muitos dias). */
 function DateChips({

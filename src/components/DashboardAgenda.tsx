@@ -6,16 +6,17 @@ import { localIso, timeAgo } from '../lib/format';
 import { readableText, vividColor } from '../lib/calendarColors';
 import type { ReceivedNotice, UpcomingEvent } from '../lib/queries';
 import { ROLE_LABEL } from '../lib/types';
+import { DAY, MONTHS_ABBR, WEEKDAYS_ABBR } from '../lib/constants';
 
 /**
  * Agenda do Início: próximos eventos (dentro do calendário) e avisos recentes.
  * A data do evento usa a cor sólida da categoria, a mesma do calendário escolar.
  */
-const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-const DIA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const MES = MONTHS_ABBR;
+const DIA = WEEKDAYS_ABBR;
 
 const asDate = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`);
-const daysUntil = (iso: string) => Math.round((asDate(iso).getTime() - asDate(localIso()).getTime()) / 86400_000);
+const daysUntil = (iso: string) => Math.round((asDate(iso).getTime() - asDate(localIso()).getTime()) / DAY);
 
 function whenLabel(start: string, end: string | null) {
   const today = localIso();

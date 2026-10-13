@@ -1,5 +1,6 @@
 import { EVENT_CATEGORIES } from './types';
 import { assertCalendarImportFile, assertImportRowLimit } from './fileSecurity';
+import { DAY } from './constants';
 
 export interface ParsedEvent {
   title: string;
@@ -19,7 +20,7 @@ function parseDate(v: unknown): string | null {
   if (v instanceof Date && !isNaN(v.getTime())) return toISO(v);
   if (typeof v === 'number') {
     // serial do Excel (dias desde 1899-12-30)
-    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    const d = new Date(Math.round((v - 25569) * DAY));
     return isNaN(d.getTime()) ? null : toISO(d);
   }
   const s = String(v).trim();

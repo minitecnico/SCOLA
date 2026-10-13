@@ -4,6 +4,7 @@ import { fileExtension } from './fileSecurity';
 import { embeddedImages, fileToGrids, imageToDataUrl, MAX_ANY_FILE, pdfToImages, type GridSheet } from './anyToGrid';
 import { eventsFromGrids, gridsToText, guessCategory, type RawEvent } from './calendarText';
 import { ia } from './ia';
+import { IMAGE_EXT } from './constants';
 
 /* ============================================================================
    Importação de calendário pronto para o Construtor de Calendário.
@@ -36,7 +37,6 @@ export interface ReadOptions {
   progress?: (msg: string) => void;
 }
 
-const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'tif', 'tiff', 'heic', 'heif', 'avif'];
 const STRUCTURED_EXT = ['xlsx', 'xls', 'csv', 'ics'];
 const WEAK = 3; // menos eventos que isto: vale tentar outro caminho
 

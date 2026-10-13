@@ -9,12 +9,13 @@ import { AccessLinkModal, TeamManager, type AccessLinkInfo } from '../../compone
 import { Button, EmptyState, Field, Input, Loading, Modal, PageHeader, SearchInput, Segmented, Select, StatCard } from '../../components/ui';
 import { cn } from '../../lib/cn';
 import { createBase, deleteOrganization, hqStats, listOrgAdmin, setOrgActive, updateOrganization, type OrgAdmin } from '../../lib/queries';
+import { LOCALE } from '../../lib/constants';
 
 const PLANS = [
   { value: 'teste', label: 'Teste' },
   { value: 'ativo', label: 'Ativo' },
 ];
-const fmt = (s: string | null) => (s ? new Date(s.length === 10 ? `${s}T12:00:00` : s).toLocaleDateString('pt-BR') : '—');
+const fmt = (s: string | null) => (s ? new Date(s.length === 10 ? `${s}T12:00:00` : s).toLocaleDateString(LOCALE) : '—');
 
 export function AdminPage() {
   const qc = useQueryClient();

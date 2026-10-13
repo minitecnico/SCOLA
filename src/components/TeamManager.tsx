@@ -9,6 +9,7 @@ import { Button, Field, Input, Loading, Modal, Select } from './ui';
 import { waShareLink } from '../lib/phone';
 import { fmtDayTime } from '../lib/format';
 import { WhatsAppLink } from './WhatsAppLink';
+import { LOCALE } from '../lib/constants';
 
 export interface AccessLinkInfo {
   url: string;
@@ -92,7 +93,7 @@ function PasswordRequests({ onChanged }: { onChanged: () => void }) {
   );
 }
 
-const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString('pt-BR') : 'nunca');
+const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString(LOCALE) : 'nunca');
 
 /** Lista e gerencia as pessoas de uma base. Usado pelo gestor (Equipe) e pelo administrador. */
 export function TeamManager({ baseId }: { baseId: string }) {

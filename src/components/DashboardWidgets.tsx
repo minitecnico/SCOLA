@@ -8,15 +8,16 @@ import { readableText, vividColor } from '../lib/calendarColors';
 import { dashboardMonth, type DashboardMonth, type UpcomingEvent } from '../lib/queries';
 import type { Tone } from '../lib/tone';
 import { UpcomingList } from './DashboardAgenda';
+import { DAY, LOCALE, MONTHS_LOWER } from '../lib/constants';
 
 /**
  * Painéis do Início no estilo "widget": título em caixa alta com ícone, corpo limpo.
  * Um único calendário do mês, com duas visões: eventos da escola e presença das chamadas.
  */
-const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const MESES = MONTHS_LOWER;
 const SEMANA = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D']; // começa na segunda
 const pad = (n: number) => String(n).padStart(2, '0');
-const pct = (n: number) => `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+const pct = (n: number) => `${n.toLocaleString(LOCALE, { maximumFractionDigits: 1 })}%`;
 
 export function Widget({ icon, title, action, children, className, bodyClassName }: { icon: ReactNode; title: string; action?: ReactNode; children: ReactNode; className?: string; bodyClassName?: string }) {
   return (
@@ -155,7 +156,7 @@ function schoolMarks(data: DashboardMonth | undefined, y: number, m: number, ope
   const byDay = new Map<string, DashboardMonth['events']>();
   for (const e of data?.events ?? []) {
     const end = new Date(`${e.end || e.date}T12:00:00`);
-    for (let d = new Date(`${e.date}T12:00:00`); d <= end; d = new Date(d.getTime() + 86400_000)) {
+    for (let d = new Date(`${e.date}T12:00:00`); d <= end; d = new Date(d.getTime() + DAY)) {
       const iso = localIso(d);
       if (iso.startsWith(`${y}-${pad(m)}`)) byDay.set(iso, [...(byDay.get(iso) ?? []), e]);
     }

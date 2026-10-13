@@ -1,6 +1,7 @@
 import { requireAdmin, requireBase, requireRole, type Ctx } from './auth';
 import { all, fail, first, inList, now, parse, run, stmt, uid, type Env } from './db';
 import { canEditDoc, docInBase } from './handlers/editor';
+import { LOCALE, TIMEZONE } from '../src/lib/constants';
 
 /**
  * Central de IA do SCOLA (tudo de IA do servidor está aqui).
@@ -278,7 +279,7 @@ async function embed(env: Env, texts: string[], type: 'query' | 'passage' = 'pas
 }
 
 /* ============================== Regras comuns ============================== */
-const today = () => new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+const today = () => new Date().toLocaleDateString(LOCALE, { timeZone: TIMEZONE });
 const dailyLimit = (env: Env) => Number(env.AI_DAILY_LIMIT) || 60;
 const imageLimit = (env: Env) => Number(env.AI_IMAGE_DAILY_LIMIT) || 30;
 

@@ -8,8 +8,8 @@ import { Button, Card, Loading, PageHeader, StatCard } from '../../components/ui
 import { cn } from '../../lib/cn';
 import { suporte } from '../../lib/suporte';
 import { countAccessRequests, hqStats, listLogs, listOrgAdmin, logOverview, type OrgAdmin } from '../../lib/queries';
+import { DAY, LOCALE } from '../../lib/constants';
 
-const DAY = 86400_000;
 const daysSince = (s: string | null) => (s ? Math.floor((Date.now() - new Date(s.length === 10 ? `${s}T12:00:00` : s).getTime()) / DAY) : null);
 const ago = (s: string | null) => {
   const d = daysSince(s);
@@ -218,7 +218,7 @@ export function AdminOverviewPage() {
                     <p className="truncate text-sm">{r.summary}</p>
                     <p className="truncate text-xs text-muted-foreground">{[r.base_name, r.user_email].filter(Boolean).join(' · ')}</p>
                   </div>
-                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{new Date(r.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{new Date(r.at).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })}</span>
                 </li>
               ))}
             </ul>

@@ -4,6 +4,7 @@
  */
 import { LETTERS, MARKER, MARKERS, PAGE, QR, examLink, keyPayload, qrPayload, sheetLayout } from './layout';
 import { escapeHtml } from '../format';
+import { PRINT_ROOT_ID, PRINT_STYLE_ID } from '../constants';
 
 export interface SheetInfo {
   school: string;
@@ -213,11 +214,11 @@ export async function printSheets(info: SheetInfo, students: { id: string; name:
 /** Páginas A4 (SVG) num contêiner que só aparece na impressão. */
 export async function printPages(pages: string[], title: string) {
   if (!pages.length) return;
-  document.getElementById('scola-print')?.remove();
-  document.getElementById('scola-print-style')?.remove();
+  document.getElementById(PRINT_ROOT_ID)?.remove();
+  document.getElementById(PRINT_STYLE_ID)?.remove();
 
   const style = document.createElement('style');
-  style.id = 'scola-print-style';
+  style.id = PRINT_STYLE_ID;
   style.textContent = `
     #scola-print { display: none; }
     @media print {

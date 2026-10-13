@@ -5,6 +5,7 @@
  */
 import { useInView, useMotionValue, useReducedMotion, useSpring } from 'motion/react';
 import { useCallback, useEffect, useRef } from 'react';
+import { LOCALE } from '../../lib/constants';
 
 interface CountUpProps {
   to: number;
@@ -68,7 +69,7 @@ export default function CountUp({
         maximumFractionDigits: hasDecimals ? maxDecimals : 0
       };
 
-      return Intl.NumberFormat('pt-BR', options).format(latest);
+      return Intl.NumberFormat(LOCALE, options).format(latest);
     },
     [maxDecimals, separator]
   );

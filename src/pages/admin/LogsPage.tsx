@@ -1,9 +1,9 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
-  Award, Building2, ClipboardCheck, Download, KeyRound, Megaphone, RefreshCw, ScrollText, Settings2, ShieldAlert, UserCog, Users, type LucideIcon,
+  Award, Building2, ChevronDown, ClipboardCheck, Download, KeyRound, Megaphone, RefreshCw, ScrollText, Settings2, ShieldAlert, UserCog, Users, type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Button, EmptyState, FilterBar, FilterField, Loading, PageHeader, SegmentedField, StatTile, StatusBadge, fieldCls } from '../../components/ui';
+import { Button, EmptyState, FilterBar, FilterField, Loading, PageHeader, SegmentedField, StatusBadge, fieldCls } from '../../components/ui';
 import { cn } from '../../lib/cn';
 import { downloadXlsx } from '../../lib/importSheet';
 import { listLogs, listOrgAdmin, logOverview, type LogFilters, type LogRow } from '../../lib/queries';
@@ -86,7 +86,7 @@ export function LogsPage() {
   }, [rows]);
 
   const o = overview.data;
-  const idle = (o?.bases ?? []).filter((b) => b.active && (!b.last || Date.now() - new Date(b.last).getTime() > 7 * 86400_000));
+  const idle = (o?.bases ?? []).filter((b) => b.active && (!b.last || Date.now() - new Date(b.last).getTime() > 7 * DAY));
 
   function refresh() {
     void overview.refetch();
@@ -137,14 +137,14 @@ export function LogsPage() {
         }
       />
 
-      {/* Indicadores */}
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6">
-        <StatTile label="Acessos" value={o?.logins24h ?? '—'} hint="últimas 24h" />
-        <StatTile label="Ações" value={o?.actions24h ?? '—'} hint="últimas 24h" />
-        <StatTile label="Usuários ativos" value={o?.users7d ?? '—'} hint="últimos 7 dias" />
-        <StatTile label="Falhas de login" value={o?.failed24h ?? '—'} tone={o && o.failed24h >= 5 ? 'warn' : 'none'} hint="últimas 24h" />
-        <StatTile label="Erros" value={o?.errors24h ?? '—'} tone={o?.errors24h ? 'bad' : 'none'} hint="últimas 24h" />
-        <StatTile label="Negados" value={o?.denied24h ?? '—'} tone={o?.denied24h ? 'warn' : 'none'} hint="acesso sem permissão · 24h" />
+      {/* Indicadores (faixa compacta) */}
+      <div className="mb-3 flex flex-wrap gap-x-5 gap-y-1 rounded-xl border border-border bg-card px-3 py-2">
+        <Kpi label="Acessos 24h" value={o?.logins24h} />
+        <Kpi label="Ações 24h" value={o?.actions24h} />
+        <Kpi label="Usuários ativos 7d" value={o?.users7d} />
+        <Kpi label="Falhas de login 24h" value={o?.failed24h} alert={!!o && o.failed24h >= 5} />
+        <Kpi label="Erros 24h" value={o?.errors24h} alert={!!o?.errors24h} />
+        <Kpi label="Negados 24h" value={o?.denied24h} alert={!!o?.denied24h} />
       </div>
 
       {/* Sinais que pedem atenção do administrador */}
@@ -239,10 +239,10 @@ export function LogsPage() {
       ) : !rows.length ? (
         <EmptyState icon={<ScrollText size={28} />} title="Nenhum registro" hint="Nada encontrado com esses filtros. Tente um período maior." />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {groups.map((g) => (
             <section key={g.day}>
-              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{g.day}</h3>
+              <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{g.day}</h3>
               <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
                 {g.items.map((r) => (
                   <LogItem key={r.id} r={r} onBase={(id) => setBaseId(id)} onUser={(e) => setSearch(e)} />
@@ -263,48 +263,63 @@ export function LogsPage() {
   );
 }
 
+function Kpi({ label, value, alert }: { label: string; value?: number; alert?: boolean }) {
+  return (
+    <span className="flex items-baseline gap-1.5 text-xs text-muted-foreground">
+      {label}
+      <b className={cn('text-sm tabular-nums', alert ? 'text-foreground underline decoration-2 underline-offset-2' : 'text-foreground')}>{value ?? '—'}</b>
+    </span>
+  );
+}
+
 function LogItem({ r, onBase, onUser }: { r: LogRow; onBase: (id: string) => void; onUser: (email: string) => void }) {
+  const [open, setOpen] = useState(false);
   const cat = CATS[r.category] ?? CATS.sistema;
   const Icon = cat.icon;
   const problem = r.status !== 'ok';
+  const who = r.user_email ?? '—';
   return (
-    <li className={cn('flex gap-3 px-4 py-3', r.status === 'erro' && 'bg-red-50/40', r.status === 'negado' && 'bg-neutral-100/40')}>
-      <span className="w-11 shrink-0 pt-0.5 text-xs font-semibold tabular-nums text-muted-foreground">{time(r.at)}</span>
-      <span className={cn('mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg', problem ? 'bg-card ring-1 ring-inset ring-border' : 'bg-muted')}>
-        <Icon size={14} className="text-foreground" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <p className="text-sm font-semibold text-foreground">{r.summary}</p>
-          {r.status === 'erro' ? <StatusBadge tone="bad" className="py-0.5">Erro</StatusBadge> : null}
-          {r.status === 'negado' ? <StatusBadge tone="warn" className="py-0.5">Negado</StatusBadge> : null}
+    <li className={cn(r.status === 'erro' && 'bg-red-50/40', r.status === 'negado' && 'bg-neutral-100/40')}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        title={cat.label}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50"
+      >
+        <span className="w-10 shrink-0 text-[11px] font-semibold tabular-nums text-muted-foreground">{time(r.at)}</span>
+        <Icon size={13} className="shrink-0 text-muted-foreground" aria-label={cat.label} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13px] leading-5 text-foreground">
+            <span className="font-semibold">{r.summary}</span>
+            {r.target ? <span className="text-foreground/70"> · {r.target}</span> : null}
+          </span>
+          <span className="block truncate text-[11px] leading-4 text-muted-foreground md:hidden">
+            {who}{r.base_name ? ` · ${r.base_name}` : ''}
+          </span>
+        </span>
+        <span className="hidden w-52 shrink-0 truncate text-xs text-muted-foreground md:block">{who}</span>
+        <span className="hidden w-36 shrink-0 truncate text-xs text-muted-foreground lg:block">{r.base_name ?? ''}</span>
+        {r.status === 'erro' ? <StatusBadge tone="bad" className="shrink-0 py-0">Erro</StatusBadge> : null}
+        {r.status === 'negado' ? <StatusBadge tone="warn" className="shrink-0 py-0">Negado</StatusBadge> : null}
+        <ChevronDown size={13} className={cn('shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
+      </button>
+      {problem && r.detail && !open ? <p className="truncate px-3 pb-1.5 pl-[3.75rem] text-[11px] font-medium text-foreground">{r.detail}</p> : null}
+      {open ? (
+        <div className="space-y-1 border-t border-border/60 bg-muted/30 px-3 py-2 pl-[3.75rem] text-xs text-muted-foreground">
+          <p className="text-foreground">{r.summary}{r.target ? ` · ${r.target}` : ''}</p>
+          {r.detail ? <p className={cn(problem && 'font-medium text-foreground')}>{r.detail}</p> : null}
+          <p>
+            {dateTime(r.at)} · {cat.label}
+            {r.role ? ` · ${ROLE[r.role] ?? r.role}` : ''}
+            {r.device ? ` · ${r.device}` : ''}
+            {r.ip ? ` · IP ${r.ip}` : ''}
+          </p>
+          <p className="flex flex-wrap gap-x-4">
+            {r.user_email ? <button onClick={() => onUser(r.user_email!)} className="font-semibold text-foreground hover:underline">Filtrar por {r.user_email}</button> : null}
+            {r.base_id && r.base_name ? <button onClick={() => onBase(r.base_id!)} className="font-semibold text-foreground hover:underline">Filtrar por {r.base_name}</button> : null}
+          </p>
         </div>
-        {r.target ? <p className="text-sm text-foreground/80">{r.target}</p> : null}
-        {r.detail ? <p className={cn('text-xs', problem ? 'font-medium text-foreground' : 'text-muted-foreground')}>{r.detail}</p> : null}
-        <p className="mt-0.5 flex flex-wrap gap-x-1.5 text-xs text-muted-foreground">
-          {r.user_email ? (
-            <button onClick={() => onUser(r.user_email!)} className="hover:text-foreground hover:underline">
-              {r.user_email}
-            </button>
-          ) : (
-            <span>—</span>
-          )}
-          {r.role ? <span>· {ROLE[r.role] ?? r.role}</span> : null}
-          {r.base_name ? (
-            <>
-              <span>·</span>
-              {r.base_id ? (
-                <button onClick={() => onBase(r.base_id!)} className="hover:text-foreground hover:underline">
-                  {r.base_name}
-                </button>
-              ) : (
-                <span>{r.base_name}</span>
-              )}
-            </>
-          ) : null}
-          <span className="hidden sm:inline">{r.device ? `· ${r.device}` : ''}{r.ip ? ` · ${r.ip}` : ''}</span>
-        </p>
-      </div>
+      ) : null}
     </li>
   );
 }

@@ -14,6 +14,7 @@ cd docker/gpt4free
 cp .env.example .env        # edite G4F_API_KEY
 docker compose up -d        # API local em http://127.0.0.1:1337/v1
 curl -H "Authorization: Bearer SUA_CHAVE" http://127.0.0.1:1337/v1/models
+# a pasta har_and_cookies é criada por você (não pelo Docker), senão o contêiner não consegue gravar nela
 ```
 
 ## Publicar em https (o SCOLA roda na nuvem, `localhost` não serve)
@@ -25,8 +26,12 @@ curl -H "Authorization: Bearer SUA_CHAVE" http://127.0.0.1:1337/v1/models
 ## Ligar no SCOLA
 
 Painel do administrador → Motor de IA → novo motor:
-- Endereço: `https://g4f.seudominio.com/v1`
+- Endereço: `https://g4f.seudominio.com/api/Yqcloud/v1` (fixa o provedor Yqcloud)
 - Chave: o valor de `G4F_API_KEY`
-- Modelo: um nome retornado por `/v1/models` (ex.: `gpt-4o-mini`)
+- Modelo: `gpt-4o-mini`
+
+Por que fixar o provedor: em 13/10/2026 a escolha automática (`/v1/chat/completions`) quebrava na imagem
+`latest-slim` (`OperaAria has no attribute 'working'`). Testados por `/api/<Provedor>/v1`: Yqcloud funciona;
+PollinationsAI e Blackbox falharam. Provedores gratuitos mudam toda hora, então teste de novo se parar.
 
 O SCOLA testa a conexão antes de salvar.

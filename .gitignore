@@ -7,3 +7,7 @@ dist
 .DS_Store
 # Saída do script de migração (contém dados e hashes de senha — NÃO versionar)
 migracao/
+
+# gpt4free (Docker)
+docker/gpt4free/.env
+docker/gpt4free/har_and_cookies/

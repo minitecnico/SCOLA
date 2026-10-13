@@ -1,0 +1,27 @@
+# Motor de IA gratuito opcional (gpt4free), em Docker, para ligar no SCOLA como "motor externo".
+# Uso: veja README.md nesta pasta.
+services:
+  g4f:
+    image: hlohaus789/g4f:latest-slim
+    container_name: scola-g4f
+    restart: unless-stopped
+    # Chave que o SCOLA vai enviar. Defina G4F_API_KEY no arquivo .env (veja .env.example).
+    command: ["python", "-m", "g4f", "--port", "8080", "--g4f-api-key", "${G4F_API_KEY:?defina G4F_API_KEY no .env}"]
+    volumes:
+      - ./har_and_cookies:/app/har_and_cookies
+    # Só a própria máquina enxerga a porta; quem expõe na internet é o túnel abaixo.
+    ports:
+      - "127.0.0.1:1337:8080"
+
+  # Túnel da Cloudflare (gratuito): dá um endereço https para o SCOLA alcançar o g4f.
+  # Suba com: docker compose --profile tunel up -d
+  tunel:
+    profiles: ["tunel"]
+    image: cloudflare/cloudflared:latest
+    container_name: scola-g4f-tunel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - g4f
